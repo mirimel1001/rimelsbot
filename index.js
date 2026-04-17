@@ -4,7 +4,7 @@ const path = require('path');
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const config = require('./config.json');
 
-// --- 1. BOT INITIALIZATION ---
+// --- BOT INITIALIZATION ---
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -17,7 +17,7 @@ const client = new Client({
 client.commands = new Collection();
 client.aliases = new Collection();
 
-// --- 2. RECURSIVE COMMAND LOADER ---
+// --- RECURSIVE COMMAND LOADER ---
 const loadCommands = (dir) => {
   const files = fs.readdirSync(dir);
 
@@ -26,7 +26,6 @@ const loadCommands = (dir) => {
     const stat = fs.statSync(filePath);
 
     if (stat.isDirectory()) {
-      // Recursive call for subfolders
       loadCommands(filePath);
     } else if (file.endsWith('.js')) {
       const command = require(filePath);
@@ -34,16 +33,13 @@ const loadCommands = (dir) => {
       if (command.name && command.run) {
         client.commands.set(command.name.toLowerCase(), command);
         
-        // Handle Aliases
         if (command.aliases && Array.isArray(command.aliases)) {
           command.aliases.forEach(alias => {
             client.aliases.set(alias.toLowerCase(), command.name.toLowerCase());
           });
         }
         
-        console.log(`[Loader] Loaded command: ${command.name}`);
-      } else {
-        console.warn(`[Loader] The command at ${filePath} is missing name or run.`);
+        console.log(`[Loader] Loaded: ${command.name}`);
       }
     }
   }
@@ -51,17 +47,16 @@ const loadCommands = (dir) => {
 
 loadCommands(path.join(__dirname, 'cmds'));
 
-// --- 3. EVENTS ---
+// --- EVENTS ---
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
   console.log('Bot is running on Wispbyte 24/7 🚀');
 });
 
 client.on('messageCreate', async (message) => {
-  // Ignore bots and DM messages
   if (message.author.bot || !message.guild) return;
 
-  // --- PREFIX RESOLUTION ---
+  // Prefix Resolution
   let prefixes = {};
   try {
     const data = fs.readFileSync('./prefixes.json', 'utf8');
@@ -72,15 +67,12 @@ client.on('messageCreate', async (message) => {
 
   const prefix = prefixes[message.guild.id] || config.prefix;
 
-  // Case-insensitive prefix check
   if (!message.content.toLowerCase().startsWith(prefix.toLowerCase())) return;
 
-  // Split message into command and arguments
   const args = message.content.slice(prefix.length).trim().split(/ +/);
   const commandInput = args.shift().toLowerCase();
 
-  // --- COMMAND & ALIAS RESOLUTION ---
-  // Check if it's a direct command name or an alias
+  // Command & Alias Resolution
   const commandName = client.commands.has(commandInput) 
     ? commandInput 
     : client.aliases.get(commandInput);
@@ -97,7 +89,7 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-// --- 4. LOGIN ---
+// --- LOGIN ---
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
   console.error('[Error] DISCORD_TOKEN is missing in environment variables.');

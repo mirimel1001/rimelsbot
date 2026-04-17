@@ -1,2 +1,0 @@
-# rimelsbot
-rimelsbot

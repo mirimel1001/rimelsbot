@@ -1,7 +1,7 @@
 {
-  "name": "koyeb-discord-bot",
+  "name": "rimels-bot",
   "version": "1.0.0",
-  "description": "Discord bot with a keep-alive server for Koyeb",
+  "description": "A professional modular Discord bot for Wispbyte.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
