@@ -13,7 +13,7 @@ module.exports = {
       .setDescription(`Here are the available commands for this server:\n\n${commandNames}`)
       .addFields(
         { name: 'Prefix', value: `The prefix for this server is \`${prefix}\``, inline: true },
-        { name: 'Support', value: 'Use `!setprefix` to change my prefix (Admins only).', inline: true }
+        { name: 'Support', value: `Use \`${prefix}setprefix\` to change my prefix (Admins only).`, inline: true }
       )
       .setTimestamp()
       .setFooter({ 
