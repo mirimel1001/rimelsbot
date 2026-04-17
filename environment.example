@@ -1,0 +1,6 @@
+# Bot Credentials
+# Get your token from https://discord.com/developers/applications
+DISCORD_TOKEN=your_token_here
+
+# Koyeb will automatically fill this in, but you can set it to 3000 for local testing
+PORT=3000
