@@ -1,9 +1,10 @@
 require('dotenv').config();
 const fs = require('fs');
-const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
+const path = require('path');
+const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const config = require('./config.json');
 
-// --- 1. DISCORD BOT LOGIC ---
+// --- 1. BOT INITIALIZATION ---
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -12,6 +13,26 @@ const client = new Client({
   ],
 });
 
+// Setup Commands Collection
+client.commands = new Collection();
+
+// --- 2. COMMAND LOADER ---
+const cmdsPath = path.join(__dirname, 'cmds');
+const commandFiles = fs.readdirSync(cmdsPath).filter(file => file.endsWith('.js'));
+
+for (const file of commandFiles) {
+  const filePath = path.join(cmdsPath, file);
+  const command = require(filePath);
+
+  if ('name' in command && 'run' in command) {
+    client.commands.set(command.name, command);
+    console.log(`[Loader] Loaded command: ${command.name}`);
+  } else {
+    console.warn(`[Loader] The command at ${filePath} is missing a required "name" or "run" property.`);
+  }
+}
+
+// --- 3. EVENTS ---
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
   console.log('Bot is running on Wispbyte 24/7 🚀');
@@ -22,7 +43,6 @@ client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild) return;
 
   // --- PREFIX RESOLUTION ---
-  // Read custom prefixes from prefixes.json (Dynamic)
   let prefixes = {};
   try {
     const data = fs.readFileSync('./prefixes.json', 'utf8');
@@ -31,51 +51,29 @@ client.on('messageCreate', async (message) => {
     console.error('Error reading prefixes.json:', err.message);
   }
 
-  // Get prefix for this guild, or use default from config
   const prefix = prefixes[message.guild.id] || config.prefix;
 
+  // Case-insensitive prefix check
   if (!message.content.toLowerCase().startsWith(prefix.toLowerCase())) return;
 
   // Split message into command and arguments
   const args = message.content.slice(prefix.length).trim().split(/ +/);
-  const command = args.shift().toLowerCase();
+  const commandName = args.shift().toLowerCase();
 
-  // --- COMMANDS ---
+  // --- COMMAND EXECUTION ---
+  const command = client.commands.get(commandName);
 
-  // Ping Command
-  if (command === 'ping') {
-    return message.reply('Pong! 🏓');
-  }
+  if (!command) return;
 
-  // SetPrefix Command
-  if (command === 'setprefix') {
-    // Check for Administrator permission
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-      return message.reply('❌ You need **Administrator** permissions to change the prefix.');
-    }
-
-    const newPrefix = args[0];
-    if (!newPrefix) {
-      return message.reply(`❌ Please provide a new prefix. Usage: \`${prefix}setprefix <symbol>\``);
-    }
-
-    if (newPrefix.length > 5) {
-      return message.reply('❌ Prefix must be less than 5 characters long.');
-    }
-
-    // Save new prefix to file
-    prefixes[message.guild.id] = newPrefix;
-    try {
-      fs.writeFileSync('./prefixes.json', JSON.stringify(prefixes, null, 2));
-      return message.reply(`✅ Success! The prefix for this server has been changed to: \`${newPrefix}\``);
-    } catch (err) {
-      console.error('Error saving prefixes.json:', err.message);
-      return message.reply('❌ An error occurred while saving the new prefix.');
-    }
+  try {
+    await command.run(client, message, args, prefix, config);
+  } catch (error) {
+    console.error(`Error executing ${commandName}:`, error);
+    message.reply('❌ There was an error trying to execute that command!');
   }
 });
 
-// Log in the bot
+// --- 4. LOGIN ---
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
   console.error('[Error] DISCORD_TOKEN is missing in environment variables.');
