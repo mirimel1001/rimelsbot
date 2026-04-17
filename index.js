@@ -13,24 +13,43 @@ const client = new Client({
   ],
 });
 
-// Setup Commands Collection
+// Setup Collections
 client.commands = new Collection();
+client.aliases = new Collection();
 
-// --- 2. COMMAND LOADER ---
-const cmdsPath = path.join(__dirname, 'cmds');
-const commandFiles = fs.readdirSync(cmdsPath).filter(file => file.endsWith('.js'));
+// --- 2. RECURSIVE COMMAND LOADER ---
+const loadCommands = (dir) => {
+  const files = fs.readdirSync(dir);
 
-for (const file of commandFiles) {
-  const filePath = path.join(cmdsPath, file);
-  const command = require(filePath);
+  for (const file of files) {
+    const filePath = path.join(dir, file);
+    const stat = fs.statSync(filePath);
 
-  if ('name' in command && 'run' in command) {
-    client.commands.set(command.name, command);
-    console.log(`[Loader] Loaded command: ${command.name}`);
-  } else {
-    console.warn(`[Loader] The command at ${filePath} is missing a required "name" or "run" property.`);
+    if (stat.isDirectory()) {
+      // Recursive call for subfolders
+      loadCommands(filePath);
+    } else if (file.endsWith('.js')) {
+      const command = require(filePath);
+
+      if (command.name && command.run) {
+        client.commands.set(command.name.toLowerCase(), command);
+        
+        // Handle Aliases
+        if (command.aliases && Array.isArray(command.aliases)) {
+          command.aliases.forEach(alias => {
+            client.aliases.set(alias.toLowerCase(), command.name.toLowerCase());
+          });
+        }
+        
+        console.log(`[Loader] Loaded command: ${command.name}`);
+      } else {
+        console.warn(`[Loader] The command at ${filePath} is missing name or run.`);
+      }
+    }
   }
-}
+};
+
+loadCommands(path.join(__dirname, 'cmds'));
 
 // --- 3. EVENTS ---
 client.once('ready', () => {
@@ -58,9 +77,14 @@ client.on('messageCreate', async (message) => {
 
   // Split message into command and arguments
   const args = message.content.slice(prefix.length).trim().split(/ +/);
-  const commandName = args.shift().toLowerCase();
+  const commandInput = args.shift().toLowerCase();
 
-  // --- COMMAND EXECUTION ---
+  // --- COMMAND & ALIAS RESOLUTION ---
+  // Check if it's a direct command name or an alias
+  const commandName = client.commands.has(commandInput) 
+    ? commandInput 
+    : client.aliases.get(commandInput);
+
   const command = client.commands.get(commandName);
 
   if (!command) return;

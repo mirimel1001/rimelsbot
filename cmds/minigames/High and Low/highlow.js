@@ -2,16 +2,16 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const { Client: UNBClient } = require('unb-api');
 
 // Initialize the UnbelievaBoat Client
-// This uses the token you added to your .env file
 const unb = new UNBClient(process.env.UNB_TOKEN);
 
 module.exports = {
-  name: "bet",
+  name: "highlow",
+  aliases: ["hl"],
   run: async (client, message, args, prefix, config) => {
     // 1. Validate Input
     const amount = parseInt(args[0]);
     if (!amount || isNaN(amount) || amount <= 0) {
-      return message.reply(`❌ Usage: \`${prefix}bet <amount>\` (e.g., \`${prefix}bet 100\`)`);
+      return message.reply(`❌ Usage: \`${prefix}highlow <amount>\` (or \`${prefix}hl <amount>\`)`);
     }
 
     try {
@@ -49,7 +49,6 @@ module.exports = {
         row.components.forEach(c => c.setDisabled(true));
         
         const secondRoll = Math.floor(Math.random() * 100) + 1;
-        // Make sure second roll isn't identical
         const finalRoll = secondRoll === firstRoll ? secondRoll + 1 : secondRoll;
 
         const isWin = (i.customId === 'high' && finalRoll > firstRoll) || (i.customId === 'low' && finalRoll < firstRoll);
@@ -60,11 +59,9 @@ module.exports = {
           .setDescription(`The first number was **${firstRoll}**.\nThe second number was **${finalRoll}**.`);
 
         if (isWin) {
-          // Add money to UB
           await unb.editUserBalance(message.guild.id, message.author.id, { cash: amount }, `Won High/Low bet of ${amount}`);
           resultEmbed.addFields({ name: 'Winnings', value: `+${amount} Cash Added to your account!`, inline: true });
         } else {
-          // Remove money from UB
           await unb.editUserBalance(message.guild.id, message.author.id, { cash: -amount }, `Lost High/Low bet of ${amount}`);
           resultEmbed.addFields({ name: 'Losses', value: `-${amount} Cash Removed from your account.`, inline: true });
         }
