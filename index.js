@@ -34,7 +34,7 @@ client.on('messageCreate', async (message) => {
   // Get prefix for this guild, or use default from config
   const prefix = prefixes[message.guild.id] || config.prefix;
 
-  if (!message.content.startsWith(prefix)) return;
+  if (!message.content.toLowerCase().startsWith(prefix.toLowerCase())) return;
 
   // Split message into command and arguments
   const args = message.content.slice(prefix.length).trim().split(/ +/);
