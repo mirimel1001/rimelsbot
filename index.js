@@ -1,20 +1,7 @@
 require('dotenv').config();
-const express = require('express');
 const { Client, GatewayIntentBits } = require('discord.js');
 
-// --- 1. KEEP-ALIVE SERVER ---
-const app = express();
-const port = process.env.PORT || 3000;
-
-app.get('/', (req, res) => {
-  res.send('Bot is online and stayin\' alive! 🚀');
-});
-
-app.listen(port, () => {
-  console.log(`Keep-alive server listening on port ${port}`);
-});
-
-// --- 2. DISCORD BOT LOGIC ---
+// --- 1. DISCORD BOT LOGIC ---
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -25,6 +12,7 @@ const client = new Client({
 
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
+  console.log('Bot is running on Wispbyte 24/7 🚀');
 });
 
 client.on('messageCreate', (message) => {
