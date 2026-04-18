@@ -63,4 +63,4 @@ All variable placeholders in `usage` strings and help messages must use square b
 
 ## 🛠️ Development Workflow
 
-*   **Automatic Git Operations**: Upon completion of any task or set of changes, the AI assistant should automatically stage (`git add .`), commit (`git commit -m "[message]"`), and push (`git push`) the updates to the GitHub repository. This ensures the hosting environment (Wispbyte) can be updated immediately via Git Pull.
+*   **Automatic Git Operations**: Upon completion of any task or set of changes, the AI assistant should automatically stage (`git add .`), commit, and push (`git push`) the updates to the GitHub repository. Each commit must include a **short but informative note** (commit message) that clearly describes what changes were made. This ensures the version history is easy to track and the hosting environment (Wispbyte) can be updated immediately via Git Pull.
