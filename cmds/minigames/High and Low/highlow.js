@@ -1,8 +1,8 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { Client: UNBClient } = require('unb-api');
+const axios = require('axios');
 
-// Initialize the UnbelievaBoat Client
-const unb = new UNBClient(process.env.UNB_TOKEN);
+// UnbelievaBoat API Config
+const UB_API_BASE = 'https://unbelievaboat.com/api/v1';
 
 module.exports = {
   name: "highlow",
@@ -15,9 +15,15 @@ module.exports = {
     }
 
     try {
-      // 2. Check UnbelievaBoat Balance
-      const userBalance = await unb.getUserBalance(message.guild.id, message.author.id);
-      const currentCash = userBalance.cash;
+      // UnbelievaBoat Authorization Headers
+      const headers = {
+        'Authorization': process.env.UNB_TOKEN,
+        'Content-Type': 'application/json'
+      };
+
+      // 2. Check UnbelievaBoat Balance via Axios
+      const balanceResponse = await axios.get(`${UB_API_BASE}/guilds/${message.guild.id}/users/${message.author.id}`, { headers });
+      const currentCash = balanceResponse.data.cash;
 
       if (currentCash < amount) {
         return message.reply(`❌ You don't have enough cash! You currently have \`${currentCash}\` cash.`);
@@ -58,12 +64,23 @@ module.exports = {
           .setColor(isWin ? '#2ECC71' : '#E74C3C')
           .setDescription(`The first number was **${firstRoll}**.\nThe second number was **${finalRoll}**.`);
 
-        if (isWin) {
-          await unb.editUserBalance(message.guild.id, message.author.id, { cash: amount }, `Won High/Low bet of ${amount}`);
-          resultEmbed.addFields({ name: 'Winnings', value: `+${amount} Cash Added to your account!`, inline: true });
-        } else {
-          await unb.editUserBalance(message.guild.id, message.author.id, { cash: -amount }, `Lost High/Low bet of ${amount}`);
-          resultEmbed.addFields({ name: 'Losses', value: `-${amount} Cash Removed from your account.`, inline: true });
+        // 5. Update Balance via Axios
+        const updateAmount = isWin ? amount : -amount;
+        
+        try {
+          await axios.patch(`${UB_API_BASE}/guilds/${message.guild.id}/users/${message.author.id}`, 
+            { cash: updateAmount, reason: `RimelsBot High/Low: ${isWin ? 'Win' : 'Loss'}` }, 
+            { headers }
+          );
+
+          if (isWin) {
+            resultEmbed.addFields({ name: 'Winnings', value: `+${amount} Cash Added to your account!`, inline: true });
+          } else {
+            resultEmbed.addFields({ name: 'Losses', value: `-${amount} Cash Removed from your account.`, inline: true });
+          }
+        } catch (updateErr) {
+          console.error('UB Update Error:', updateErr.response?.data || updateErr.message);
+          resultEmbed.setDescription(`⚠️ The game ended but I couldn't update your balance. Check my permissions!`);
         }
 
         await i.update({ embeds: [resultEmbed], components: [row] });
@@ -77,7 +94,7 @@ module.exports = {
       });
 
     } catch (error) {
-      console.error('UnbelievaBoat API Error:', error);
+      console.error('UB API Error:', error.response?.data || error.message);
       return message.reply('❌ Error: Could not connect to UnbelievaBoat. Make sure you have **authorized** my token for this server!');
     }
   }

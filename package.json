@@ -9,6 +9,6 @@
   "dependencies": {
     "discord.js": "^14.14.1",
     "dotenv": "^16.4.5",
-    "unb-api": "^2.1.2"
+    "axios": "^1.6.8"
   }
 }
