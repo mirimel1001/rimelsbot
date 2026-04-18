@@ -18,26 +18,64 @@ module.exports = {
     client.garticGames.add(message.channel.id);
 
     try {
-      // 2. Load word list
-      const words = JSON.parse(fs.readFileSync('./gartic_words.json', 'utf8'));
-      const selection = words[Math.floor(Math.random() * words.length)];
-      const secretWord = selection.word.toLowerCase();
-      const imagePath = selection.path;
+      let secretWord = "";
+      let imageSource = null; // Buffer or Path
+      const isApiGame = !!process.env.PIXABAY_KEY;
+
+      // 2. Load Word/Image
+      if (isApiGame) {
+        try {
+          const categories = ['animals', 'nature', 'food', 'transportation', 'places'];
+          const category = categories[Math.floor(Math.random() * categories.length)];
+          
+          const response = await axios.get('https://pixabay.com/api/', {
+            params: {
+              key: process.env.PIXABAY_KEY,
+              q: category,
+              image_type: 'photo',
+              safesearch: true,
+              per_page: 50
+            }
+          });
+
+          const hits = response.data.hits.filter(h => h.tags.split(',')[0].length > 3);
+          const selection = hits[Math.floor(Math.random() * hits.length)];
+          
+          // Get the most descriptive tag (longest of the first 2 usually)
+          const tags = selection.tags.split(',').map(t => t.trim());
+          secretWord = tags[0].toLowerCase();
+          
+          // Fetch the image buffer
+          const imgUrl = selection.webformatURL;
+          const imgRes = await axios.get(imgUrl, { responseType: 'arraybuffer' });
+          imageSource = Buffer.from(imgRes.data);
+          
+          console.log(`[Gartic] API Selection: ${secretWord} (Category: ${category})`);
+        } catch (apiErr) {
+          console.error('[Gartic] Pixabay API Error, falling back:', apiErr.message);
+        }
+      }
+
+      // Fallback if API failed or not configured
+      if (!secretWord || !imageSource) {
+        const words = JSON.parse(fs.readFileSync('./gartic_words.json', 'utf8'));
+        const selection = words[Math.floor(Math.random() * words.length)];
+        secretWord = selection.word.toLowerCase();
+        imageSource = selection.path;
+      }
 
       // 3. Game Config
-      const levels = [40, 15, 1]; // Pixelation sizes (Hard -> Easy -> Clear)
+      const levels = [50, 20, 1]; // Pixelation sizes
       const prize = 500;
       let gameWon = false;
 
       const mainEmbed = new EmbedBuilder()
         .setColor('#F1C40F')
         .setTitle('🎨 Gartic: Guess the Image!')
-        .setDescription(`Be the first to type the correct word in chat!\nPrize: **💰 ${prize} Cash**`)
+        .setDescription(`Using **${isApiGame ? 'Dynamic AI' : 'Classic Starter'}** images!\nBe the first to type the correct word in chat.\nPrize: **💰 ${prize} Cash**`)
         .setFooter({ text: 'Game starts in 3 seconds...' });
 
       const gameMsg = await message.channel.send({ embeds: [mainEmbed] });
-
-      // Small delay before starting
       await new Promise(r => setTimeout(r, 3000));
 
       // 4. Collector for guesses
@@ -49,7 +87,6 @@ module.exports = {
           gameWon = true;
           collector.stop('won');
 
-          // Award Prize via Axios
           try {
             await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${m.author.id}`, {
               cash: prize
@@ -64,7 +101,7 @@ module.exports = {
               .addFields({ name: 'Reward', value: `💰 ${prize} Cash added to your balance!` })
               .setImage('attachment://final.png');
 
-            const finalImage = await Jimp.read(imagePath);
+            const finalImage = await Jimp.read(imageSource);
             const buffer = await finalImage.getBufferAsync(Jimp.MIME_PNG);
             const attachment = new AttachmentBuilder(buffer, { name: 'final.png' });
 
@@ -81,9 +118,7 @@ module.exports = {
         if (gameWon) break;
 
         const pixelSize = levels[levelIdx];
-        
-        // Process Image
-        const image = await Jimp.read(imagePath);
+        const image = await Jimp.read(imageSource);
         if (pixelSize > 1) image.pixelate(pixelSize);
         const buffer = await image.getBufferAsync(Jimp.MIME_PNG);
         const attachment = new AttachmentBuilder(buffer, { name: `reveal_${levelIdx}.png` });
@@ -94,18 +129,11 @@ module.exports = {
           .setDescription(`Type your guesses in chat now!\nHint: The word has **${secretWord.length}** letters.`)
           .setImage(`attachment://reveal_${levelIdx}.png`);
 
-        await gameMsg.edit({ embeds: [revealEmbed], files: [attachment] });
+        await gameMsg.edit({ embeds: [revealEmbed], files: [attachment] }).catch(() => {});
 
-        // Wait for next stage or until won
         await new Promise(r => {
-          let timer = setTimeout(r, 15000); // 15 seconds per stage
-          const check = setInterval(() => {
-            if (gameWon) {
-              clearTimeout(timer);
-              clearInterval(check);
-              r();
-            }
-          }, 500);
+          let timer = setTimeout(r, 15000);
+          const check = setInterval(() => { if (gameWon) { clearTimeout(timer); clearInterval(check); r(); } }, 500);
         });
       }
 
