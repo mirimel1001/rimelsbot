@@ -163,6 +163,34 @@ module.exports = {
         return message.reply("📥 Sent prompt again. Check DMs!");
       }
     }
+    // --- 3. LOBBY COMMANDS ---
+    if (game && game.status === 'LOBBY') {
+      if (subCommand === 'join') {
+        if (game.players.has(message.author.id)) return message.reply("⚠️ Already in!");
+        if (game.players.size >= game.maxPlayers) return message.reply("⚠️ Lobby full!");
+        game.players.set(message.author.id, { name: message.author.username, role: null, alive: true, ready: false });
+        return message.reply("✅ Joined!");
+      }
+      if (subCommand === 'leave') {
+        game.players.delete(message.author.id);
+        return message.reply("👋 Left.");
+      }
+      if (subCommand === 'start' || subCommand === 'launch') {
+        if (message.author.id !== game.host) return;
+        if (game.players.size < 4) return message.reply("⚠️ Need 4 players!");
+        return startGame(client, message.channel, game);
+      }
+      if (subCommand === 'cancel' || subCommand === 'exit') {
+        if (message.author.id !== game.host) return;
+        await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${game.host}`, { cash: game.prize }, {
+          headers: { 'Authorization': process.env.UNB_TOKEN }
+        });
+        client.werewolfGames.delete(message.channel.id);
+        return message.reply("⭕ Game cancelled and funds returned.");
+      }
+    }
+
+    if (!game && !subCommand) return message.reply(`🐺 Use \`${prefix}ww setup\` to start an event!`);
   }
 };
 
@@ -367,7 +395,7 @@ async function startInteractiveSetup(client, message, game) {
       await i.update({ embeds: [generateSetupEmbed(game)] });
     }
     if (i.customId === 'launch') {
-      if (game.prize <= 0) return i.reply({ content: '❌ Set prize first!', ephemeral: true });
+      if (game.prize <= 0) return i.reply({ content: '❌ Set prize first!', flags: [MessageFlags.Ephemeral] });
       collector.stop();
       i.update({ content: '🚀 Launching...', embeds: [], components: [] });
       launchLobby(client, message, game);
