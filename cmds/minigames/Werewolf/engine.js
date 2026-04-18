@@ -127,6 +127,12 @@ async function runNightPhase(client, channel, game) {
   const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ww_ready').setLabel('Ready (Skip)').setStyle(ButtonStyle.Secondary));
   const nightMsg = await channel.send({ embeds: [generateNightEmbed(game, 0, alivePlayers.length, totalNightTime)], components: [row] });
   
+  // Broadcast phase embed to all participants
+  const nightEmbed = generateNightEmbed(game, 0, alivePlayers.length, totalNightTime);
+  for (const [id] of game.players) {
+    await safeDM(client, game, id, "🌙 **Night Phase Started**", { embeds: [nightEmbed] });
+  }
+  
   const wwIds = Array.from(game.players.entries()).filter(([id, p]) => p.alive && p.role === 'WEREWOLF').map(([id]) => id);
   const seerId = Array.from(game.players.entries()).find(([id, p]) => p.role === 'SEER' && p.alive)?.[0];
   const targets = Array.from(game.players.entries()).filter(([id, p]) => p.alive);
@@ -199,6 +205,12 @@ async function runDayPhase(client, channel, game) {
     new ButtonBuilder().setCustomId('ww_ready').setLabel('Ready (Skip Timer)').setStyle(ButtonStyle.Success)
   );
   const dayMsg = await channel.send({ embeds: [generateDayEmbed(game, summary, 0, alivePlayers.length, totalDayTime)], components: [row] });
+  
+  // Broadcast phase embed to all participants
+  const dayEmbed = generateDayEmbed(game, summary, 0, alivePlayers.length, totalDayTime);
+  for (const [id] of game.players) {
+    await safeDM(client, game, id, "☀️ **Day Phase Started**", { embeds: [dayEmbed] });
+  }
   game.dayVotes = new Map();
   const startTime = Date.now();
   const dayDurationMs = (game.dayTime || 60) * game.players.size * 1000;
