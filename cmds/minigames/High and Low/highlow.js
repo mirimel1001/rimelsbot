@@ -5,6 +5,7 @@ const fs = require('fs');
 module.exports = {
   name: "highlow",
   aliases: ["hl"],
+  category: "minigame",
   description: "Bet your UnbelievaBoat cash on a High/Low roll!",
   usage: "highlow [amount]",
   run: async (client, message, args, prefix, config) => {

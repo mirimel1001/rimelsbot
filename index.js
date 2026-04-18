@@ -121,6 +121,23 @@ client.on('messageCreate', async (message) => {
 
   if (!command) return;
 
+  // --- GAME CHANNEL RESTRICTION ---
+  if (command.category === 'minigame') {
+    try {
+      if (fs.existsSync('./game_settings.json')) {
+        const gameSettings = JSON.parse(fs.readFileSync('./game_settings.json', 'utf8'));
+        const dedicatedChannel = gameSettings.guilds[message.guild.id]?.gameChannel;
+
+        if (dedicatedChannel && message.channel.id !== dedicatedChannel) {
+          return message.reply(`🚫 Minigames are restricted to <#${dedicatedChannel}> on this server.`);
+        }
+      }
+    } catch (err) {
+      console.error('Game Channel Check Error:', err.message);
+    }
+  }
+  // --------------------------------
+
   try {
     await command.run(client, message, args, prefix, config);
   } catch (error) {

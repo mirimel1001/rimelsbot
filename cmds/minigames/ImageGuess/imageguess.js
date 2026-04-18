@@ -6,6 +6,7 @@ const axios = require('axios');
 module.exports = {
   name: "imageguess",
   aliases: ["ig"],
+  category: "minigame",
   description: "Guess the hidden image as it reveals itself! Pick a category and win cash.",
   usage: "imageguess",
   run: async (client, message, args, prefix, config) => {
