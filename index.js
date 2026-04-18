@@ -83,8 +83,8 @@ client.once('ready', () => {
 
   // Status Rotation
   const statuses = [
-    { name: 'rimelsdiscord.vercel.app', type: ActivityType.Watching },
-    { name: 'rhelp | rimelsdiscord', type: ActivityType.Watching }
+    { name: `rimelsdiscord.vercel.app || ${config.prefix}help`, type: ActivityType.Watching },
+    { name: `rimels community || ${config.prefix}help`, type: ActivityType.Watching }
   ];
 
   let i = 0;
