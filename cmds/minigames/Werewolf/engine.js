@@ -76,7 +76,7 @@ async function runNightPhase(client, channel, game) {
   const embed = new EmbedBuilder()
     .setColor('#2C3E50')
     .setTitle('🌙 Night Phase')
-    .setDescription(`The sun sets. The village sleeps...\nNight will end in **${nightTime / 1000}s** (or when everyone is ready).`)
+    .setDescription(`The sun sets. The village sleeps...\nNight will end in **${nightTime / 1000}s** (or when everyone is ready).\n\n> 🤫 **Social Rule:** For the best experience, please stop talking in this channel until morning!`)
     .setFooter({ text: 'Werewolves and Seers, check your DMs!' });
   
   const row = new ActionRowBuilder().addComponents(
@@ -129,8 +129,15 @@ async function runNightPhase(client, channel, game) {
       const dmColl = dmMsg.createMessageComponentCollector({ time: nightTime });
       dmColl.on('collect', async (i) => {
         const targetId = i.values[0];
-        const role = game.players.get(targetId).role;
-        await i.update({ content: `🔮 Your vision reveals that **${game.players.get(targetId).name}** is a **${role}**.`, components: [] });
+        const target = game.players.get(targetId);
+        let result = target.role;
+        
+        // --- ACCURACY REFINEMENT: Simple vs Exact ---
+        if (game.seerMode === 'SIMPLE') {
+          result = target.role === 'WEREWOLF' ? 'WEREWOLF' : 'NOT a Werewolf';
+        }
+
+        await i.update({ content: `🔮 Your vision reveals that **${target.name}** is a **${result}**.`, components: [] });
       });
     } catch (e) {}
   }
