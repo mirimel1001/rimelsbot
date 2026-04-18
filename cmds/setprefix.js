@@ -3,6 +3,8 @@ const { PermissionsBitField } = require('discord.js');
 
 module.exports = {
   name: "setprefix",
+  description: "Change the bot's command prefix for your server.",
+  usage: "setprefix <new_symbol>",
   run: async (client, message, args, prefix, config) => {
     // Check for Administrator permission
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
