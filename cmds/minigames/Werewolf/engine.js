@@ -59,15 +59,14 @@ async function relayWWChat(client, game, senderId, content) {
   }
 }
 
-function generateNightEmbed(game, ready = 0, total = 0) {
-  const nightTime = (game.nightTime || 40) * game.players.size;
+function generateNightEmbed(game, ready = 0, total = 0, remainingTime = 0) {
   const alive = Array.from(game.players.values()).filter(p => p.alive).map(p => `• ${p.name}`).join('\n') || 'None';
   const dead = Array.from(game.players.values()).filter(p => !p.alive).map(p => `• ~~${p.name}~~`).join('\n') || 'None';
 
   return new EmbedBuilder()
     .setColor('#2C3E50')
     .setTitle('🌙 Night Phase')
-    .setDescription(`The sun sets. The village sleeps...\nNight ends in **${nightTime}s**.\n\n> 🤫 **Social Rule:** Please stay silent in this channel until morning!\n\n**Ready:** ${ready}/${total}`)
+    .setDescription(`The sun sets. The village sleeps...\nNight ends in **${remainingTime}s**. (Skip to finish early)\n\n> 🤫 **Social Rule:** Please stay silent in this channel until morning!\n\n**Ready:** ${ready}/${total}`)
     .addFields(
       { name: '👥 Alive', value: alive, inline: true },
       { name: '💀 Dead', value: dead, inline: true }
@@ -75,15 +74,14 @@ function generateNightEmbed(game, ready = 0, total = 0) {
     .setFooter({ text: 'Check DMs for actions! • Manual: rww kill [name], rww skip' });
 }
 
-function generateDayEmbed(game, summary, ready = 0, total = 0) {
-  const dayTime = (game.dayTime || 60) * game.players.size;
+function generateDayEmbed(game, summary, ready = 0, total = 0, remainingTime = 0) {
   const alive = Array.from(game.players.values()).filter(p => p.alive).map(p => `• ${p.name}`).join('\n') || 'None';
   const dead = Array.from(game.players.values()).filter(p => !p.alive).map(p => `• ~~${p.name}~~`).join('\n') || 'None';
 
   return new EmbedBuilder()
     .setColor('#F1C40F')
     .setTitle('☀️ Day Phase: Discussion')
-    .setDescription(`${summary}\n\nDiscuss & Vote! Ends in: **${dayTime}s**\nUse \`rww v [name]\` or the button to vote.\n\n**Ready:** ${ready}/${total}`)
+    .setDescription(`${summary}\n\nDiscuss & Vote! Ends in: **${remainingTime}s**\nUse \`rww v [name]\` or the button to vote.\n\n**Ready:** ${ready}/${total}`)
     .addFields(
       { name: '👥 Alive', value: alive, inline: true },
       { name: '💀 Dead', value: dead, inline: true }
@@ -124,10 +122,10 @@ function getRoleDescription(role) {
 
 async function runNightPhase(client, channel, game) {
   game.status = 'NIGHT';
-  const nightTime = (game.nightTime || 40) * game.players.size * 1000;
+  const totalNightTime = (game.nightTime || 40) * game.players.size;
   const alivePlayers = Array.from(game.players.values()).filter(p => p.alive);
   const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ww_ready').setLabel('Ready (Skip)').setStyle(ButtonStyle.Secondary));
-  const nightMsg = await channel.send({ embeds: [generateNightEmbed(game, 0, alivePlayers.length)], components: [row] });
+  const nightMsg = await channel.send({ embeds: [generateNightEmbed(game, 0, alivePlayers.length, totalNightTime)], components: [row] });
   
   const wwIds = Array.from(game.players.entries()).filter(([id, p]) => p.alive && p.role === 'WEREWOLF').map(([id]) => id);
   const seerId = Array.from(game.players.entries()).find(([id, p]) => p.role === 'SEER' && p.alive)?.[0];
@@ -151,15 +149,20 @@ async function runNightPhase(client, channel, game) {
   }
 
   const startTime = Date.now();
+  const nightDurationMs = (game.nightTime || 40) * game.players.size * 1000;
   let victim = null; game.nightVote = new Map();
   let lastReadyCount = 0;
+  let lastUpdate = Date.now();
 
-  while (Date.now() - startTime < nightTime) {
+  while (Date.now() - startTime < nightDurationMs) {
     const alive = Array.from(game.players.values()).filter(p => p.alive);
     const readyCount = alive.filter(p => p.ready).length;
-    if (readyCount !== lastReadyCount) {
+    const remaining = Math.max(0, Math.floor((nightDurationMs - (Date.now() - startTime)) / 1000));
+
+    if (readyCount !== lastReadyCount || Date.now() - lastUpdate >= 5000) {
       lastReadyCount = readyCount;
-      await nightMsg.edit({ embeds: [generateNightEmbed(game, readyCount, alive.length)] }).catch(() => null);
+      lastUpdate = Date.now();
+      await nightMsg.edit({ embeds: [generateNightEmbed(game, readyCount, alive.length, remaining)] }).catch(() => null);
     }
     if (alive.every(p => p.ready)) break;
     const wwVotes = Array.from(game.nightVote.entries());
@@ -188,24 +191,29 @@ async function runNightPhase(client, channel, game) {
 
 async function runDayPhase(client, channel, game) {
   game.status = 'DAY';
-  const dayTime = (game.dayTime || 60) * game.players.size * 1000;
   const summary = game.lastVictim ? `🚫 **${game.players.get(game.lastVictim).name}** was found dead this morning.` : '☀️ A quiet night. Everyone survived!';
+  const totalDayTime = (game.dayTime || 60) * game.players.size;
   const alivePlayers = Array.from(game.players.values()).filter(p => p.alive);
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ww_vote_open').setLabel('Cast Your Vote').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('ww_ready').setLabel('Ready (Skip Timer)').setStyle(ButtonStyle.Success)
   );
-  const dayMsg = await channel.send({ embeds: [generateDayEmbed(game, summary, 0, alivePlayers.length)], components: [row] });
+  const dayMsg = await channel.send({ embeds: [generateDayEmbed(game, summary, 0, alivePlayers.length, totalDayTime)], components: [row] });
   game.dayVotes = new Map();
   const startTime = Date.now();
+  const dayDurationMs = (game.dayTime || 60) * game.players.size * 1000;
   let lastReadyCount = 0;
+  let lastUpdate = Date.now();
 
-  while (Date.now() - startTime < dayTime) {
+  while (Date.now() - startTime < dayDurationMs) {
     const alive = Array.from(game.players.values()).filter(p => p.alive);
     const readyCount = alive.filter(p => p.ready).length;
-    if (readyCount !== lastReadyCount) {
+    const remaining = Math.max(0, Math.floor((dayDurationMs - (Date.now() - startTime)) / 1000));
+
+    if (readyCount !== lastReadyCount || Date.now() - lastUpdate >= 5000) {
       lastReadyCount = readyCount;
-      await dayMsg.edit({ embeds: [generateDayEmbed(game, summary, readyCount, alive.length)] }).catch(() => null);
+      lastUpdate = Date.now();
+      await dayMsg.edit({ embeds: [generateDayEmbed(game, summary, readyCount, alive.length, remaining)] }).catch(() => null);
     }
     if (alive.every(p => p.ready)) break;
     await new Promise(r => setTimeout(r, 1000));
