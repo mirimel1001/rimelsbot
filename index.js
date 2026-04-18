@@ -136,7 +136,7 @@ client.once('ready', () => {
     });
     
     i = (i + 1) % activities.length;
-  }, 15000);
+  }, 60000);
 });
 
 client.on('messageCreate', async (message) => {
