@@ -19,8 +19,6 @@ module.exports = {
         host: message.author.id,
         hostName: message.author.username,
         channelId: message.channel.id,
-        maxPlayers: parseInt(args[1]) || 10,
-        prize: parseInt(args[5]) || 0,
         status: 'SETUP',
         prize: 0,
         maxPlayers: 10,
@@ -29,9 +27,10 @@ module.exports = {
         dayTime: 60,
         players: new Map(),
         setupMsgId: null
-      });
+      };
 
-      return startInteractiveSetup(client, message, client.werewolfGames.get(message.channel.id));
+      client.werewolfGames.set(message.channel.id, newGame);
+      return startInteractiveSetup(client, message, newGame);
     }
 
     if (subCommand === 'status' && game) {
