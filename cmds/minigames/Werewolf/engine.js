@@ -99,8 +99,10 @@ async function assignRoles(game) {
   for (let i = 0; i < playerIds.length; i++) {
     const p = game.players.get(playerIds[i]);
     if (i < wwCount) p.role = 'WEREWOLF';
-    else if (i === wwCount) p.role = 'SEER';
-    else p.role = 'VILLAGER';
+    else if (i === wwCount) {
+      p.role = 'SEER';
+      p.scans = game.seerLimit; // Initialize scans
+    } else p.role = 'VILLAGER';
   }
 }
 
@@ -138,9 +140,14 @@ async function runNightPhase(client, channel, game) {
   }
 
   if (seerId) {
-    const options = targets.filter(([tId]) => tId !== seerId).map(([tId, tp]) => ({ label: tp.name, value: tId }));
-    const menu = new StringSelectMenuBuilder().setCustomId('ww_scan').setPlaceholder('Choose a target...').addOptions(options);
-    await safeDM(client, game, seerId, '🔮 **The crystal ball glows.** Use the menu or type `rww sc [name]` to scan a player.', { components: [new ActionRowBuilder().addComponents(menu)] });
+    const sp = game.players.get(seerId);
+    if (game.seerLimit === undefined || sp.scans > 0) {
+      const options = targets.filter(([tId]) => tId !== seerId).map(([tId, tp]) => ({ label: tp.name, value: tId }));
+      const menu = new StringSelectMenuBuilder().setCustomId('ww_scan').setPlaceholder('Choose a target...').addOptions(options);
+      await safeDM(client, game, seerId, `🔮 **The crystal ball glows.** Use the menu or type \`rww sc [name]\` to scan a player.\n*Remaining scans: ${sp.scans !== undefined ? sp.scans : '∞'}*`, { components: [new ActionRowBuilder().addComponents(menu)] });
+    } else {
+      await safeDM(client, game, seerId, "🔮 **The crystal ball is dim.** You have no scans remaining.");
+    }
   }
 
   const startTime = Date.now();
