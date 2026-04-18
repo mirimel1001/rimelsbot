@@ -84,6 +84,20 @@ const loadCommands = (dir) => {
       const command = require(filePath);
 
       if (command.name && command.run) {
+        // --- DYNAMIC CATEGORY ASSIGNMENT ---
+        const relativePath = path.relative(path.join(__dirname, 'cmds'), dir);
+        if (!relativePath) {
+          command.category = 'General';
+        } else if (relativePath === 'minigames') {
+          command.category = 'Minigames';
+        } else if (relativePath.startsWith('minigames' + path.sep)) {
+          // Use the folder name inside minigames as the category (e.g., 'Werewolf')
+          command.category = relativePath.split(path.sep)[1];
+        } else {
+          command.category = relativePath;
+        }
+        // -----------------------------------
+
         client.commands.set(command.name.toLowerCase(), command);
         
         if (command.aliases && Array.isArray(command.aliases)) {
@@ -92,7 +106,7 @@ const loadCommands = (dir) => {
           });
         }
         
-        console.log(`[Loader] Loaded: ${command.name}`);
+        console.log(`[Loader] Loaded: ${command.name} [${command.category}]`);
       }
     }
   }
