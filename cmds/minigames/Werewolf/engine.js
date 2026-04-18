@@ -258,4 +258,4 @@ async function endGame(channel, game, winners) {
 }
 
 async function cleanup(client, game) { client.werewolfGames.delete(game.channelId); }
-module.exports.relayChat = relayWWChat; module.exports.safeDM = safeDM;
+module.exports.relayChat = relayWWChat; module.exports.safeDM = safeDM; module.exports.logToHost = logToHost;
