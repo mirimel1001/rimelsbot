@@ -39,7 +39,7 @@ module.exports = {
 
     if (subCommand === 'status' || !subCommand) {
       const game = client.werewolfGames.get(message.channel.id);
-      if (!game) return message.reply("❌ No Werewolf lobby active here.");
+      if (!game) return startInteractiveSetup(client, message, prefix);
       
       const players = Array.from(game.players.values()).map(p => `• ${p.name}`).join('\n') || 'None';
       const embed = new EmbedBuilder()
