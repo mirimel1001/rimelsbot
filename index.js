@@ -17,7 +17,8 @@ const initFiles = () => {
       },
       guilds: {}
     },
-    'prize_configs.json': { guilds: {} }
+    'prize_configs.json': { guilds: {} },
+    'game_settings.json': { guilds: {} }
   };
 
   for (const [filename, content] of Object.entries(files)) {
@@ -46,6 +47,7 @@ const client = new Client({
 // Setup Collections
 client.commands = new Collection();
 client.aliases = new Collection();
+client.cooldowns = new Collection();
 
 // --- RECURSIVE COMMAND LOADER ---
 const loadCommands = (dir) => {

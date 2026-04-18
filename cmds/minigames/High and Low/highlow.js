@@ -14,6 +14,29 @@ module.exports = {
       return message.reply(`❌ Usage: \`${prefix}highlow [amount]\` (or \`${prefix}hl [amount]\`)`);
     }
 
+    // --- COOLDOWN CHECK ---
+    try {
+      if (fs.existsSync('./game_settings.json')) {
+        const settings = JSON.parse(fs.readFileSync('./game_settings.json', 'utf8'));
+        const delay = settings.guilds[message.guild.id]?.delays?.highlow;
+
+        if (delay) {
+          const key = `${message.guild.id}-highlow-${message.author.id}`;
+          const lastPlay = client.cooldowns.get(key);
+          const now = Date.now();
+
+          if (lastPlay && now < lastPlay + delay) {
+            const timeLeft = ((lastPlay + delay - now) / 1000).toFixed(1);
+            return message.reply(`⏳ Slow down! You can play **HighLow** again in **${timeLeft}s**.`);
+          }
+          client.cooldowns.set(key, now);
+        }
+      }
+    } catch (err) {
+      console.error('Cooldown Check Error (HighLow):', err.message);
+    }
+    // ----------------------
+
     try {
       // 2. Fetch UnbelievaBoat Balance via Axios
       const ubResponse = await axios.get(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${message.author.id}`, {

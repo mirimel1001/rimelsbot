@@ -34,7 +34,17 @@ When adding a new game, classify it into one of these two categories:
 | `config.json` | General bot settings like `prefix`. | Checked on every message. |
 | `winning_rates.json` | Probability overrides for betting games. | Mapped by `guildId` -> `gameName` -> `roleId`. |
 | `prize_configs.json` | Random reward ranges for non-betting games. | Mapped by `guildId` -> `gameName` -> `{min, max}`. |
+| `game_settings.json` | General game settings (e.g. Delays). | Mapped by `guildId` -> `delays` -> `gameName`. |
 | `prefixes.json` | Custom server prefixes. | Mapped by `guildId`. |
+
+---
+
+## ⏳ Cooldown System
+
+The bot implements a per-user, per-game cooldown system.
+*   **Settings**: Stored in `game_settings.json` (persisted).
+*   **Active Tracking**: Tracked in `client.cooldowns` (In-memory, resets on bot restart).
+*   **Command**: `rdelay [game name] [time]` (Supports `s`, `m`, `h`, `d`, `mo`).
 
 ---
 

@@ -17,6 +17,30 @@ module.exports = {
 
     client.imageGuessGames.add(message.channel.id);
 
+    // --- COOLDOWN CHECK ---
+    try {
+      if (fs.existsSync('./game_settings.json')) {
+        const settings = JSON.parse(fs.readFileSync('./game_settings.json', 'utf8'));
+        const delay = settings.guilds[message.guild.id]?.delays?.imageguess;
+
+        if (delay) {
+          const key = `${message.guild.id}-imageguess-${message.author.id}`;
+          const lastPlay = client.cooldowns.get(key);
+          const now = Date.now();
+
+          if (lastPlay && now < lastPlay + delay) {
+            const timeLeft = ((lastPlay + delay - now) / 1000).toFixed(1);
+            client.imageGuessGames.delete(message.channel.id); // Clean up since the game isn't actually starting
+            return message.reply(`⏳ Slow down! You can play **ImageGuess** again in **${timeLeft}s**.`);
+          }
+          client.cooldowns.set(key, now);
+        }
+      }
+    } catch (err) {
+      console.error('Cooldown Check Error (ImageGuess):', err.message);
+    }
+    // ----------------------
+
     try {
       const apiKey = process.env.PIXABAY_KEY;
       const isApiGame = !!apiKey;
