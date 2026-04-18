@@ -203,7 +203,8 @@ async function startInteractiveSetup(client, message, game) {
       { name: '🔮 Seer', value: game.seerMode, inline: true },
       { name: '🌙 Night', value: `${game.nightTime || 40}s/p`, inline: true },
       { name: '☀️ Day', value: `${game.dayTime || 60}s/p`, inline: true }
-    );
+    )
+    .setFooter({ text: 'Manual: rww setprize, rww setplayers, rww setseer, rww setnight, rww setday, rww launch' });
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('set_prize').setLabel('Prize').setStyle(ButtonStyle.Primary),
