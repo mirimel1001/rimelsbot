@@ -208,7 +208,9 @@ async function startInteractiveSetup(client, message, prefix) {
     .addFields(
       { name: '💰 Prize Pool', value: settings.prize > 0 ? `💰 ${settings.prize}` : '❌ *Not Set*', inline: true },
       { name: '👥 Max Players', value: `${settings.maxPlayers}`, inline: true },
-      { name: '🔮 Seer Mode', value: settings.seerMode === 'EXACT' ? '✅ Exact' : '❓ Simple', inline: true }
+      { name: '🔮 Seer Mode', value: settings.seerMode === 'EXACT' ? '✅ Exact' : '❓ Simple', inline: true },
+      { name: '🌙 Night Time', value: `${settings.nightTime || 40}s / player`, inline: true },
+      { name: '☀️ Day Time', value: `${settings.dayTime || 60}s / player`, inline: true }
     );
 
   const row = new ActionRowBuilder().addComponents(
@@ -217,11 +219,15 @@ async function startInteractiveSetup(client, message, prefix) {
     new ButtonBuilder().setCustomId('set_seer').setLabel('Toggle Seer').setStyle(ButtonStyle.Secondary)
   );
   const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('launch').setLabel('🚀 Launch Lobby').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('set_night').setLabel('Night Timer').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('set_day').setLabel('Day Timer').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('launch').setLabel('🚀 Launch Lobby').setStyle(ButtonStyle.Success)
+  );
+  const row3 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('exit').setLabel('Exit').setStyle(ButtonStyle.Danger)
   );
 
-  const configMsg = await message.reply({ embeds: [generateEmbed()], components: [row, row2] });
+  const configMsg = await message.reply({ embeds: [generateEmbed()], components: [row, row2, row3] });
   const collector = configMsg.createMessageComponentCollector({ time: 120000 });
 
   collector.on('collect', async (i) => {
@@ -246,6 +252,18 @@ async function startInteractiveSetup(client, message, prefix) {
     }
     if (i.customId === 'set_seer') {
       settings.seerMode = settings.seerMode === 'EXACT' ? 'SIMPLE' : 'EXACT';
+      await i.update({ embeds: [generateEmbed()] });
+    }
+    if (i.customId === 'set_night') {
+      const times = [40, 60, 80];
+      const cur = settings.nightTime || 40;
+      settings.nightTime = times[(times.indexOf(cur) + 1) % times.length];
+      await i.update({ embeds: [generateEmbed()] });
+    }
+    if (i.customId === 'set_day') {
+      const times = [60, 90, 120];
+      const cur = settings.dayTime || 60;
+      settings.dayTime = times[(times.indexOf(cur) + 1) % times.length];
       await i.update({ embeds: [generateEmbed()] });
     }
     if (i.customId === 'launch') {
