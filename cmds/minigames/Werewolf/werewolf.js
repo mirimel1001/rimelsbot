@@ -220,11 +220,29 @@ async function sendLobbyUI(channel, game) {
 
     if (i.customId === 'ww_ready') {
       p.ready = true;
-      i.reply({ content: '✅ Ready!', ephemeral: true });
+      return i.reply({ content: '✅ Ready!', ephemeral: true });
+    }
+    if (i.customId === 'ww_vote_open') {
+      const options = Array.from(g.players.entries())
+        .filter(([id, tp]) => tp.alive && id !== i.user.id)
+        .map(([id, tp]) => ({ label: tp.name, value: id }));
+      
+      if (options.length === 0) return i.reply({ content: '❌ No valid targets alive.', ephemeral: true });
+      
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId('ww_vote_cast')
+        .setPlaceholder('Pick someone to eliminate...')
+        .addOptions(options);
+
+      return i.reply({ 
+        content: '⚖️ **Cast your vote privately:**', 
+        components: [new ActionRowBuilder().addComponents(menu)], 
+        ephemeral: true 
+      });
     }
     if (i.customId === 'ww_vote_cast') {
       g.dayVotes.set(i.user.id, i.values[0]);
-      i.update({ content: `✅ Voted for **${g.players.get(i.values[0]).name}**`, components: [] });
+      return i.update({ content: `✅ Voted for **${g.players.get(i.values[0]).name}**`, components: [] });
     }
     if (i.customId === 'ww_kill') {
       g.nightVote.set(i.user.id, i.values[0]);
