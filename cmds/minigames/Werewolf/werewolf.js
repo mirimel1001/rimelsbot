@@ -9,7 +9,12 @@ module.exports = {
   usage: "werewolf [setup/status/join/leave/start/cancel/launch/setprize/setplayers/setseer/setnight/setday]",
   run: async (client, message, args, prefix, config) => {
     const subCommand = args[0]?.toLowerCase();
-    const game = client.werewolfGames.get(message.channel.id);
+    let game = client.werewolfGames.get(message.channel.id);
+
+    // DM Support: Find the game the user belongs to if in DMs
+    if (!game && !message.guild) {
+      game = Array.from(client.werewolfGames.values()).find(g => g.players.has(message.author.id));
+    }
 
     // --- 1. SETUP COMMAND ---
     if (subCommand === 'setup') {

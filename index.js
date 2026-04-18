@@ -148,19 +148,23 @@ client.once(Events.ClientReady, () => {
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  // Werewolf DM Relay (Pack Chat)
+  // Handle DMs
   if (!message.guild) {
-    const game = Array.from(client.werewolfGames.values()).find(g =>
-      g.status === 'NIGHT' &&
-      g.players.has(message.author.id) &&
-      g.players.get(message.author.id).role === 'WEREWOLF' &&
-      g.players.get(message.author.id).alive
-    );
-    if (game) {
-      const engine = require('./cmds/minigames/Werewolf/engine.js');
-      return engine.relayChat(client, game, message.author.id, message.content);
+    const prefix = getConfig().prefix;
+    if (!message.content.toLowerCase().startsWith(prefix.toLowerCase())) {
+      // Werewolf DM Relay (Pack Chat)
+      const game = Array.from(client.werewolfGames.values()).find(g =>
+        g.status === 'NIGHT' &&
+        g.players.has(message.author.id) &&
+        g.players.get(message.author.id).role === 'WEREWOLF' &&
+        g.players.get(message.author.id).alive
+      );
+      if (game) {
+        const engine = require('./cmds/minigames/Werewolf/engine.js');
+        return engine.relayChat(client, game, message.author.id, message.content);
+      }
+      return; // Ignore non-command, non-game DMs
     }
-    return; // Ignore other DMs
   }
 
   // Refresh config and handle prefixes
