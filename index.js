@@ -1,7 +1,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ActivityType } = require('discord.js');
 
 // --- AUTO-INITIALIZATION ---
 const initFiles = () => {
@@ -80,6 +80,27 @@ loadCommands(path.join(__dirname, 'cmds'));
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
   console.log('Bot is running on Wispbyte 24/7 🚀');
+
+  // Status Rotation
+  const statuses = [
+    { name: 'rimelsdiscord.vercel.app', type: ActivityType.Watching },
+    { name: 'rhelp | rimelsdiscord', type: ActivityType.Watching }
+  ];
+
+  let i = 0;
+  setInterval(() => {
+    client.user.setPresence({
+      activities: [statuses[i]],
+      status: 'online',
+    });
+    i = (i + 1) % statuses.length;
+  }, 120000); // 2 minutes
+
+  // Initial status
+  client.user.setPresence({
+    activities: [statuses[0]],
+    status: 'online',
+  });
 });
 
 client.on('messageCreate', async (message) => {
