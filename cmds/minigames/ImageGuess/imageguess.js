@@ -17,8 +17,8 @@ module.exports = {
 
     client.imageGuessGames.add(message.channel.id);
 
-    // --- COOLDOWN CHECK ---
     try {
+      // --- COOLDOWN CHECK ---
       if (fs.existsSync('./game_settings.json')) {
         const settings = JSON.parse(fs.readFileSync('./game_settings.json', 'utf8'));
         const delay = settings.guilds[message.guild.id]?.delays?.imageguess;
@@ -30,18 +30,12 @@ module.exports = {
 
           if (lastPlay && now < lastPlay + delay) {
             const timeLeft = ((lastPlay + delay - now) / 1000).toFixed(1);
-            client.imageGuessGames.delete(message.channel.id); // Clean up since the game isn't actually starting
             return message.reply(`⏳ Slow down! You can play **ImageGuess** again in **${timeLeft}s**.`);
           }
           client.cooldowns.set(key, now);
         }
       }
-    } catch (err) {
-      console.error('Cooldown Check Error (ImageGuess):', err.message);
-    }
-    // ----------------------
 
-    try {
       const apiKey = process.env.PIXABAY_KEY;
       const isApiGame = !!apiKey;
 
@@ -64,19 +58,19 @@ module.exports = {
 
         const selectionMsg = await message.reply({ embeds: [selectionEmbed], components: [row] });
 
-        const collector = selectionMsg.createMessageComponentCollector({ 
+        const selectionCollector = selectionMsg.createMessageComponentCollector({ 
           componentType: ComponentType.Button, 
           time: 30000,
           filter: (i) => i.user.id === message.author.id 
         });
 
-        const choice = await new Promise((resolve) => {
-          collector.on('collect', (i) => {
+        await new Promise((resolve) => {
+          selectionCollector.on('collect', (i) => {
             selectedCategory = i.customId;
             i.update({ content: `✅ Category selected: **${selectedCategory.toUpperCase()}**`, embeds: [], components: [] });
             resolve(true);
           });
-          collector.on('end', (collected) => {
+          selectionCollector.on('end', (collected) => {
             if (collected.size === 0) {
               selectionMsg.edit({ content: '⏰ No category selected, choosing **RANDOM**...', embeds: [], components: [] });
               resolve(false);
@@ -154,13 +148,13 @@ module.exports = {
       const gameMsg = await message.channel.send({ embeds: [mainEmbed] });
       await new Promise(r => setTimeout(r, 3000));
 
-      const filter = (m) => !m.author.bot;
-      const collector = message.channel.createMessageCollector({ filter, time: 60000 });
+      const guessFilter = (m) => !m.author.bot;
+      const guessCollector = message.channel.createMessageCollector({ filter: guessFilter, time: 60000 });
 
-      collector.on('collect', async (m) => {
+      guessCollector.on('collect', async (m) => {
         if (m.content.toLowerCase() === secretWord) {
           gameWon = true;
-          collector.stop('won');
+          guessCollector.stop('won');
 
           try {
             await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${m.author.id}`, {
@@ -188,6 +182,12 @@ module.exports = {
         }
       });
 
+      guessCollector.on('end', (collected, reason) => {
+        if (reason !== 'won' && !gameWon) {
+          gameMsg.reply(`🔌 Time's up! Nobody guessed it. The word was **${secretWord.toUpperCase()}**.`);
+        }
+      });
+
       for (let levelIdx = 0; levelIdx < levels.length; levelIdx++) {
         if (gameWon) break;
 
@@ -207,21 +207,22 @@ module.exports = {
 
         await new Promise(r => {
           let timer = setTimeout(r, 15000);
-          const check = setInterval(() => { if (gameWon) { clearTimeout(timer); clearInterval(check); r(); } }, 500);
+          const check = setInterval(() => { 
+            if (gameWon) { 
+              clearTimeout(timer); 
+              clearInterval(check); 
+              r(); 
+            } 
+          }, 500);
         });
       }
 
-      collector.on('end', (collected, reason) => {
-        client.imageGuessGames.delete(message.channel.id);
-        if (reason !== 'won' && !gameWon) {
-          gameMsg.reply(`🔌 Time's up! Nobody guessed it. The word was **${secretWord.toUpperCase()}**.`);
-        }
-      });
-
     } catch (error) {
       console.error('ImageGuess Game Error:', error);
-      client.imageGuessGames?.delete(message.channel.id);
-      return message.reply("❌ System Error: Could not start the game.");
+      return message.reply("❌ System Error: Could not finish the game.");
+    } finally {
+      // ALWAYS cleanup
+      client.imageGuessGames.delete(message.channel.id);
     }
   }
 };
