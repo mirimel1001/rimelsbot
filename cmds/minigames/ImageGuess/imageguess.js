@@ -1,37 +1,78 @@
-const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const Jimp = require('jimp');
 const fs = require('fs');
 const axios = require('axios');
 
 module.exports = {
-  name: "gartic",
-  aliases: ["guess"],
-  description: "Guess the hidden image as it reveals itself!",
-  usage: "gartic",
+  name: "imageguess",
+  aliases: ["ig"],
+  description: "Guess the hidden image as it reveals itself! Pick a category and win cash.",
+  usage: "imageguess",
   run: async (client, message, args, prefix, config) => {
-    // 1. Check if a game is already running in this channel
-    if (client.garticGames?.has(message.channel.id)) {
-      return message.reply("⚠️ A Gartic game is already running in this channel!");
+    // 1. Check if a game is already running
+    if (!client.imageGuessGames) client.imageGuessGames = new Set();
+    if (client.imageGuessGames.has(message.channel.id)) {
+      return message.reply("⚠️ An ImageGuess game is already running in this channel!");
     }
 
-    if (!client.garticGames) client.garticGames = new Set();
-    client.garticGames.add(message.channel.id);
+    client.imageGuessGames.add(message.channel.id);
 
     try {
-      let secretWord = "";
-      let imageSource = null; // Buffer or Path
       const isApiGame = !!process.env.PIXABAY_KEY;
 
-      // 2. Load Word/Image
+      // 2. Category Selection (If API is available)
+      let selectedCategory = 'random';
+      if (isApiGame) {
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('animals').setLabel('🦁 Animals').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('nature').setLabel('🌲 Nature').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('food').setLabel('🍕 Food').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('places').setLabel('🌆 Cities').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('random').setLabel('🎲 Random').setStyle(ButtonStyle.Secondary)
+        );
+
+        const selectionEmbed = new EmbedBuilder()
+          .setColor('#5865F2')
+          .setTitle('🖼️ ImageGuess: Pick a Category')
+          .setDescription('Click a button below to choose the theme for this game!')
+          .setFooter({ text: 'Selection expires in 30 seconds' });
+
+        const selectionMsg = await message.reply({ embeds: [selectionEmbed], components: [row] });
+
+        const collector = selectionMsg.createMessageComponentCollector({ 
+          componentType: ComponentType.Button, 
+          time: 30000,
+          filter: (i) => i.user.id === message.author.id 
+        });
+
+        const choice = await new Promise((resolve) => {
+          collector.on('collect', (i) => {
+            selectedCategory = i.customId;
+            i.update({ content: `✅ Category selected: **${selectedCategory.toUpperCase()}**`, embeds: [], components: [] });
+            resolve(true);
+          });
+          collector.on('end', (collected) => {
+            if (collected.size === 0) {
+              selectionMsg.edit({ content: '⏰ No category selected, choosing **RANDOM**...', embeds: [], components: [] });
+              resolve(false);
+            }
+          });
+        });
+      }
+
+      // 3. Load Word/Image
+      let secretWord = "";
+      let imageSource = null;
+
       if (isApiGame) {
         try {
           const categories = ['animals', 'nature', 'food', 'transportation', 'places'];
-          const category = categories[Math.floor(Math.random() * categories.length)];
+          let query = selectedCategory === 'random' ? categories[Math.floor(Math.random() * categories.length)] : selectedCategory;
           
           const response = await axios.get('https://pixabay.com/api/', {
             params: {
               key: process.env.PIXABAY_KEY,
-              q: category,
+              q: query,
               image_type: 'photo',
               safesearch: true,
               per_page: 50
@@ -41,22 +82,20 @@ module.exports = {
           const hits = response.data.hits.filter(h => h.tags.split(',')[0].length > 3);
           const selection = hits[Math.floor(Math.random() * hits.length)];
           
-          // Get the most descriptive tag (longest of the first 2 usually)
           const tags = selection.tags.split(',').map(t => t.trim());
           secretWord = tags[0].toLowerCase();
           
-          // Fetch the image buffer
           const imgUrl = selection.webformatURL;
           const imgRes = await axios.get(imgUrl, { responseType: 'arraybuffer' });
           imageSource = Buffer.from(imgRes.data);
           
-          console.log(`[Gartic] API Selection: ${secretWord} (Category: ${category})`);
+          console.log(`[ImageGuess] Selection: ${secretWord} (Category: ${query})`);
         } catch (apiErr) {
-          console.error('[Gartic] Pixabay API Error, falling back:', apiErr.message);
+          console.error('[ImageGuess] API Error, falling back:', apiErr.message);
         }
       }
 
-      // Fallback if API failed or not configured
+      // Fallback
       if (!secretWord || !imageSource) {
         const words = JSON.parse(fs.readFileSync('./gartic_words.json', 'utf8'));
         const selection = words[Math.floor(Math.random() * words.length)];
@@ -64,21 +103,20 @@ module.exports = {
         imageSource = selection.path;
       }
 
-      // 3. Game Config
-      const levels = [50, 20, 1]; // Pixelation sizes
+      // 4. Game Start
+      const levels = [50, 20, 1];
       const prize = 500;
       let gameWon = false;
 
       const mainEmbed = new EmbedBuilder()
         .setColor('#F1C40F')
-        .setTitle('🎨 Gartic: Guess the Image!')
-        .setDescription(`Using **${isApiGame ? 'Dynamic AI' : 'Classic Starter'}** images!\nBe the first to type the correct word in chat.\nPrize: **💰 ${prize} Cash**`)
+        .setTitle('🎨 ImageGuess: Guess the Photo!')
+        .setDescription(`Be the first to type the correct word in chat.\nPrize: **💰 ${prize} Cash**`)
         .setFooter({ text: 'Game starts in 3 seconds...' });
 
       const gameMsg = await message.channel.send({ embeds: [mainEmbed] });
       await new Promise(r => setTimeout(r, 3000));
 
-      // 4. Collector for guesses
       const filter = (m) => !m.author.bot;
       const collector = message.channel.createMessageCollector({ filter, time: 60000 });
 
@@ -107,13 +145,12 @@ module.exports = {
 
             await m.reply({ embeds: [winEmbed], files: [attachment] });
           } catch (err) {
-            console.error('Gartic Prize Error:', err.message);
+            console.error('ImageGuess Prize Error:', err.message);
             m.reply(`🎉 You won! The word was **${secretWord}**, but I couldn't update your balance automatically.`);
           }
         }
       });
 
-      // 5. Reveal Stages
       for (let levelIdx = 0; levelIdx < levels.length; levelIdx++) {
         if (gameWon) break;
 
@@ -125,8 +162,8 @@ module.exports = {
 
         const revealEmbed = new EmbedBuilder()
           .setColor('#F1C40F')
-          .setTitle(`🎨 Gartic: Reveal Stage ${levelIdx + 1}/3`)
-          .setDescription(`Type your guesses in chat now!\nHint: The word has **${secretWord.length}** letters.`)
+          .setTitle(`🎨 ImageGuess: Reveal Stage ${levelIdx + 1}/3`)
+          .setDescription(`Type your guesses in chat now!\nHint: The word has **${secretWord.length}** letters.\nCategory: **${selectedCategory.toUpperCase()}**`)
           .setImage(`attachment://reveal_${levelIdx}.png`);
 
         await gameMsg.edit({ embeds: [revealEmbed], files: [attachment] }).catch(() => {});
@@ -138,16 +175,16 @@ module.exports = {
       }
 
       collector.on('end', (collected, reason) => {
-        client.garticGames.delete(message.channel.id);
+        client.imageGuessGames.delete(message.channel.id);
         if (reason !== 'won' && !gameWon) {
           gameMsg.reply(`🔌 Time's up! Nobody guessed it. The word was **${secretWord.toUpperCase()}**.`);
         }
       });
 
     } catch (error) {
-      console.error('Gartic Game Error:', error);
-      client.garticGames?.delete(message.channel.id);
-      return message.reply("❌ System Error: Could not start the Gartic game.");
+      console.error('ImageGuess Game Error:', error);
+      client.imageGuessGames?.delete(message.channel.id);
+      return message.reply("❌ System Error: Could not start the game.");
     }
   }
 };

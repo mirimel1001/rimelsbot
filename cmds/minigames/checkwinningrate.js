@@ -9,8 +9,15 @@ module.exports = {
   run: async (client, message, args, prefix, config) => {
     const gameName = args[0]?.toLowerCase();
 
-    if (!gameName) {
-      return message.reply(`❌ Usage: \`${prefix}checkwinningrate <game name>\` (Example: \`${prefix}cwr highlow\`)`);
+    // 1. Validate against existing minigames
+    const minigamesDir = './cmds/minigames/';
+    const folders = fs.readdirSync(minigamesDir, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory())
+      .map(dirent => dirent.name.toLowerCase().replace(/ /g, '')); // e.g. "highlow"
+
+    if (!gameName || !folders.includes(gameName)) {
+      const gameList = folders.map(f => `\`${f}\``).join(', ');
+      return message.reply(`❌ Please provide a valid minigame name.\nAvailable games: ${gameList}`);
     }
 
     const filePath = './winning_rates.json';
