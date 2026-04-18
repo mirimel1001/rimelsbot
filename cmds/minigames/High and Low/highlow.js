@@ -1,9 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { Client: UNBClient } = require('unb-api');
+const axios = require('axios');
 const fs = require('fs');
-
-// Initialize the UnbelievaBoat Client
-const unb = new UNBClient(process.env.UNB_TOKEN);
 
 module.exports = {
   name: "highlow",
@@ -18,25 +15,24 @@ module.exports = {
     }
 
     try {
-      // 2. Check UnbelievaBoat Balance
-      const userBalance = await unb.getUserBalance(message.guild.id, message.author.id);
-      if (userBalance.cash < amount) {
-        return message.reply(`❌ You don't have enough cash! You currently have \`${userBalance.cash}\` cash.`);
+      // 2. Fetch UnbelievaBoat Balance via Axios
+      const ubResponse = await axios.get(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${message.author.id}`, {
+        headers: { 'Authorization': process.env.UNB_TOKEN }
+      });
+      const currentCash = ubResponse.data.cash;
+
+      if (currentCash < amount) {
+        return message.reply(`❌ You don't have enough cash! You currently have \`${currentCash}\` cash.`);
       }
 
       // 3. Determine Win Rate based on Roles
-      let winRate = 50; // Default base chance
+      let winRate = 50;
       try {
         const winData = JSON.parse(fs.readFileSync('./winning_rates.json', 'utf8'));
-        
-        // Load role IDs and chances from both defaults and guild-specific settings
         const guildSettings = winData.guilds[message.guild.id]?.highlow || {};
         const globalDefaults = winData.defaults || {};
-
-        // Merge them (Guild settings override defaults)
         const activeChances = { ...globalDefaults, ...guildSettings };
 
-        // Check user's roles and pick the highest rate
         const memberRoles = message.member.roles.cache.map(r => r.id);
         const applicableRates = memberRoles
           .filter(id => activeChances[id])
@@ -73,31 +69,25 @@ module.exports = {
       collector.on('collect', async (i) => {
         row.components.forEach(c => c.setDisabled(true));
         
-        // --- WEIGHTED LOGIC ---
         const shouldWin = Math.random() * 100 < winRate;
         let finalRoll;
 
         if (i.customId === 'high') {
           if (shouldWin) {
-            // Pick a random number HIGHER than firstRoll (up to 100)
             finalRoll = Math.floor(Math.random() * (100 - firstRoll)) + firstRoll + 1;
             if (finalRoll > 100) finalRoll = 100;
           } else {
-            // Pick a random number LOWER or equal to firstRoll
             finalRoll = Math.floor(Math.random() * firstRoll) + 1;
           }
-        } else { // 'low'
+        } else {
           if (shouldWin) {
-            // Pick a random number LOWER than firstRoll
             finalRoll = Math.floor(Math.random() * (firstRoll - 1)) + 1;
           } else {
-            // Pick a random number HIGHER or equal to firstRoll
             finalRoll = Math.floor(Math.random() * (101 - firstRoll)) + firstRoll;
             if (finalRoll > 100) finalRoll = 100;
           }
         }
         
-        // Safety: Ensure it's not the exact same number unless it's a loss
         if (finalRoll === firstRoll && shouldWin) finalRoll++;
 
         const isActualWin = (i.customId === 'high' && finalRoll > firstRoll) || (i.customId === 'low' && finalRoll < firstRoll);
@@ -107,12 +97,23 @@ module.exports = {
           .setColor(isActualWin ? '#2ECC71' : '#E74C3C')
           .setDescription(`First: **${firstRoll}** | Second: **${finalRoll}**\nChance: **${winRate}%**`);
 
-        if (isActualWin) {
-          await unb.editUserBalance(message.guild.id, message.author.id, { cash: amount }, `Won High/Low bet`);
-          resultEmbed.addFields({ name: 'Winnings', value: `+${amount} Cash Added!`, inline: true });
-        } else {
-          await unb.editUserBalance(message.guild.id, message.author.id, { cash: -amount }, `Lost High/Low bet`);
-          resultEmbed.addFields({ name: 'Losses', value: `-${amount} Cash Removed.`, inline: true });
+        // Update Balance via Axios
+        const updateAmount = isActualWin ? amount : -amount;
+        try {
+          await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${message.author.id}`, {
+            cash: updateAmount
+          }, {
+            headers: { 'Authorization': process.env.UNB_TOKEN }
+          });
+
+          if (isActualWin) {
+            resultEmbed.addFields({ name: 'Winnings', value: `+${amount} Cash Added!`, inline: true });
+          } else {
+            resultEmbed.addFields({ name: 'Losses', value: `-${amount} Cash Removed.`, inline: true });
+          }
+        } catch (apiErr) {
+          console.error('UB API Patch Error:', apiErr.response?.data || apiErr.message);
+          resultEmbed.addFields({ name: '⚠️ Error', value: `Game finished, but could not update your UnbelievaBoat balance automatically.`, inline: false });
         }
 
         await i.update({ embeds: [resultEmbed], components: [row] });
@@ -122,8 +123,8 @@ module.exports = {
       collector.on('end', c => { if (c.size === 0) msg.edit({ components: [] }).catch(() => {}); });
 
     } catch (error) {
-      console.error('Bot Error:', error);
-      return message.reply('❌ System Error: Check logs or authorization!');
+      console.error('HighLow Error:', error.response?.data || error.message);
+      return message.reply('❌ System Error: Check logs or check if the UnbelievaBoat token is correct in your .env file!');
     }
   }
 };
