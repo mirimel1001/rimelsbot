@@ -1,0 +1,7 @@
+[
+  { "word": "panda", "path": "./assets/gartic/panda.png" },
+  { "word": "lion", "path": "./assets/gartic/lion.png" },
+  { "word": "parrot", "path": "./assets/gartic/parrot.png" },
+  { "word": "car", "path": "./assets/gartic/car.png" },
+  { "word": "pizza", "path": "./assets/gartic/pizza.png" }
+]
