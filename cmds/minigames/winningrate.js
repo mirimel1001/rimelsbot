@@ -19,7 +19,7 @@ module.exports = {
     const percentInput = args[2];
 
     if (!gameName || !roleInput || !percentInput) {
-      return message.reply(`❌ Usage: \`${prefix}winningrate <game> <@role/ID> <percentage%>\`\nExample: \`${prefix}wr highlow @Weak 60%\``);
+      return message.reply(`❌ Usage: \`${prefix}winningrate [game] [@role/ID] [percentage%]\`\nExample: \`${prefix}wr highlow @Weak 60%\``);
     }
 
     // Parse Percentage

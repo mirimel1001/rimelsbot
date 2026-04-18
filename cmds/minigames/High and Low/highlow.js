@@ -6,12 +6,12 @@ module.exports = {
   name: "highlow",
   aliases: ["hl"],
   description: "Bet your UnbelievaBoat cash on a High/Low roll!",
-  usage: "highlow <amount>",
+  usage: "highlow [amount]",
   run: async (client, message, args, prefix, config) => {
     // 1. Validate Input
     const amount = parseInt(args[0]);
     if (!amount || isNaN(amount) || amount <= 0) {
-      return message.reply(`❌ Usage: \`${prefix}highlow <amount>\` (or \`${prefix}hl <amount>\`)`);
+      return message.reply(`❌ Usage: \`${prefix}highlow [amount]\` (or \`${prefix}hl [amount]\`)`);
     }
 
     try {

@@ -18,7 +18,7 @@ module.exports = {
     client.imageGuessGames.add(message.channel.id);
 
     try {
-      const apiKey = config.pixabay_key || process.env.PIXABAY_KEY;
+      const apiKey = process.env.PIXABAY_KEY;
       const isApiGame = !!apiKey;
 
       // 2. Category Selection (If API is available)
@@ -105,8 +105,20 @@ module.exports = {
       }
 
       // 4. Game Start
+      let prize = Math.floor(Math.random() * (600 - 300 + 1)) + 300; 
+      try {
+        if (fs.existsSync('./prize_configs.json')) {
+          const prizeData = JSON.parse(fs.readFileSync('./prize_configs.json', 'utf8'));
+          const guildPrizes = prizeData.guilds[message.guild.id]?.imageguess;
+          if (guildPrizes) {
+            prize = Math.floor(Math.random() * (guildPrizes.max - guildPrizes.min + 1)) + guildPrizes.min;
+          }
+        }
+      } catch (err) {
+        console.error('Error loading prize range:', err.message);
+      }
+
       const levels = [50, 20, 1];
-      const prize = 500;
       let gameWon = false;
 
       const mainEmbed = new EmbedBuilder()

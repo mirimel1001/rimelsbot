@@ -6,7 +6,7 @@ const { Client, GatewayIntentBits, Collection, ActivityType } = require('discord
 // --- AUTO-INITIALIZATION ---
 const initFiles = () => {
   const files = {
-    'config.json': { prefix: 'r', pixabay_key: '' },
+    'config.json': { prefix: 'r' },
     'prefixes.json': {},
     'winning_rates.json': {
       defaults: {
@@ -16,7 +16,8 @@ const initFiles = () => {
         "1447847605555167314": 80
       },
       guilds: {}
-    }
+    },
+    'prize_configs.json': { guilds: {} }
   };
 
   for (const [filename, content] of Object.entries(files)) {
