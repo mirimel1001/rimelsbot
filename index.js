@@ -82,9 +82,10 @@ client.once('ready', () => {
   console.log('Bot is running on Wispbyte 24/7 🚀');
 
   // Status Rotation
+  // Status Rotation
   const statuses = [
-    { name: `rimelsdiscord.vercel.app || ${config.prefix}help`, type: ActivityType.Watching },
-    { name: `rimels community || ${config.prefix}help`, type: ActivityType.Watching }
+    { name: `rimels community || ${config.prefix}help`, type: ActivityType.Watching },
+    { name: `https://discord.gg/mkMy3Cd || ${config.prefix}help`, type: ActivityType.Watching }
   ];
 
   let i = 0;
