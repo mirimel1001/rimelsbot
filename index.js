@@ -1,7 +1,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { Client, GatewayIntentBits, Collection, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ActivityType, Events } = require('discord.js');
 
 // --- AUTO-INITIALIZATION ---
 const initFiles = () => {
@@ -19,14 +19,14 @@ const initFiles = () => {
       guilds: {}
     },
     'server_prize_configs.json': { guilds: {} },
-    'server_game_settings.json': { 
+    'server_game_settings.json': {
       defaults: {
         delays: {
           highlow: 40000,
           imageguess: 30000
         }
       },
-      guilds: {} 
+      guilds: {}
     }
   };
 
@@ -100,13 +100,13 @@ const loadCommands = (dir) => {
         // -----------------------------------
 
         client.commands.set(command.name.toLowerCase(), command);
-        
+
         if (command.aliases && Array.isArray(command.aliases)) {
           command.aliases.forEach(alias => {
             client.aliases.set(alias.toLowerCase(), command.name.toLowerCase());
           });
         }
-        
+
         console.log(`[Loader] Loaded: ${command.name} [${command.category}]`);
       }
     }
@@ -116,9 +116,9 @@ const loadCommands = (dir) => {
 loadCommands(path.join(__dirname, 'cmds'));
 
 // --- EVENTS ---
-client.once('ready', () => {
+client.once(Events.ClientReady, () => {
   console.log(`Logged in as ${client.user.tag}!`);
-  console.log('Bot is running on Wispbyte 24/7 🚀');
+  console.log('Bot is flying 🚀');
 
   let i = 0;
   setInterval(() => {
@@ -131,9 +131,9 @@ client.once('ready', () => {
       ];
 
       client.user.setPresence({
-        activities: [{ 
-          name: rotation[i % rotation.length], 
-          type: ActivityType.Watching 
+        activities: [{
+          name: rotation[i % rotation.length],
+          type: ActivityType.Watching
         }],
         status: 'online',
       });
@@ -150,9 +150,9 @@ client.on('messageCreate', async (message) => {
 
   // Werewolf DM Relay (Pack Chat)
   if (!message.guild) {
-    const game = Array.from(client.werewolfGames.values()).find(g => 
-      g.status === 'NIGHT' && 
-      g.players.has(message.author.id) && 
+    const game = Array.from(client.werewolfGames.values()).find(g =>
+      g.status === 'NIGHT' &&
+      g.players.has(message.author.id) &&
       g.players.get(message.author.id).role === 'WEREWOLF' &&
       g.players.get(message.author.id).alive
     );
@@ -164,7 +164,7 @@ client.on('messageCreate', async (message) => {
   }
 
   // Refresh config and handle prefixes
-  config = getConfig(); 
+  config = getConfig();
   let prefixes = {};
   try {
     prefixes = JSON.parse(fs.readFileSync('./server_prefixes.json', 'utf8'));
@@ -179,8 +179,8 @@ client.on('messageCreate', async (message) => {
   const args = message.content.slice(prefix.length).trim().split(/ +/);
   const commandInput = args.shift().toLowerCase();
 
-  const commandName = client.commands.get(commandInput) 
-    ? commandInput 
+  const commandName = client.commands.get(commandInput)
+    ? commandInput
     : client.aliases.get(commandInput);
 
   const command = client.commands.get(commandName);

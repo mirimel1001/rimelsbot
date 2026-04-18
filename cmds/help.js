@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ComponentType, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ComponentType, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 
 module.exports = {
   name: "help",
@@ -92,7 +92,7 @@ module.exports = {
 
     collector.on('collect', async (i) => {
       if (i.user.id !== message.author.id) {
-        return i.reply({ content: '❌ You did not trigger this command.', ephemeral: true });
+        return i.reply({ content: '❌ You did not trigger this command.', flags: [MessageFlags.Ephemeral] });
       }
 
       const selected = i.values[0];

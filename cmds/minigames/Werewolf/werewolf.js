@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField, StringSelectMenuBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
 
@@ -199,25 +199,25 @@ async function sendLobbyUI(channel, game) {
     if (!g || g.status !== 'LOBBY') return;
 
     if (i.customId === 'ww_join') {
-      if (g.players.has(i.user.id)) return i.reply({ content: 'Already in!', ephemeral: true });
-      if (g.players.size >= g.maxPlayers) return i.reply({ content: 'Full!', ephemeral: true });
+      if (g.players.has(i.user.id)) return i.reply({ content: 'Already in!', flags: [MessageFlags.Ephemeral] });
+      if (g.players.size >= g.maxPlayers) return i.reply({ content: 'Full!', flags: [MessageFlags.Ephemeral] });
       g.players.set(i.user.id, { name: i.user.username, role: null, alive: true, ready: false });
-      i.reply({ content: '✅ Joined!', ephemeral: true });
+      i.reply({ content: '✅ Joined!', flags: [MessageFlags.Ephemeral] });
       updateLobbyUI(msg, g);
     }
     if (i.customId === 'ww_leave') {
       g.players.delete(i.user.id);
-      i.reply({ content: '👋 Left.', ephemeral: true });
+      i.reply({ content: '👋 Left.', flags: [MessageFlags.Ephemeral] });
       updateLobbyUI(msg, g);
     }
     if (i.customId === 'ww_start') {
-      if (i.user.id !== g.host) return i.reply({ content: 'Host only.', ephemeral: true });
-      if (g.players.size < 4) return i.reply({ content: 'Need 4 players!', ephemeral: true });
+      if (i.user.id !== g.host) return i.reply({ content: 'Host only.', flags: [MessageFlags.Ephemeral] });
+      if (g.players.size < 4) return i.reply({ content: 'Need 4 players!', flags: [MessageFlags.Ephemeral] });
       collector.stop();
       startGame(client, i.channel, g);
     }
     if (i.customId === 'ww_cancel') {
-      if (i.user.id !== g.host) return i.reply({ content: 'Host only.', ephemeral: true });
+      if (i.user.id !== g.host) return i.reply({ content: 'Host only.', flags: [MessageFlags.Ephemeral] });
       await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${i.guildId}/users/${g.host}`, { cash: g.prize }, {
         headers: { 'Authorization': process.env.UNB_TOKEN }
       });
@@ -236,13 +236,13 @@ async function sendLobbyUI(channel, game) {
 
     if (i.customId === 'ww_ready') {
       p.ready = true;
-      return i.reply({ content: '✅ Ready!', ephemeral: true });
+      return i.reply({ content: '✅ Ready!', flags: [MessageFlags.Ephemeral] });
     }
     if (i.customId === 'ww_vote_open') {
       const options = Array.from(g.players.entries()).filter(([id, tp]) => tp.alive && id !== i.user.id).map(([id, tp]) => ({ label: tp.name, value: id }));
-      if (options.length === 0) return i.reply({ content: '❌ No targets.', ephemeral: true });
+      if (options.length === 0) return i.reply({ content: '❌ No targets.', flags: [MessageFlags.Ephemeral] });
       const menu = new StringSelectMenuBuilder().setCustomId('ww_vote_cast').setPlaceholder('Vote...').addOptions(options);
-      return i.reply({ components: [new ActionRowBuilder().addComponents(menu)], ephemeral: true });
+      return i.reply({ components: [new ActionRowBuilder().addComponents(menu)], flags: [MessageFlags.Ephemeral] });
     }
     if (i.customId === 'ww_vote_cast') {
       g.dayVotes.set(i.user.id, i.values[0]);
@@ -253,7 +253,7 @@ async function sendLobbyUI(channel, game) {
       return i.update({ content: `✅ Selected **${g.players.get(i.values[0]).name}**`, components: [] });
     }
     if (i.customId === 'ww_scan') {
-      if (g.seerLimit !== null && p.scans <= 0) return i.reply({ content: "❌ No scans left!", ephemeral: true });
+      if (g.seerLimit !== null && p.scans <= 0) return i.reply({ content: "❌ No scans left!", flags: [MessageFlags.Ephemeral] });
       if (g.seerLimit !== null) p.scans--;
       const target = g.players.get(i.values[0]);
       let res = target.role;
@@ -329,7 +329,7 @@ async function startInteractiveSetup(client, message, game) {
     if (i.user.id !== game.host) return;
 
     if (i.customId === 'set_prize') {
-      await i.reply({ content: '💬 Type amount:', ephemeral: true });
+      await i.reply({ content: '💬 Type amount:', flags: [MessageFlags.Ephemeral] });
       const coll = message.channel.createMessageCollector({ filter: m => m.author.id === game.host && !isNaN(m.content), max: 1, time: 30000 });
       coll.on('collect', m => {
         game.prize = parseInt(m.content);
