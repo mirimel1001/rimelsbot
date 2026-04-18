@@ -155,8 +155,14 @@ async function runNightPhase(client, channel, game) {
       await nightMsg.edit({ embeds: [generateNightEmbed(game, readyCount, alive.length)] }).catch(() => null);
     }
     if (alive.every(p => p.ready)) break;
-    const wwVotes = Array.from(game.nightVote.values());
-    if (wwVotes.length > 0) victim = wwVotes[wwVotes.length - 1];
+    const wwVotes = Array.from(game.nightVote.entries());
+    if (wwVotes.length > 0) {
+      const lastEntry = wwVotes[wwVotes.length - 1];
+      if (lastEntry[1] !== victim) {
+        victim = lastEntry[1];
+        await logToHost(client, game, `🐺 **${game.players.get(lastEntry[0]).name}** selected to kill **${game.players.get(victim).name}**`);
+      }
+    }
     await new Promise(r => setTimeout(r, 1000));
   }
 
@@ -196,6 +202,15 @@ async function runDayPhase(client, channel, game) {
     }
     if (alive.every(p => p.ready)) break;
     await new Promise(r => setTimeout(r, 1000));
+  }
+
+  // Log breakdown to Host
+  if (game.dayVotes.size > 0) {
+    let breakdown = "🗳️ **Daily Vote Breakdown:**\n";
+    game.dayVotes.forEach((targetId, voterId) => {
+      breakdown += `• **${game.players.get(voterId).name}** voted for **${game.players.get(targetId).name}**\n`;
+    });
+    await logToHost(client, game, breakdown);
   }
 
   const counts = {}; game.dayVotes.forEach(targetId => counts[targetId] = (counts[targetId] || 0) + 1);
