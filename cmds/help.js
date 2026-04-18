@@ -49,6 +49,8 @@ module.exports = {
       emoji: cat === 'General' ? '🛡️' : (cat === 'Minigames' ? '🎮' : '🐺') 
     }));
 
+    const inviteLink = `https://discord.com/api/oauth2/authorize?client_id=${client.user.id}&permissions=8&scope=bot%20applications.commands`;
+
     const row = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId('help_select')
@@ -56,7 +58,15 @@ module.exports = {
         .addOptions(menuOptions)
     );
 
-    const helpMsg = await message.reply({ embeds: [initialEmbed], components: [row] });
+    const row2 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setLabel('Invite Bot')
+        .setStyle(ButtonStyle.Link)
+        .setURL(inviteLink)
+        .setEmoji('➕')
+    );
+
+    const helpMsg = await message.reply({ embeds: [initialEmbed], components: [row, row2] });
 
     // 5. COLLECTOR
     const collector = helpMsg.createMessageComponentCollector({
