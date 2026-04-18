@@ -42,11 +42,19 @@ module.exports = {
     const initialEmbed = embeds[defaultCat];
 
     // 4. SELECT MENU
+    const emojiMap = {
+      'General': '🛡️',
+      'Minigames': '🎮',
+      'Werewolf': '🐺',
+      'High and Low': '📈',
+      'ImageGuess': '🎨'
+    };
+
     const menuOptions = categoryNames.map(cat => ({
       label: cat,
       description: `View ${categories[cat].length} commands in ${cat}`,
       value: cat,
-      emoji: cat === 'General' ? '🛡️' : (cat === 'Minigames' ? '🎮' : '🐺') 
+      emoji: emojiMap[cat] || '📁'
     }));
 
     const inviteLink = `https://discord.com/api/oauth2/authorize?client_id=${client.user.id}&permissions=8&scope=bot%20applications.commands`;
