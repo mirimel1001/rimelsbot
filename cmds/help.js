@@ -38,7 +38,15 @@ module.exports = {
     });
 
     // 3. INITIAL EMBED (General or first category)
-    const defaultCat = categories['General'] ? 'General' : categoryNames[0];
+    let defaultCat = categories['General'] ? 'General' : categoryNames[0];
+    
+    // Check for direct category access via arguments
+    if (args[0]) {
+      const search = args.join(' ').toLowerCase();
+      const match = categoryNames.find(c => c.toLowerCase() === search || c.toLowerCase().includes(search));
+      if (match) defaultCat = match;
+    }
+
     const initialEmbed = embeds[defaultCat];
 
     // 4. SELECT MENU
