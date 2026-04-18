@@ -146,7 +146,22 @@ client.once('ready', () => {
 });
 
 client.on('messageCreate', async (message) => {
-  if (message.author.bot || !message.guild) return;
+  if (message.author.bot) return;
+
+  // Werewolf DM Relay (Pack Chat)
+  if (!message.guild) {
+    const game = Array.from(client.werewolfGames.values()).find(g => 
+      g.status === 'NIGHT' && 
+      g.players.has(message.author.id) && 
+      g.players.get(message.author.id).role === 'WEREWOLF' &&
+      g.players.get(message.author.id).alive
+    );
+    if (game) {
+      const engine = require('./cmds/minigames/Werewolf/engine.js');
+      return engine.relayChat(client, game, message.author.id, message.content);
+    }
+    return; // Ignore other DMs
+  }
 
   // Refresh config and handle prefixes
   config = getConfig(); 

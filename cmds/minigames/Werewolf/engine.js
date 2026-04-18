@@ -8,11 +8,9 @@ module.exports = {
       await notifyRoles(client, game);
 
       while (game.status !== 'ENDED') {
-        // NIGHT PHASE
         await runNightPhase(client, channel, game);
         if (checkWinConditions(channel, game)) break;
 
-        // DAY PHASE
         await runDayPhase(client, channel, game);
         if (checkWinConditions(channel, game)) break;
       }
@@ -26,20 +24,50 @@ module.exports = {
   }
 };
 
+// --- HELPERS ---
+async function safeDM(client, game, userId, content, options = {}) {
+  const p = game.players.get(userId);
+  try {
+    const user = await client.users.fetch(userId);
+    const msg = await user.send(Object.assign({ content }, options));
+    if (p) p.lastPrompt = { content, options }; // Store for recovery
+    return msg;
+  } catch (e) {
+    if (p) p.lastPrompt = { content, options };
+    const channel = await client.channels.fetch(game.channelId).catch(() => null);
+    if (channel) channel.send(`⚠️ <@${userId}>, **I couldn't DM you!** Please enable DMs from server members and type \`rww dm\` to see your prompt.`);
+    return null;
+  }
+}
+
+async function logToHost(client, game, message) {
+  try {
+    const host = await client.users.fetch(game.host);
+    await host.send(`📜 **Game Log:** ${message}`);
+  } catch (e) {}
+}
+
+async function relayWWChat(client, game, senderId, content) {
+  const p = game.players.get(senderId);
+  const others = Array.from(game.players.entries()).filter(([id, op]) => op.role === 'WEREWOLF' && op.alive && id !== senderId);
+  await logToHost(client, game, `💬 **WW Chat** from **${p.name}**: ${content}`);
+  for (const [id] of others) {
+    try {
+      const user = await client.users.fetch(id);
+      await user.send(`🐺 **${p.name}:** ${content}`);
+    } catch (e) {}
+  }
+}
+
 async function assignRoles(game) {
   const playerIds = Array.from(game.players.keys());
   const count = playerIds.length;
-
-  // Logic: <7=1, 8-15=2, 15+=3
   let wwCount = game.wwCount || 1;
   if (!game.wwCount) {
     if (count >= 15) wwCount = 3;
     else if (count >= 8) wwCount = 2;
   }
-
-  // Shuffle
   playerIds.sort(() => Math.random() - 0.5);
-
   for (let i = 0; i < playerIds.length; i++) {
     const p = game.players.get(playerIds[i]);
     if (i < wwCount) p.role = 'WEREWOLF';
@@ -49,22 +77,19 @@ async function assignRoles(game) {
 }
 
 async function notifyRoles(client, game) {
+  await logToHost(client, game, "🌑 **Game Started!** Dispatching roles...");
   for (const [id, p] of game.players) {
-    try {
-      const user = await client.users.fetch(id);
-      const embed = new EmbedBuilder()
-        .setColor(p.role === 'WEREWOLF' ? '#E74C3C' : '#2ECC71')
-        .setTitle(`🐺 You are a ${p.role}!`)
-        .setDescription(getRoleDescription(p.role));
-      await user.send({ embeds: [embed] });
-    } catch (e) {
-      console.error(`Could not DM role to ${id}`);
-    }
+    const embed = new EmbedBuilder()
+      .setColor(p.role === 'WEREWOLF' ? '#E74C3C' : '#2ECC71')
+      .setTitle(`🐺 You are a ${p.role}!`)
+      .setDescription(getRoleDescription(p.role));
+    await safeDM(client, game, id, "", { embeds: [embed] });
+    await logToHost(client, game, `• <@${id}> is a **${p.role}**`);
   }
 }
 
 function getRoleDescription(role) {
-  if (role === 'WEREWOLF') return "Goal: Eliminate the villagers. Work with other werewolves at night to pick a victim.";
+  if (role === 'WEREWOLF') return "Goal: Eliminate the villagers. Work with your pack in DMs during the night to pick a victim!";
   if (role === 'SEER') return "Goal: Expose the werewolves. Each night, you can scan one player to reveal their true identity.";
   return "Goal: Survive and vote out the werewolves during the day.";
 }
@@ -76,8 +101,8 @@ async function runNightPhase(client, channel, game) {
   const embed = new EmbedBuilder()
     .setColor('#2C3E50')
     .setTitle('🌙 Night Phase')
-    .setDescription(`The sun sets. The village sleeps...\nNight will end in **${nightTime / 1000}s** (or when everyone is ready).\n\n> 🤫 **Social Rule:** For the best experience, please stop talking in this channel until morning!`)
-    .setFooter({ text: 'Werewolves and Seers, check your DMs!' });
+    .setDescription(`The sun sets. The village sleeps...\nNight ends in **${nightTime / 1000}s**.\n\n> 🤫 **Social Rule:** Please stay silent in this channel until morning!`)
+    .setFooter({ text: 'Check DMs for your secret actions!' });
   
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ww_ready').setLabel('Ready (Skip)').setStyle(ButtonStyle.Secondary)
@@ -85,109 +110,61 @@ async function runNightPhase(client, channel, game) {
 
   const nightMsg = await channel.send({ embeds: [embed], components: [row] });
   
-  // -- NIGHT ACTIONS (DMs) --
   const wwIds = Array.from(game.players.entries()).filter(([id, p]) => p.alive && p.role === 'WEREWOLF').map(([id]) => id);
-  const seerEntry = Array.from(game.players.entries()).find(([id, p]) => p.alive && p.role === 'SEER');
-  
-  const targets = Array.from(game.players.entries())
-    .filter(([id, p]) => p.alive)
-    .map(([id, p]) => ({ label: p.name, value: id }));
+  const seerId = Array.from(game.players.entries()).find(([id, p]) => p.role === 'SEER' && p.alive)?.[0];
+  const targets = Array.from(game.players.entries()).filter(([id, p]) => p.alive);
 
-  // Notify Werewolves
-  let votedVictim = null;
   for (const id of wwIds) {
-    try {
-      const user = await client.users.fetch(id);
-      const menu = new StringSelectMenuBuilder()
-        .setCustomId('ww_kill')
-        .setPlaceholder('Choose a victim...')
-        .addOptions(targets.filter(t => !wwIds.includes(t.value)));
-      
-      const dmRow = new ActionRowBuilder().addComponents(menu);
-      const dmMsg = await user.send({ content: '🌑 **Night falls.** Who shall you eliminate tonight?', components: [dmRow] });
-      
-      const dmColl = dmMsg.createMessageComponentCollector({ time: nightTime });
-      dmColl.on('collect', async (i) => {
-        votedVictim = i.values[0];
-        await i.update({ content: `✅ You have selected **${game.players.get(votedVictim).name}** to be eliminated.`, components: [] });
-      });
-    } catch (e) {}
+    const options = targets.filter(([tId]) => !wwIds.includes(tId)).map(([tId, tp]) => ({ label: tp.name, value: tId }));
+    const menu = new StringSelectMenuBuilder().setCustomId('ww_kill').setPlaceholder('Choose a victim...').addOptions(options);
+    await safeDM(client, game, id, '🌑 **Night falls.** Use the menu or type `rww k [name]` to select a victim. You can also chat with other werewolves by typing messages here!', {
+      components: [new ActionRowBuilder().addComponents(menu)]
+    });
   }
 
-  // Notify Seer
-  if (seerEntry) {
-    try {
-      const user = await client.users.fetch(seerEntry[0]);
-      const menu = new StringSelectMenuBuilder()
-        .setCustomId('ww_scan')
-        .setPlaceholder('Pick someone to scan...')
-        .addOptions(targets.filter(t => t.value !== seerEntry[0]));
-      
-      const dmRow = new ActionRowBuilder().addComponents(menu);
-      const dmMsg = await user.send({ content: '🔮 **The crystal ball glows.** Whose soul shall you peek into?', components: [dmRow] });
-      
-      const dmColl = dmMsg.createMessageComponentCollector({ time: nightTime });
-      dmColl.on('collect', async (i) => {
-        const targetId = i.values[0];
-        const target = game.players.get(targetId);
-        let result = target.role;
-        
-        // --- ACCURACY REFINEMENT: Simple vs Exact ---
-        if (game.seerMode === 'SIMPLE') {
-          result = target.role === 'WEREWOLF' ? 'WEREWOLF' : 'NOT a Werewolf';
-        }
-
-        await i.update({ content: `🔮 Your vision reveals that **${target.name}** is a **${result}**.`, components: [] });
-      });
-    } catch (e) {}
+  if (seerId) {
+    const options = targets.filter(([tId]) => tId !== seerId).map(([tId, tp]) => ({ label: tp.name, value: tId }));
+    const menu = new StringSelectMenuBuilder().setCustomId('ww_scan').setPlaceholder('Choose a target...').addOptions(options);
+    await safeDM(client, game, seerId, '🔮 **The crystal ball glows.** Use the menu or type `rww sc [name]` to scan a player.', {
+      components: [new ActionRowBuilder().addComponents(menu)]
+    });
   }
 
-  let skipTriggered = false;
-  const skipCollector = nightMsg.createMessageComponentCollector({ time: nightTime });
-  
-  skipCollector.on('collect', (i) => {
-    const p = game.players.get(i.user.id);
-    if (!p || !p.alive) return i.reply({ content: 'Only living players can ready up.', ephemeral: true });
-    p.ready = true;
-    
-    const readyCount = Array.from(game.players.values()).filter(p => p.alive && p.ready).length;
-    const aliveCount = Array.from(game.players.values()).filter(p => p.alive).length;
-    
-    i.reply({ content: `✅ Ready! (${readyCount}/${aliveCount})`, ephemeral: true });
-    if (readyCount >= aliveCount) {
-      skipTriggered = true;
-      skipCollector.stop();
-    }
-  });
+  const startTime = Date.now();
+  let victim = null;
+  game.nightVote = new Map();
 
-  await new Promise(r => {
-    const t = setTimeout(r, nightTime);
-    const check = setInterval(() => { if (skipTriggered) { clearInterval(check); clearTimeout(t); r(); } }, 500);
-  });
+  while (Date.now() - startTime < nightTime) {
+    const alivePlayers = Array.from(game.players.values()).filter(p => p.alive);
+    if (alivePlayers.every(p => p.ready)) break;
+    const wwVotes = Array.from(game.nightVote.values());
+    if (wwVotes.length > 0) victim = wwVotes[wwVotes.length - 1];
+    await new Promise(r => setTimeout(r, 1000));
+  }
 
-  game.players.forEach(p => p.ready = false);
-  
-  if (votedVictim) {
-    game.lastVictim = votedVictim;
-    game.players.get(votedVictim).alive = false;
+  if (victim) {
+    game.lastVictim = victim;
+    game.players.get(victim).alive = false;
+    await logToHost(client, game, `🔪 Werewolves eliminated **${game.players.get(victim).name}**`);
   } else {
     game.lastVictim = null;
+    await logToHost(client, game, `🌙 No one was eliminated tonight.`);
   }
+
+  game.players.forEach(p => p.ready = false);
+  game.nightVote = null;
+  nightMsg.edit({ components: [] }).catch(() => null);
 }
 
 async function runDayPhase(client, channel, game) {
   game.status = 'DAY';
   const dayTime = (game.dayTime || 60) * game.players.size * 1000;
-
-  const summary = game.lastVictim 
-    ? `🚫 Bad news: **${game.players.get(game.lastVictim).name}** was found dead this morning.` 
-    : '☀️ A quiet night. Everyone survived!';
+  const summary = game.lastVictim ? `🚫 **${game.players.get(game.lastVictim).name}** was found dead this morning.` : '☀️ A quiet night. Everyone survived!';
 
   const embed = new EmbedBuilder()
     .setColor('#F1C40F')
-    .setTitle('☀️ Day Phase: Discussion & Trial')
-    .setDescription(`${summary}\n\nDiscuss and vote for who to eliminate!\nTrial ends in: **${dayTime / 1000}s**`)
-    .setFooter({ text: 'Everyone must click "Ready" to skip the timer.' });
+    .setTitle('☀️ Day Phase: Discussion')
+    .setDescription(`${summary}\n\nDiscuss & Vote! Ends in: **${dayTime / 1000}s**\nUse \`rww v [name]\` or the button to vote.`);
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ww_vote_open').setLabel('Cast Your Vote').setStyle(ButtonStyle.Danger),
@@ -195,125 +172,61 @@ async function runDayPhase(client, channel, game) {
   );
 
   const dayMsg = await channel.send({ embeds: [embed], components: [row] });
-  
-  const votes = new Map(); // voterId -> suspectId
-  let skipTriggered = false;
+  game.dayVotes = new Map();
+  const startTime = Date.now();
 
-  const collector = dayMsg.createMessageComponentCollector({ time: dayTime });
-
-  collector.on('collect', async (i) => {
-    const p = game.players.get(i.user.id);
-    if (!p || !p.alive) return i.reply({ content: 'Only living players can participate.', ephemeral: true });
-
-    if (i.customId === 'ww_ready') {
-      p.ready = true;
-      const readyCount = Array.from(game.players.values()).filter(p => p.alive && p.ready).length;
-      const aliveCount = Array.from(game.players.values()).filter(p => p.alive).length;
-      
-      i.reply({ content: `✅ Marked as ready! (${readyCount}/${aliveCount})`, ephemeral: true });
-      if (readyCount >= aliveCount) {
-        skipTriggered = true;
-        collector.stop();
-      }
-    }
-
-    if (i.customId === 'ww_vote_open') {
-      const options = Array.from(game.players.entries())
-        .filter(([id, target]) => target.alive && id !== i.user.id)
-        .map(([id, target]) => ({ label: target.name, value: id }));
-
-      if (options.length === 0) return i.reply({ content: 'No one left to vote for!', ephemeral: true });
-
-      const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId('ww_vote_cast')
-        .setPlaceholder('Pick a suspect...')
-        .addOptions(options);
-
-      const voteRow = new ActionRowBuilder().addComponents(selectMenu);
-      const voteResponse = await i.reply({ content: 'Who do you suspect is the Werewolf?', components: [voteRow], ephemeral: true });
-      
-      const voteColl = voteResponse.createMessageComponentCollector({ time: 30000 });
-      voteColl.on('collect', async (vI) => {
-        votes.set(vI.user.id, vI.values[0]);
-        await vI.update({ content: `✅ You voted for **${game.players.get(vI.values[0]).name}**.`, components: [] });
-      });
-    }
-  });
-
-  await new Promise(r => {
-    const t = setTimeout(r, dayTime);
-    const check = setInterval(() => { if (skipTriggered) { clearInterval(check); clearTimeout(t); r(); } }, 500);
-  });
-
-  // Tally Votes
-  const tally = {};
-  votes.forEach((suspectId) => {
-    tally[suspectId] = (tally[suspectId] || 0) + 1;
-  });
-
-  let eliminatedId = null;
-  let maxVotes = 0;
-  for (const [id, count] of Object.entries(tally)) {
-    if (count > maxVotes) {
-      maxVotes = count;
-      eliminatedId = id;
-    }
+  while (Date.now() - startTime < dayTime) {
+    const alivePlayers = Array.from(game.players.values()).filter(p => p.alive);
+    if (alivePlayers.every(p => p.ready)) break;
+    await new Promise(r => setTimeout(r, 1000));
   }
 
-  if (eliminatedId) {
+  const counts = {};
+  game.dayVotes.forEach(targetId => counts[targetId] = (counts[targetId] || 0) + 1);
+  let eliminatedId = Object.keys(counts).sort((a,b) => counts[b] - counts[a])[0];
+  if (eliminatedId && counts[eliminatedId] > 0) {
     const eliminated = game.players.get(eliminatedId);
     eliminated.alive = false;
-    channel.send(`⚖️ **The village has decided!** **${eliminated.name}** was eliminated (${maxVotes} votes). They were a **${eliminated.role}**.`);
+    channel.send(`⚖️ **${eliminated.name}** was eliminated (${counts[eliminatedId]} votes). They were a **${eliminated.role}**.`);
+    await logToHost(client, game, `⚖️ Village eliminated **${eliminated.name}** (${eliminated.role})`);
   } else {
-    channel.send("⚖️ **The village couldn't reach a decision.** Nobody was eliminated today.");
+    channel.send("⚖️ No decision reached. Nobody was eliminated.");
   }
 
   game.players.forEach(p => p.ready = false);
+  game.dayVotes = null;
+  dayMsg.edit({ components: [] }).catch(() => null);
 }
 
 function checkWinConditions(channel, game) {
-  const alivePlayers = Array.from(game.players.values()).filter(p => p.alive);
-  const wws = alivePlayers.filter(p => p.role === 'WEREWOLF').length;
-  const vils = alivePlayers.length - wws;
-
-  if (wws === 0) {
-    endGame(channel, game, 'Villagers');
-    return true;
-  }
-  if (wws >= vils) {
-    endGame(channel, game, 'Werewolves');
-    return true;
-  }
+  const alive = Array.from(game.players.values()).filter(p => p.alive);
+  const wws = alive.filter(p => p.role === 'WEREWOLF').length;
+  const vils = alive.length - wws;
+  if (wws === 0) return endGame(channel, game, 'Villagers');
+  if (wws >= vils) return endGame(channel, game, 'Werewolves');
   return false;
 }
 
 async function endGame(channel, game, winners) {
   game.status = 'ENDED';
-  const winnerList = Array.from(game.players.values())
-    .filter(p => (winners === 'Villagers' ? p.role !== 'WEREWOLF' : p.role === 'WEREWOLF') && p.alive);
-  
-  const payoutPerPerson = Math.floor(game.prize / (winnerList.length || 1));
+  const winnerList = Array.from(game.players.values()).filter(p => (winners === 'Villagers' ? p.role !== 'WEREWOLF' : p.role === 'WEREWOLF') && p.alive);
+  const payout = Math.floor(game.prize / (winnerList.length || 1));
 
-  const winEmbed = new EmbedBuilder()
-    .setColor('#2ECC71')
-    .setTitle(`🎉 ${winners.toUpperCase()} WIN!`)
+  const winEmbed = new EmbedBuilder().setColor('#2ECC71').setTitle(`🎉 ${winners.toUpperCase()} WIN!`)
     .setDescription(`The pot of **💰 ${game.prize}** is split among the survivors:`)
-    .addFields({ name: 'Winners', value: winnerList.map(w => `• ${w.name} (+${payoutPerPerson})`).join('\n') || 'None' });
+    .addFields({ name: 'Winners', value: winnerList.map(w => `• ${w.name} (+${payout})`).join('\n') || 'None' });
 
   channel.send({ embeds: [winEmbed] });
-
-  // Payout Logic (Loop through winners)
   for (const w of winnerList) {
-    // Find ID
     const entry = Array.from(game.players.entries()).find(([id, p]) => p.name === w.name);
-    if (entry) {
-      await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${channel.guild.id}/users/${entry[0]}`, { cash: payoutPerPerson }, {
-        headers: { 'Authorization': process.env.UNB_TOKEN }
-      }).catch(e => console.error('Payout failed for', entry[0]));
-    }
+    if (entry) await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${channel.guild.id}/users/${entry[0]}`, { cash: payout }, {
+      headers: { 'Authorization': process.env.UNB_TOKEN }
+    }).catch(() => null);
   }
+  return true;
 }
 
-async function cleanup(client, game) {
-  client.werewolfGames.delete(game.channelId);
-}
+async function cleanup(client, game) { client.werewolfGames.delete(game.channelId); }
+
+module.exports.relayChat = relayWWChat;
+module.exports.safeDM = safeDM;

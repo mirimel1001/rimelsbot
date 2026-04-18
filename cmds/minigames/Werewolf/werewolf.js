@@ -80,32 +80,53 @@ module.exports = {
     }
 
     // --- 3. LOBBY COMMANDS ---
-    if (game && game.status === 'LOBBY') {
-      if (subCommand === 'status' || !subCommand) {
-        return sendLobbyUI(message.channel, game);
+    // --- 4. GAME ACTIONS (MANUAL COMMANDS) ---
+    if (game && (game.status === 'NIGHT' || game.status === 'DAY')) {
+      const p = game.players.get(message.author.id);
+      if (!p || !p.alive) return;
+
+      // SKIP / READY
+      if (subCommand === 'skip' || subCommand === 's' || subCommand === 'ready') {
+        p.ready = true;
+        return message.reply("✅ Status: **Ready**.");
       }
-      if (subCommand === 'join') {
-        if (game.players.has(message.author.id)) return message.reply("Already joined!");
-        if (game.players.size >= game.maxPlayers) return message.reply("Lobby full!");
-        game.players.set(message.author.id, { name: message.author.username, role: null, alive: true, ready: false });
-        return message.reply("✅ Joined the lobby!");
+
+      // VOTE (Day)
+      if (game.status === 'DAY' && (subCommand === 'vote' || subCommand === 'v')) {
+        const targetName = args.slice(1).join(' ').toLowerCase();
+        const targetEntry = Array.from(game.players.entries()).find(([id, tp]) => tp.alive && tp.name.toLowerCase().includes(targetName) && id !== message.author.id);
+        if (!targetEntry) return message.reply("❌ Player not found or invalid target.");
+        game.dayVotes.set(message.author.id, targetEntry[0]);
+        return message.reply(`✅ Voted for **${targetEntry[1].name}**.`);
       }
-      if (subCommand === 'leave') {
-        game.players.delete(message.author.id);
-        return message.reply("👋 Left the lobby.");
+
+      // KILL (Night - Werewolf)
+      if (game.status === 'NIGHT' && (subCommand === 'kill' || subCommand === 'k')) {
+        if (p.role !== 'WEREWOLF') return;
+        const targetName = args.slice(1).join(' ').toLowerCase();
+        const targetEntry = Array.from(game.players.entries()).find(([id, tp]) => tp.alive && tp.name.toLowerCase().includes(targetName) && tp.role !== 'WEREWOLF');
+        if (!targetEntry) return message.reply("❌ Invalid target.");
+        game.nightVote.set(message.author.id, targetEntry[0]);
+        return message.reply(`✅ Selection: **${targetEntry[1].name}**.`);
       }
-      if (subCommand === 'start') {
-        if (message.author.id !== game.host) return;
-        if (game.players.size < 4) return message.reply("Need 4 players min!");
-        return startGame(client, message.channel, game);
+
+      // SCAN (Night - Seer)
+      if (game.status === 'NIGHT' && (subCommand === 'scan' || subCommand === 'sc')) {
+        if (p.role !== 'SEER') return;
+        const targetName = args.slice(1).join(' ').toLowerCase();
+        const targetEntry = Array.from(game.players.entries()).find(([id, tp]) => tp.alive && tp.name.toLowerCase().includes(targetName) && id !== message.author.id);
+        if (!targetEntry) return message.reply("❌ Invalid target.");
+        let result = targetEntry[1].role;
+        if (game.seerMode === 'SIMPLE') result = targetEntry[1].role === 'WEREWOLF' ? 'WEREWOLF' : 'NOT a Werewolf';
+        return message.reply(`🔮 Your vision reveals: **${targetEntry[1].name}** is a **${result}**.`);
       }
-      if (subCommand === 'cancel') {
-        if (message.author.id !== game.host) return;
-        await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${game.host}`, { cash: game.prize }, {
-          headers: { 'Authorization': process.env.UNB_TOKEN }
-        });
-        client.werewolfGames.delete(message.channel.id);
-        return message.reply("⭕ Refunded & Cancelled.");
+
+      // DM RECOVERY
+      if (subCommand === 'dm') {
+        const engine = require('./engine.js');
+        if (!p.lastPrompt) return message.reply("❌ No active prompt found for you.");
+        await engine.safeDM(client, game, message.author.id, p.lastPrompt.content, p.lastPrompt.options);
+        return message.reply("📥 Sent your prompt again. Check DMs!");
       }
     }
 
@@ -175,6 +196,35 @@ async function sendLobbyUI(channel, game) {
       client.werewolfGames.delete(i.channelId);
       collector.stop();
       i.update({ content: '⭕ Cancelled.', embeds: [], components: [] });
+    }
+  });
+
+  // Handle Global Interactions for Game Phases
+  client.on('interactionCreate', async (i) => {
+    if (!i.isButton() && !i.isStringSelectMenu()) return;
+    const g = Array.from(client.werewolfGames.values()).find(game => game.players.has(i.user.id));
+    if (!g) return;
+
+    const p = g.players.get(i.user.id);
+    if (!p || !p.alive) return;
+
+    if (i.customId === 'ww_ready') {
+      p.ready = true;
+      i.reply({ content: '✅ Ready!', ephemeral: true });
+    }
+    if (i.customId === 'ww_vote_cast') {
+      g.dayVotes.set(i.user.id, i.values[0]);
+      i.update({ content: `✅ Voted for **${g.players.get(i.values[0]).name}**`, components: [] });
+    }
+    if (i.customId === 'ww_kill') {
+      g.nightVote.set(i.user.id, i.values[0]);
+      i.update({ content: `✅ Selected **${g.players.get(i.values[0]).name}**`, components: [] });
+    }
+    if (i.customId === 'ww_scan') {
+      const target = g.players.get(i.values[0]);
+      let res = target.role;
+      if (g.seerMode === 'SIMPLE') res = target.role === 'WEREWOLF' ? 'WEREWOLF' : 'NOT a Werewolf';
+      i.update({ content: `🔮 Vision: **${target.name}** is a **${res}**`, components: [] });
     }
   });
 }
