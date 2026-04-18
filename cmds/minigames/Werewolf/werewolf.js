@@ -195,28 +195,45 @@ function startGame(client, channel, game) {
 async function startInteractiveSetup(client, message, game) {
   const generateEmbed = () => new EmbedBuilder()
     .setColor('#5865F2')
-    .setTitle('🌑 Werewolf Setup')
+    .setTitle('🌑 Werewolf Setup: Configuration')
+    .setDescription('Use the buttons below to tune your game settings.')
     .addFields(
-      { name: 'Prize', value: game.prize > 0 ? `💰 ${game.prize}` : '❌', inline: true },
-      { name: 'Players', value: `${game.maxPlayers}`, inline: true },
-      { name: 'Seer', value: game.seerMode, inline: true }
+      { name: '💰 Prize', value: game.prize > 0 ? `💰 ${game.prize}` : '❌ *Not Set*', inline: true },
+      { name: '👥 Players', value: `${game.maxPlayers}`, inline: true },
+      { name: '🔮 Seer', value: game.seerMode, inline: true },
+      { name: '🌙 Night', value: `${game.nightTime || 40}s/p`, inline: true },
+      { name: '☀️ Day', value: `${game.dayTime || 60}s/p`, inline: true }
     );
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('set_prize').setLabel('Prize').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId('set_players').setLabel('Players').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('launch').setLabel('🚀 Launch').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('set_seer').setLabel('Seer Accuracy').setStyle(ButtonStyle.Secondary)
+  );
+
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('set_night').setLabel('Night Timer').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('set_day').setLabel('Day Timer').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('launch').setLabel('🚀 Launch Lobby').setStyle(ButtonStyle.Success)
+  );
+
+  const row3 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('exit').setLabel('Exit').setStyle(ButtonStyle.Danger)
   );
 
-  const msg = await message.reply({ embeds: [generateEmbed()], components: [row] });
+  const msg = await message.reply({ embeds: [generateEmbed()], components: [row, row2, row3] });
   const collector = msg.createMessageComponentCollector({ time: 300000 });
 
   collector.on('collect', async (i) => {
     if (i.user.id !== game.host) return;
+
     if (i.customId === 'set_prize') {
-      await i.reply({ content: 'Type prize amount in chat...', ephemeral: true });
-      const coll = message.channel.createMessageCollector({ filter: m => m.author.id === game.host && !isNaN(m.content), max: 1, time: 30000 });
+      await i.reply({ content: '💬 Type the prize amount in chat...', ephemeral: true });
+      const coll = message.channel.createMessageCollector({ 
+        filter: m => m.author.id === game.host && !isNaN(m.content), 
+        max: 1, 
+        time: 30000 
+      });
       coll.on('collect', m => {
         game.prize = parseInt(m.content);
         m.delete().catch(() => {});
@@ -224,13 +241,28 @@ async function startInteractiveSetup(client, message, game) {
       });
     }
     if (i.customId === 'set_players') {
-      game.maxPlayers = game.maxPlayers >= 20 ? 5 : game.maxPlayers + 5;
+      const counts = [5, 10, 15, 20];
+      game.maxPlayers = counts[(counts.indexOf(game.maxPlayers) + 1) % counts.length];
+      await i.update({ embeds: [generateEmbed()] });
+    }
+    if (i.customId === 'set_seer') {
+      game.seerMode = game.seerMode === 'EXACT' ? 'SIMPLE' : 'EXACT';
+      await i.update({ embeds: [generateEmbed()] });
+    }
+    if (i.customId === 'set_night') {
+      const times = [40, 60, 80];
+      game.nightTime = times[(times.indexOf(game.nightTime || 40) + 1) % times.length];
+      await i.update({ embeds: [generateEmbed()] });
+    }
+    if (i.customId === 'set_day') {
+      const times = [60, 90, 120];
+      game.dayTime = times[(times.indexOf(game.dayTime || 60) + 1) % times.length];
       await i.update({ embeds: [generateEmbed()] });
     }
     if (i.customId === 'launch') {
-      if (game.prize <= 0) return i.reply({ content: 'Set prize first!', ephemeral: true });
+      if (game.prize <= 0) return i.reply({ content: '❌ Set prize pool first!', ephemeral: true });
       collector.stop();
-      i.update({ content: '🚀 Launching...', embeds: [], components: [] });
+      i.update({ content: '🚀 Launching Lobby...', embeds: [], components: [] });
       launchLobby(client, message, game);
     }
     if (i.customId === 'exit') {
