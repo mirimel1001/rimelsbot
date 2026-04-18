@@ -21,15 +21,27 @@ const initFiles = () => {
     'game_settings.json': { guilds: {} }
   };
 
+  // 1. Handle JSON files
   for (const [filename, content] of Object.entries(files)) {
     if (!fs.existsSync(filename)) {
       fs.writeFileSync(filename, JSON.stringify(content, null, 2));
       console.log(`[Init] Created missing file: ${filename}`);
     }
   }
+
+  // 2. Handle .env template
+  if (!fs.existsSync('.env')) {
+    const template = `DISCORD_TOKEN=your_token_here
+UNB_TOKEN=your_token_here
+PIXABAY_KEY=your_token_here_optional`;
+    fs.writeFileSync('.env', template);
+    console.warn('[Init] .env file was missing! I’ve created a template for you. Please fill in your tokens and restart.');
+    process.exit(0); // Exit so the user can fill the .env
+  }
 };
 
 initFiles();
+require('dotenv').config();
 
 // Dynamic Config Loading
 const getConfig = () => JSON.parse(fs.readFileSync('./config.json', 'utf8'));
