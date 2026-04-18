@@ -18,7 +18,8 @@ module.exports = {
     client.imageGuessGames.add(message.channel.id);
 
     try {
-      const isApiGame = !!process.env.PIXABAY_KEY;
+      const apiKey = config.pixabay_key || process.env.PIXABAY_KEY;
+      const isApiGame = !!apiKey;
 
       // 2. Category Selection (If API is available)
       let selectedCategory = 'random';
@@ -71,7 +72,7 @@ module.exports = {
           
           const response = await axios.get('https://pixabay.com/api/', {
             params: {
-              key: process.env.PIXABAY_KEY,
+              key: apiKey,
               q: query,
               image_type: 'photo',
               safesearch: true,
