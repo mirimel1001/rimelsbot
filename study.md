@@ -17,8 +17,14 @@ When adding a new game, classify it into one of these two categories:
 ### 2. Reward Games (e.g., ImageGuess)
 *   **Mechanism**: The user initiates a game without a mandatory bet.
 *   **Prize**: A random amount calculated by the bot.
-*   **Configuration**: Uses `prize_configs.json` to determine the `[Min]` and `[Max]` rewards for the server.
+*   **Configuration**: Uses `server_prize_configs.json` to determine the `[Min]` and `[Max]` rewards for the server.
 *   **Default Logic**: Should always have a hardcoded fallback range (e.g., 300-600) in the game code if no configuration exists.
+
+### 3. Multiplayer Lobby Games (e.g., Werewolf)
+*   **Mechanism**: A host initiates a lobby and funds a total prize pool from their balance.
+*   **Prize**: The total pot is split among the winning team survivors at the end.
+*   **State Management**: Tracked in global `client[gameName]Games` Maps.
+*   **Permissions**: Host-only controls for `start`, `cancel`, and `kick`. (Refunds are issued automatically on cancel).
 
 ---
 

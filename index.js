@@ -68,6 +68,7 @@ const client = new Client({
 client.commands = new Collection();
 client.aliases = new Collection();
 client.cooldowns = new Collection();
+client.werewolfGames = new Map();
 
 // --- RECURSIVE COMMAND LOADER ---
 const loadCommands = (dir) => {
