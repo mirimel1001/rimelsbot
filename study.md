@@ -58,3 +58,9 @@ All variable placeholders in `usage` strings and help messages must use square b
     *   If Betting: Update the game to check `winning_rates.json`.
 3.  **Implement Fallbacks**: Always provide a default win rate (e.g., 50%) or default prize range (e.g., 300-600) in case the JSON is missing or unconfigured.
 4.  **Update `setcash.js`**: If the new game is a betting game, add it to the `bettingGames` list to prevent manual prize overrides.
+
+---
+
+## 🛠️ Development Workflow
+
+*   **Automatic Git Operations**: Upon completion of any task or set of changes, the AI assistant should automatically stage (`git add .`), commit (`git commit -m "[message]"`), and push (`git push`) the updates to the GitHub repository. This ensures the hosting environment (Wispbyte) can be updated immediately via Git Pull.
