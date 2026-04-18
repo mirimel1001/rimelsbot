@@ -19,7 +19,7 @@ module.exports = {
     try {
       if (fs.existsSync('./server_game_settings.json')) {
         const settings = JSON.parse(fs.readFileSync('./server_game_settings.json', 'utf8'));
-        const delay = settings.guilds[message.guild.id]?.delays?.highlow;
+        const delay = settings.guilds[message.guild.id]?.delays?.highlow || settings.defaults?.delays?.highlow;
 
         if (delay) {
           const key = `${message.guild.id}-highlow-${message.author.id}`;

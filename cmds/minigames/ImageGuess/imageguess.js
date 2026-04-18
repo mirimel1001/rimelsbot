@@ -22,7 +22,7 @@ module.exports = {
       // --- COOLDOWN CHECK ---
       if (fs.existsSync('./server_game_settings.json')) {
         const settings = JSON.parse(fs.readFileSync('./server_game_settings.json', 'utf8'));
-        const delay = settings.guilds[message.guild.id]?.delays?.imageguess;
+        const delay = settings.guilds[message.guild.id]?.delays?.imageguess || settings.defaults?.delays?.imageguess;
 
         if (delay) {
           const key = `${message.guild.id}-imageguess-${message.author.id}`;

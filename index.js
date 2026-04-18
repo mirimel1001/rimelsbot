@@ -18,7 +18,15 @@ const initFiles = () => {
       guilds: {}
     },
     'server_prize_configs.json': { guilds: {} },
-    'server_game_settings.json': { guilds: {} }
+    'server_game_settings.json': { 
+      defaults: {
+        delays: {
+          highlow: 40000,
+          imageguess: 30000
+        }
+      },
+      guilds: {} 
+    }
   };
 
   // 1. Handle JSON files
