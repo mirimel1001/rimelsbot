@@ -77,6 +77,17 @@ module.exports = {
         message.reply(`✅ Day timer set to **${val}s/p**.`);
         return refreshSetupUI(client, message, game);
       }
+      if (subCommand === 'setwolves') {
+        const val = parseInt(args[1]);
+        if (isNaN(val) || val < 1) return message.reply("❌ Usage: `rww setwolves [number]`");
+        game.wwCount = val;
+        message.reply(`✅ Werewolf count set to **${val}**.`);
+        return refreshSetupUI(client, message, game);
+      }
+      if (subCommand === 'exit' || subCommand === 'cancel') {
+        client.werewolfGames.delete(message.channel.id);
+        return message.reply("⭕ Setup cancelled and closed.");
+      }
       if (subCommand === 'launch') {
         if (game.prize <= 0) return message.reply("❌ Set prize pool first!");
         return launchLobby(client, message, game);
@@ -288,29 +299,37 @@ function generateSetupEmbed(game) {
     .addFields(
       { name: '💰 Prize', value: game.prize > 0 ? `💰 ${game.prize}` : '❌ *Not Set*', inline: true },
       { name: '👥 Players', value: `${game.maxPlayers}`, inline: true },
+      { name: '🐺 Wolves', value: game.wwCount ? `${game.wwCount}` : 'Auto', inline: true },
       { name: '🔮 Seer', value: game.seerMode, inline: true },
       { name: '🌙 Night', value: `${game.nightTime || 40}s/p`, inline: true },
       { name: '☀️ Day', value: `${game.dayTime || 60}s/p`, inline: true }
     )
-    .setFooter({ text: 'Manual: rww setprize, rww setplayers, rww setseer, rww setnight, rww setday, rww launch' });
+    .setFooter({ text: 'Manual: rww setprize, rww setplayers, rww setwolves, rww setseer, rww setnight, rww setday, rww launch, rww exit' });
 }
 
 async function startInteractiveSetup(client, message, game) {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('set_prize').setLabel('Prize').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId('set_players').setLabel('Players').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('set_seer').setLabel('Seer Accuracy').setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId('set_wolves').setLabel('Wolves').setStyle(ButtonStyle.Secondary)
   );
 
   const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('set_seer').setLabel('Seer Accuracy').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('set_night').setLabel('Night Timer').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('set_day').setLabel('Day Timer').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('launch').setLabel('🚀 Launch Lobby').setStyle(ButtonStyle.Success)
+    new ButtonBuilder().setCustomId('set_day').setLabel('Day Timer').setStyle(ButtonStyle.Secondary)
   );
 
   const row3 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('launch').setLabel('🚀 Launch Lobby').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId('exit').setLabel('Exit').setStyle(ButtonStyle.Danger)
   );
+// ... inside collector
+    if (i.customId === 'set_wolves') {
+      const counts = [null, 1, 2, 3, 4];
+      game.wwCount = counts[(counts.indexOf(game.wwCount || null) + 1) % counts.length];
+      await i.update({ embeds: [generateSetupEmbed(game)] });
+    }
 
   const msg = await message.reply({ embeds: [generateSetupEmbed(game)], components: [row, row2, row3] });
   game.setupMsgId = msg.id;
