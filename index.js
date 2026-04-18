@@ -119,14 +119,24 @@ client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
   console.log('Bot is running on Wispbyte 24/7 🚀');
 
-  // Set Bot Status
-  client.user.setPresence({
-    activities: [{ 
-      name: `${config.prefix}help || Check bio for support`, 
-      type: ActivityType.Watching 
-    }],
-    status: 'online',
-  });
+  const activities = [
+    { name: `${config.prefix}help || Check bio for support`, type: ActivityType.Watching },
+    { name: `${config.prefix}help || Servers: {servers}`, type: ActivityType.Watching }
+  ];
+
+  let i = 0;
+  setInterval(() => {
+    config = getConfig(); // Keep prefix fresh
+    const activity = activities[i];
+    const name = activity.name.replace('{servers}', client.guilds.cache.size);
+    
+    client.user.setPresence({
+      activities: [{ name, type: activity.type }],
+      status: 'online',
+    });
+    
+    i = (i + 1) % activities.length;
+  }, 15000);
 });
 
 client.on('messageCreate', async (message) => {
