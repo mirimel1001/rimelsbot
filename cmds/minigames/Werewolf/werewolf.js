@@ -161,7 +161,8 @@ async function sendLobbyUI(channel, game) {
   const embed = new EmbedBuilder()
     .setColor('#5865F2')
     .setTitle('🐺 Werewolf Lobby Open!')
-    .setDescription(`**Host:** <@${game.host}>\n**Prize Pool:** 💰 ${game.prize}\n**Seer Mode:** ${game.seerMode}\n**Players:** ${game.players.size}/${game.maxPlayers}`);
+    .setDescription(`**Host:** <@${game.host}>\n**Prize Pool:** 💰 ${game.prize}\n**Seer Mode:** ${game.seerMode}\n**Players:** ${game.players.size}/${game.maxPlayers}`)
+    .setFooter({ text: 'Manual: rww join, rww leave, rww start, rww cancel' });
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ww_join').setLabel('Join').setStyle(ButtonStyle.Success),
@@ -171,6 +172,7 @@ async function sendLobbyUI(channel, game) {
   );
 
   const msg = await channel.send({ embeds: [embed], components: [row] });
+// ... (rest of the logic remains the same)
   const client = channel.client;
   const collector = msg.createMessageComponentCollector({ time: 3600000 });
 
