@@ -20,22 +20,15 @@ module.exports = {
       return message.reply('❌ Prefix must be less than 5 characters long.');
     }
 
-    // Load current prefixes
-    let prefixes = {};
     try {
-      prefixes = JSON.parse(fs.readFileSync('./prefixes.json', 'utf8'));
-    } catch (err) {
-      console.error('Error reading prefixes.json:', err.message);
-    }
+      const prefixes = JSON.parse(fs.readFileSync('./server_prefixes.json', 'utf8'));
+      prefixes[message.guild.id] = newPrefix;
+      fs.writeFileSync('./server_prefixes.json', JSON.stringify(prefixes, null, 2));
 
-    // Save new prefix to file
-    prefixes[message.guild.id] = newPrefix;
-    try {
-      fs.writeFileSync('./prefixes.json', JSON.stringify(prefixes, null, 2));
-      return message.reply(`✅ Success! The prefix for this server has been changed to: \`${newPrefix}\``);
+      return message.reply(`✅ Prefix updated! The new prefix for this server is \`${newPrefix}\``);
     } catch (err) {
-      console.error('Error saving prefixes.json:', err.message);
-      return message.reply('❌ An error occurred while saving the new prefix.');
+      console.error('Error updating server_prefixes.json:', err.message);
+      return message.reply(`❌ Failed to save the new prefix.`);
     }
   }
 };

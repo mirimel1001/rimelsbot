@@ -20,8 +20,8 @@ module.exports = {
 
     try {
       // --- COOLDOWN CHECK ---
-      if (fs.existsSync('./game_settings.json')) {
-        const settings = JSON.parse(fs.readFileSync('./game_settings.json', 'utf8'));
+      if (fs.existsSync('./server_game_settings.json')) {
+        const settings = JSON.parse(fs.readFileSync('./server_game_settings.json', 'utf8'));
         const delay = settings.guilds[message.guild.id]?.delays?.imageguess;
 
         if (delay) {
@@ -126,8 +126,8 @@ module.exports = {
       // 4. Game Start
       let prize = Math.floor(Math.random() * (600 - 300 + 1)) + 300; 
       try {
-        if (fs.existsSync('./prize_configs.json')) {
-          const prizeData = JSON.parse(fs.readFileSync('./prize_configs.json', 'utf8'));
+        if (fs.existsSync('./server_prize_configs.json')) {
+          const prizeData = JSON.parse(fs.readFileSync('./server_prize_configs.json', 'utf8'));
           const guildPrizes = prizeData.guilds[message.guild.id]?.imageguess;
           if (guildPrizes) {
             prize = Math.floor(Math.random() * (guildPrizes.max - guildPrizes.min + 1)) + guildPrizes.min;

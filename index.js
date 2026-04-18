@@ -6,9 +6,9 @@ const { Client, GatewayIntentBits, Collection, ActivityType } = require('discord
 // --- AUTO-INITIALIZATION ---
 const initFiles = () => {
   const files = {
-    'config.json': { prefix: 'r' },
-    'prefixes.json': {},
-    'winning_rates.json': {
+    'server_config.json': { prefix: 'r' },
+    'server_prefixes.json': {},
+    'server_winning_rates.json': {
       defaults: {
         "551413333765652481": 50,
         "1447847623321976964": 65,
@@ -17,8 +17,8 @@ const initFiles = () => {
       },
       guilds: {}
     },
-    'prize_configs.json': { guilds: {} },
-    'game_settings.json': { guilds: {} }
+    'server_prize_configs.json': { guilds: {} },
+    'server_game_settings.json': { guilds: {} }
   };
 
   // 1. Handle JSON files
@@ -44,7 +44,7 @@ initFiles();
 require('dotenv').config();
 
 // Dynamic Config Loading
-const getConfig = () => JSON.parse(fs.readFileSync('./config.json', 'utf8'));
+const getConfig = () => JSON.parse(fs.readFileSync('./server_config.json', 'utf8'));
 let config = getConfig();
 
 // --- BOT INITIALIZATION ---
@@ -113,9 +113,9 @@ client.on('messageCreate', async (message) => {
   config = getConfig(); 
   let prefixes = {};
   try {
-    prefixes = JSON.parse(fs.readFileSync('./prefixes.json', 'utf8'));
+    prefixes = JSON.parse(fs.readFileSync('./server_prefixes.json', 'utf8'));
   } catch (err) {
-    console.error('Error reading prefixes.json:', err.message);
+    console.error('Error reading server_prefixes.json:', err.message);
   }
 
   const prefix = prefixes[message.guild.id] || config.prefix;
@@ -136,8 +136,8 @@ client.on('messageCreate', async (message) => {
   // --- GAME CHANNEL RESTRICTION ---
   if (command.category === 'minigame') {
     try {
-      if (fs.existsSync('./game_settings.json')) {
-        const gameSettings = JSON.parse(fs.readFileSync('./game_settings.json', 'utf8'));
+      if (fs.existsSync('./server_game_settings.json')) {
+        const gameSettings = JSON.parse(fs.readFileSync('./server_game_settings.json', 'utf8'));
         const dedicatedChannel = gameSettings.guilds[message.guild.id]?.gameChannel;
 
         if (dedicatedChannel && message.channel.id !== dedicatedChannel) {

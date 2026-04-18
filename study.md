@@ -31,11 +31,12 @@ When adding a new game, classify it into one of these two categories:
 ### ⚙️ JSON Data Mapping
 | File | Purpose | Key Property |
 | :--- | :--- | :--- |
-| `config.json` | General bot settings like `prefix`. | Checked on every message. |
-| `winning_rates.json` | Probability overrides for betting games. | Mapped by `guildId` -> `gameName` -> `roleId`. |
-| `prize_configs.json` | Random reward ranges for non-betting games. | Mapped by `guildId` -> `gameName` -> `{min, max}`. |
-| `game_settings.json` | General game settings (Delays, Game Channels). | Mapped by `guildId` -> `delays/gameChannel`. |
-| `prefixes.json` | Custom server prefixes. | Mapped by `guildId`. |
+| `server_config.json` | General bot settings like `prefix`. | Checked on every message. |
+| `server_winning_rates.json` | Probability overrides for betting games. | Mapped by `guildId` -> `gameName` -> `roleId`. |
+| `server_prize_configs.json` | Random reward ranges for non-betting games. | Mapped by `guildId` -> `gameName` -> `{min, max}`. |
+| `server_game_settings.json` | General game settings (Delays, Game Channels). | Mapped by `guildId` -> `delays/gameChannel`. |
+| `server_prefixes.json` | Custom server prefixes. | Mapped by `guildId`. |
+| `.env` | Private API Keys (Discord, UNB, Pixabay). | Loaded at startup. |
 
 ---
 

@@ -2,8 +2,8 @@ node_modules
 .env
 .DS_Store
 package-lock.json
-prefixes.json
-winning_rates.json
-config.json
-prize_configs.json
-game_settings.json
+server_prefixes.json
+server_winning_rates.json
+server_config.json
+server_prize_configs.json
+server_game_settings.json

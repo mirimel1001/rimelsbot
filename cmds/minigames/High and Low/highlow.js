@@ -17,8 +17,8 @@ module.exports = {
 
     // --- COOLDOWN CHECK ---
     try {
-      if (fs.existsSync('./game_settings.json')) {
-        const settings = JSON.parse(fs.readFileSync('./game_settings.json', 'utf8'));
+      if (fs.existsSync('./server_game_settings.json')) {
+        const settings = JSON.parse(fs.readFileSync('./server_game_settings.json', 'utf8'));
         const delay = settings.guilds[message.guild.id]?.delays?.highlow;
 
         if (delay) {

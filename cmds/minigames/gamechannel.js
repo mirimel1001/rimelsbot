@@ -13,7 +13,7 @@ module.exports = {
     }
 
     const input = args[0];
-    const filePath = './game_settings.json';
+    const filePath = './server_game_settings.json';
 
     // 2. Load settings
     let settingsData = { guilds: {} };
@@ -22,7 +22,7 @@ module.exports = {
         settingsData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
       }
     } catch (err) {
-      console.error("Error reading game_settings.json:", err);
+      console.error("Error reading server_game_settings.json:", err);
     }
 
     if (!settingsData.guilds[message.guild.id]) settingsData.guilds[message.guild.id] = {};

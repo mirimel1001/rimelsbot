@@ -35,31 +35,32 @@ module.exports = {
       return message.reply("❌ Could not find that role. Make sure you mention it or provide a valid ID.");
     }
 
-    // 3. Load and Update winning_rates.json
-    let winData = { defaults: {}, guilds: {} };
-    const filePath = './winning_rates.json';
+    // 3. Load and Update server_winning_rates.json
+    let data = { defaults: {}, guilds: {} };
+    const filePath = './server_winning_rates.json';
 
     try {
       if (fs.existsSync(filePath)) {
-        winData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
       }
     } catch (err) {
-      console.error("Error reading winning_rates.json:", err);
+      console.error('Error reading server_winning_rates.json:', err.message);
+      return message.reply('❌ Could not load winning rate settings.');
     }
 
     // Initialize structures
-    if (!winData.guilds[message.guild.id]) winData.guilds[message.guild.id] = {};
-    if (!winData.guilds[message.guild.id][gameName]) winData.guilds[message.guild.id][gameName] = {};
+    if (!data.guilds[message.guild.id]) data.guilds[message.guild.id] = {};
+    if (!data.guilds[message.guild.id][gameName]) data.guilds[message.guild.id][gameName] = {};
 
     // Save
-    winData.guilds[message.guild.id][gameName][roleId] = percentage;
+    data.guilds[message.guild.id][gameName][role.id] = rate;
 
     try {
-      fs.writeFileSync(filePath, JSON.stringify(winData, null, 2));
-      return message.reply(`✅ Success! Members with the **${role.name}** role now have a **${percentage}%** win rate in **${gameName}**.`);
+      fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+      return message.reply(`✅ Success! Winning rate for **${gameName}** (Role: ${role.name}) is now **${rate}%**.`);
     } catch (err) {
-      console.error("Error writing winning_rates.json:", err);
-      return message.reply("❌ Failed to save the winning rate settings.");
+      console.error('Error writing server_winning_rates.json:', err.message);
+      return message.reply('❌ Could not save winning rate settings.');
     }
   }
 };

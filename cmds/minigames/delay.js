@@ -26,16 +26,16 @@ module.exports = {
       return message.reply("❌ Invalid time format! Use `s` (seconds), `m` (minutes), `h` (hours), `d` (days), or `mo` (months).\nExample: `10s`, `5m`, `2h`.");
     }
 
-    // 4. Load and Update game_settings.json
+    // 4. Load and Update server_game_settings.json
     let settingsData = { guilds: {} };
-    const filePath = './game_settings.json';
+    const filePath = './server_game_settings.json';
 
     try {
       if (fs.existsSync(filePath)) {
         settingsData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
       }
     } catch (err) {
-      console.error("Error reading game_settings.json:", err);
+      console.error("Error reading server_game_settings.json:", err);
     }
 
     // Initialize structures

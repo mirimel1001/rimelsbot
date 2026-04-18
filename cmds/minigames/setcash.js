@@ -33,16 +33,16 @@ module.exports = {
       return message.reply("❌ Invalid numbers. Ensure Min and Max are positive and Max is greater than or equal to Min.");
     }
 
-    // 3. Load and Update prize_configs.json
+    // 3. Load and Update server_prize_configs.json
     let prizeData = { guilds: {} };
-    const filePath = './prize_configs.json';
+    const filePath = './server_prize_configs.json';
 
     try {
       if (fs.existsSync(filePath)) {
         prizeData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
       }
     } catch (err) {
-      console.error("Error reading prize_configs.json:", err);
+      console.error("Error reading server_prize_configs.json:", err);
     }
 
     // Initialize structures
