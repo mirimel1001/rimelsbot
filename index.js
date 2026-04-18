@@ -82,25 +82,12 @@ client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
   console.log('Bot is running on Wispbyte 24/7 🚀');
 
-  // Status Rotation
-  // Status Rotation
-  const statuses = [
-    { name: `rimels community || ${config.prefix}help`, type: ActivityType.Watching },
-    { name: `https://discord.gg/mkMy3Cd || ${config.prefix}help`, type: ActivityType.Watching }
-  ];
-
-  let i = 0;
-  setInterval(() => {
-    client.user.setPresence({
-      activities: [statuses[i]],
-      status: 'online',
-    });
-    i = (i + 1) % statuses.length;
-  }, 120000); // 2 minutes
-
-  // Initial status
+  // Set Bot Status
   client.user.setPresence({
-    activities: [statuses[0]],
+    activities: [{ 
+      name: `${config.prefix}help || Check bio for support`, 
+      type: ActivityType.Watching 
+    }],
     status: 'online',
   });
 });
