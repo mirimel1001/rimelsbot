@@ -21,56 +21,65 @@ module.exports = {
         channelId: message.channel.id,
         maxPlayers: parseInt(args[1]) || 10,
         prize: parseInt(args[5]) || 0,
-        wwCount: parseInt(args[2]) || null,
-        dayTime: parseInt(args[3]) || 60,
-        nightTime: parseInt(args[4]) || 40,
-        seerMode: 'EXACT',
+        status: 'SETUP',
+        prize: 0,
+        maxPlayers: 10,
+        seerMode: 'SIMPLE',
+        nightTime: 40,
+        dayTime: 60,
         players: new Map(),
-        status: 'CONFIG'
-      };
+        setupMsgId: null
+      });
 
-      client.werewolfGames.set(message.channel.id, newGame);
-
-      if (args[1] && args[5]) return launchLobby(client, message, newGame);
-      return startInteractiveSetup(client, message, newGame);
+      return startInteractiveSetup(client, message, client.werewolfGames.get(message.channel.id));
     }
 
-    // --- 2. CONFIG COMMANDS (DURING CONFIG PHASE) ---
-    if (game && game.status === 'CONFIG') {
+    if (subCommand === 'status' && game) {
+      if (game.status === 'SETUP') {
+        return startInteractiveSetup(client, message, game); // Resend/Update dashboard
+      }
+      return message.reply(`🎮 **Game in Progress:** ${game.status}\n👥 **Players:** ${game.players.size}/${game.maxPlayers}\n💰 **Prize:** ${game.prize}`);
+    }
+
+    // --- 2. CONFIG COMMANDS (MANUAL) ---
+    if (game && game.status === 'SETUP') {
       if (message.author.id !== game.host) return;
 
       if (subCommand === 'setprize') {
-        const amount = parseInt(args[1]);
-        if (!amount || isNaN(amount)) return message.reply("❌ Usage: `rww setprize [amount]`");
-        game.prize = amount;
-        return message.reply(`✅ Prize pool set to **${amount}**.`);
+        const val = parseInt(args[1]);
+        if (isNaN(val)) return message.reply("❌ Usage: `rww setprize [amount]`");
+        game.prize = val;
+        message.reply(`✅ Prize set to **${val}**.`);
+        return refreshSetupUI(client, message, game);
       }
       if (subCommand === 'setplayers') {
-        const count = parseInt(args[1]);
-        if (!count || isNaN(count)) return message.reply("❌ Usage: `rww setplayers [count]`");
-        game.maxPlayers = count;
-        return message.reply(`✅ Max players set to **${count}**.`);
+        const val = parseInt(args[1]);
+        if (isNaN(val) || val < 4) return message.reply("❌ Usage: `rww setplayers [4-20]`");
+        game.maxPlayers = val;
+        message.reply(`✅ Max players set to **${val}**.`);
+        return refreshSetupUI(client, message, game);
       }
       if (subCommand === 'setseer') {
-        const mode = args[1]?.toUpperCase();
-        if (mode !== 'EXACT' && mode !== 'SIMPLE') return message.reply("❌ Use `EXACT` or `SIMPLE`.");
-        game.seerMode = mode;
-        return message.reply(`✅ Seer mode: **${mode}**.`);
+        game.seerMode = args[1]?.toUpperCase() === 'EXACT' ? 'EXACT' : 'SIMPLE';
+        message.reply(`✅ Seer mode set to **${game.seerMode}**.`);
+        return refreshSetupUI(client, message, game);
       }
       if (subCommand === 'setnight') {
-        const s = parseInt(args[1]);
-        if (!s || isNaN(s)) return message.reply("❌ Usage: `rww setnight [seconds]`");
-        game.nightTime = s;
-        return message.reply(`✅ Night timer: **${s}s** per player.`);
+        const val = parseInt(args[1]);
+        if (isNaN(val)) return message.reply("❌ Usage: `rww setnight [seconds per player]`");
+        game.nightTime = val;
+        message.reply(`✅ Night timer set to **${val}s/p**.`);
+        return refreshSetupUI(client, message, game);
       }
       if (subCommand === 'setday') {
-        const s = parseInt(args[1]);
-        if (!s || isNaN(s)) return message.reply("❌ Usage: `rww setday [seconds]`");
-        game.dayTime = s;
-        return message.reply(`✅ Day timer: **${s}s** per player.`);
+        const val = parseInt(args[1]);
+        if (isNaN(val)) return message.reply("❌ Usage: `rww setday [seconds per player]`");
+        game.dayTime = val;
+        message.reply(`✅ Day timer set to **${val}s/p**.`);
+        return refreshSetupUI(client, message, game);
       }
       if (subCommand === 'launch') {
-        if (game.prize <= 0) return message.reply("❌ Please set a prize amount first!");
+        if (game.prize <= 0) return message.reply("❌ Set prize pool first!");
         return launchLobby(client, message, game);
       }
       if (subCommand === 'cancel' || subCommand === 'exit') {
@@ -242,8 +251,18 @@ function startGame(client, channel, game) {
   engine.run(client, channel, game);
 }
 
-async function startInteractiveSetup(client, message, game) {
-  const generateEmbed = () => new EmbedBuilder()
+async function refreshSetupUI(client, message, game) {
+  if (!game.setupMsgId) return;
+  try {
+    const channel = await client.channels.fetch(game.channelId);
+    const msg = await channel.messages.fetch(game.setupMsgId);
+    const embed = generateSetupEmbed(game);
+    await msg.edit({ embeds: [embed] });
+  } catch (e) {}
+}
+
+function generateSetupEmbed(game) {
+  return new EmbedBuilder()
     .setColor('#5865F2')
     .setTitle('🌑 Werewolf Setup: Configuration')
     .setDescription('Use the buttons below to tune your game settings.')
@@ -255,7 +274,9 @@ async function startInteractiveSetup(client, message, game) {
       { name: '☀️ Day', value: `${game.dayTime || 60}s/p`, inline: true }
     )
     .setFooter({ text: 'Manual: rww setprize, rww setplayers, rww setseer, rww setnight, rww setday, rww launch' });
+}
 
+async function startInteractiveSetup(client, message, game) {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('set_prize').setLabel('Prize').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId('set_players').setLabel('Players').setStyle(ButtonStyle.Secondary),
@@ -272,7 +293,8 @@ async function startInteractiveSetup(client, message, game) {
     new ButtonBuilder().setCustomId('exit').setLabel('Exit').setStyle(ButtonStyle.Danger)
   );
 
-  const msg = await message.reply({ embeds: [generateEmbed()], components: [row, row2, row3] });
+  const msg = await message.reply({ embeds: [generateSetupEmbed(game)], components: [row, row2, row3] });
+  game.setupMsgId = msg.id;
   const collector = msg.createMessageComponentCollector({ time: 300000 });
 
   collector.on('collect', async (i) => {
@@ -288,27 +310,27 @@ async function startInteractiveSetup(client, message, game) {
       coll.on('collect', m => {
         game.prize = parseInt(m.content);
         m.delete().catch(() => {});
-        msg.edit({ embeds: [generateEmbed()] });
+        msg.edit({ embeds: [generateSetupEmbed(game)] });
       });
     }
     if (i.customId === 'set_players') {
       const counts = [5, 10, 15, 20];
       game.maxPlayers = counts[(counts.indexOf(game.maxPlayers) + 1) % counts.length];
-      await i.update({ embeds: [generateEmbed()] });
+      await i.update({ embeds: [generateSetupEmbed(game)] });
     }
     if (i.customId === 'set_seer') {
       game.seerMode = game.seerMode === 'EXACT' ? 'SIMPLE' : 'EXACT';
-      await i.update({ embeds: [generateEmbed()] });
+      await i.update({ embeds: [generateSetupEmbed(game)] });
     }
     if (i.customId === 'set_night') {
       const times = [40, 60, 80];
       game.nightTime = times[(times.indexOf(game.nightTime || 40) + 1) % times.length];
-      await i.update({ embeds: [generateEmbed()] });
+      await i.update({ embeds: [generateSetupEmbed(game)] });
     }
     if (i.customId === 'set_day') {
       const times = [60, 90, 120];
       game.dayTime = times[(times.indexOf(game.dayTime || 60) + 1) % times.length];
-      await i.update({ embeds: [generateEmbed()] });
+      await i.update({ embeds: [generateSetupEmbed(game)] });
     }
     if (i.customId === 'launch') {
       if (game.prize <= 0) return i.reply({ content: '❌ Set prize pool first!', ephemeral: true });
