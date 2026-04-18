@@ -61,19 +61,33 @@ async function relayWWChat(client, game, senderId, content) {
 
 function generateNightEmbed(game, ready = 0, total = 0) {
   const nightTime = (game.nightTime || 40) * game.players.size;
+  const alive = Array.from(game.players.values()).filter(p => p.alive).map(p => `• ${p.name}`).join('\n') || 'None';
+  const dead = Array.from(game.players.values()).filter(p => !p.alive).map(p => `• ~~${p.name}~~`).join('\n') || 'None';
+
   return new EmbedBuilder()
     .setColor('#2C3E50')
     .setTitle('🌙 Night Phase')
     .setDescription(`The sun sets. The village sleeps...\nNight ends in **${nightTime}s**.\n\n> 🤫 **Social Rule:** Please stay silent in this channel until morning!\n\n**Ready:** ${ready}/${total}`)
+    .addFields(
+      { name: '👥 Alive', value: alive, inline: true },
+      { name: '💀 Dead', value: dead, inline: true }
+    )
     .setFooter({ text: 'Check DMs for actions! • Manual: rww kill [name], rww skip' });
 }
 
 function generateDayEmbed(game, summary, ready = 0, total = 0) {
   const dayTime = (game.dayTime || 60) * game.players.size;
+  const alive = Array.from(game.players.values()).filter(p => p.alive).map(p => `• ${p.name}`).join('\n') || 'None';
+  const dead = Array.from(game.players.values()).filter(p => !p.alive).map(p => `• ~~${p.name}~~`).join('\n') || 'None';
+
   return new EmbedBuilder()
     .setColor('#F1C40F')
     .setTitle('☀️ Day Phase: Discussion')
     .setDescription(`${summary}\n\nDiscuss & Vote! Ends in: **${dayTime}s**\nUse \`rww v [name]\` or the button to vote.\n\n**Ready:** ${ready}/${total}`)
+    .addFields(
+      { name: '👥 Alive', value: alive, inline: true },
+      { name: '💀 Dead', value: dead, inline: true }
+    )
     .setFooter({ text: 'Manual: rww vote [name], rww skip' });
 }
 

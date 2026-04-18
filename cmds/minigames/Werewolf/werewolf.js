@@ -37,7 +37,18 @@ module.exports = {
       if (game.status === 'SETUP') {
         return startInteractiveSetup(client, message, game); // Resend/Update dashboard
       }
-      return message.reply(`🎮 **Game in Progress:** ${game.status}\n👥 **Players:** ${game.players.size}/${game.maxPlayers}\n💰 **Prize:** ${game.prize}`);
+      const alive = Array.from(game.players.values()).filter(p => p.alive).map(p => `• ${p.name}`).join('\n') || 'None';
+      const dead = Array.from(game.players.values()).filter(p => !p.alive).map(p => `• ~~${p.name}~~`).join('\n') || 'None';
+      
+      const embed = new EmbedBuilder()
+        .setColor('#2ECC71')
+        .setTitle('📊 Werewolf Game Status')
+        .setDescription(`**Phase:** ${game.status}\n**Prize:** 💰 ${game.prize}`)
+        .addFields(
+          { name: '👥 Alive', value: alive, inline: true },
+          { name: '💀 Dead', value: dead, inline: true }
+        );
+      return message.reply({ embeds: [embed] });
     }
 
     // --- 2. CONFIG COMMANDS (MANUAL) ---
