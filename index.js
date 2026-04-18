@@ -2,7 +2,36 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
-const config = require('./config.json');
+
+// --- AUTO-INITIALIZATION ---
+const initFiles = () => {
+  const files = {
+    'config.json': { prefix: 'r' },
+    'prefixes.json': {},
+    'winning_rates.json': {
+      defaults: {
+        "551413333765652481": 50,
+        "1447847623321976964": 65,
+        "1447847601201483858": 65,
+        "1447847605555167314": 80
+      },
+      guilds: {}
+    }
+  };
+
+  for (const [filename, content] of Object.entries(files)) {
+    if (!fs.existsSync(filename)) {
+      fs.writeFileSync(filename, JSON.stringify(content, null, 2));
+      console.log(`[Init] Created missing file: ${filename}`);
+    }
+  }
+};
+
+initFiles();
+
+// Dynamic Config Loading
+const getConfig = () => JSON.parse(fs.readFileSync('./config.json', 'utf8'));
+let config = getConfig();
 
 // --- BOT INITIALIZATION ---
 const client = new Client({
@@ -56,11 +85,11 @@ client.once('ready', () => {
 client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild) return;
 
-  // Prefix Resolution
+  // Refresh config and handle prefixes
+  config = getConfig(); 
   let prefixes = {};
   try {
-    const data = fs.readFileSync('./prefixes.json', 'utf8');
-    prefixes = JSON.parse(data);
+    prefixes = JSON.parse(fs.readFileSync('./prefixes.json', 'utf8'));
   } catch (err) {
     console.error('Error reading prefixes.json:', err.message);
   }
@@ -72,8 +101,7 @@ client.on('messageCreate', async (message) => {
   const args = message.content.slice(prefix.length).trim().split(/ +/);
   const commandInput = args.shift().toLowerCase();
 
-  // Command & Alias Resolution
-  const commandName = client.commands.has(commandInput) 
+  const commandName = client.commands.get(commandInput) 
     ? commandInput 
     : client.aliases.get(commandInput);
 
