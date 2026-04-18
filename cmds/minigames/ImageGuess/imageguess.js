@@ -47,14 +47,14 @@ module.exports = {
           new ButtonBuilder().setCustomId('animals').setLabel('🦁 Animals').setStyle(ButtonStyle.Primary),
           new ButtonBuilder().setCustomId('nature').setLabel('🌲 Nature').setStyle(ButtonStyle.Primary),
           new ButtonBuilder().setCustomId('food').setLabel('🍕 Food').setStyle(ButtonStyle.Primary),
-          new ButtonBuilder().setCustomId('places').setLabel('🌆 Cities').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('people').setLabel('👤 People').setStyle(ButtonStyle.Primary),
           new ButtonBuilder().setCustomId('random').setLabel('🎲 Random').setStyle(ButtonStyle.Secondary)
         );
 
         const selectionEmbed = new EmbedBuilder()
           .setColor('#5865F2')
           .setTitle('🖼️ ImageGuess: Pick a Category')
-          .setDescription('Click a button below to choose the theme for this game!')
+          .setDescription('Be the first to guess the word as it reveals itself!\nClick a button below to choose the theme.')
           .setFooter({ text: 'Selection expires in 30 seconds' });
 
         const selectionMsg = await message.reply({ embeds: [selectionEmbed], components: [row] });
@@ -73,7 +73,9 @@ module.exports = {
           });
           selectionCollector.on('end', (collected) => {
             if (collected.size === 0) {
-              selectionMsg.edit({ content: '⏰ No category selected, choosing **RANDOM**...', embeds: [], components: [] });
+              const defaultCat = 'nature';
+              selectedCategory = 'random';
+              selectionMsg.edit({ content: `⏰ No category selected, choosing **RANDOM**...`, embeds: [], components: [] });
               resolve(false);
             }
           });
@@ -86,13 +88,19 @@ module.exports = {
 
       if (isApiGame) {
         try {
-          const categories = ['animals', 'nature', 'food', 'transportation', 'places'];
+          const categories = ['animals', 'nature', 'food', 'transportation', 'places', 'people'];
           let query = selectedCategory === 'random' ? categories[Math.floor(Math.random() * categories.length)] : selectedCategory;
           
+          // --- ACCURACY REFINEMENT: Exclude humans from nature/animals ---
+          let searchQuery = query;
+          if (query === 'nature' || query === 'animals') {
+            searchQuery += ' -people -person -human';
+          }
+
           const response = await axios.get('https://pixabay.com/api/', {
             params: {
               key: apiKey,
-              q: query,
+              q: searchQuery,
               image_type: 'photo',
               safesearch: true,
               per_page: 50
@@ -102,14 +110,15 @@ module.exports = {
           const hits = response.data.hits.filter(h => h.tags.split(',')[0].length > 3);
           const selection = hits[Math.floor(Math.random() * hits.length)];
           
-          const tags = selection.tags.split(',').map(t => t.trim());
-          secretWord = tags[0].toLowerCase();
+          const tagList = selection.tags.split(',').map(t => t.trim().toLowerCase());
+          // Prefer a word that isn't just the category name (e.g. if category is Animals, don't pick 'animal')
+          secretWord = tagList.find(t => t !== query && t.length > 3) || tagList[0];
           
           const imgUrl = selection.webformatURL;
           const imgRes = await axios.get(imgUrl, { responseType: 'arraybuffer' });
           imageSource = Buffer.from(imgRes.data);
           
-          console.log(`[ImageGuess] Selection: ${secretWord} (Category: ${query})`);
+          console.log(`[ImageGuess] Selection: ${secretWord} (Query: ${searchQuery})`);
         } catch (apiErr) {
           console.error('[ImageGuess] API Error, falling back:', apiErr.message);
         }
