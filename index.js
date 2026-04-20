@@ -1,11 +1,9 @@
-require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { Client, GatewayIntentBits, Collection, ActivityType, Events } = require('discord.js');
 
-// --- AUTO-INITIALIZATION ---
+// --- AUTO-INITIALIZATION (SELF-HEALING) ---
 const initFiles = () => {
-  const files = {
+  const defaults = {
     'server_config.json': { prefix: 'r' },
     'server_prefixes.json': {},
     'default_winning_rates.json': {
@@ -32,12 +30,40 @@ const initFiles = () => {
 
   const getPath = (file) => path.join(__dirname, file);
 
-  // 1. Handle JSON files
-  for (const [filename, content] of Object.entries(files)) {
+  // 1. Handle JSON files (Creation & Structural Healing)
+  for (const [filename, defaultContent] of Object.entries(defaults)) {
     const filePath = getPath(filename);
+    let shouldWrite = false;
+    let currentContent = {};
+
     if (!fs.existsSync(filePath)) {
-      fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
-      console.log(`[Init] Created missing file: ${filename}`);
+      console.log(`[Init] File missing, creating: ${filename}`);
+      currentContent = defaultContent;
+      shouldWrite = true;
+    } else {
+      try {
+        const data = fs.readFileSync(filePath, 'utf8');
+        currentContent = JSON.parse(data);
+        
+        // Structural Healing: Check if top-level keys from defaults are missing
+        if (typeof defaultContent === 'object' && !Array.isArray(defaultContent)) {
+          for (const key in defaultContent) {
+            if (currentContent[key] === undefined) {
+              console.log(`[Init] Structural healing: Adding missing key "${key}" to ${filename}`);
+              currentContent[key] = defaultContent[key];
+              shouldWrite = true;
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`[Init] Corrupted file detected: ${filename}. Resetting to default.`);
+        currentContent = defaultContent;
+        shouldWrite = true;
+      }
+    }
+
+    if (shouldWrite) {
+      fs.writeFileSync(filePath, JSON.stringify(currentContent, null, 2));
     }
   }
 
@@ -54,8 +80,24 @@ PIXABAY_KEY=your_token_here_optional`;
   }
 };
 
+// Run initialization immediately
 initFiles();
-require('dotenv').config();
+
+// Safe module loading
+let dotenv;
+try {
+  dotenv = require('dotenv');
+  dotenv.config();
+} catch (err) {
+  console.error('\n' + '='.repeat(50));
+  console.error('[CRITICAL ERROR] The "dotenv" module is missing.');
+  console.error('This usually means "npm install" failed during deployment.');
+  console.error('Please check your Wispbyte console for NPM error logs.');
+  console.error('='.repeat(50) + '\n');
+  process.exit(1);
+}
+
+const { Client, GatewayIntentBits, Collection, ActivityType, Events } = require('discord.js');
 
 // Dynamic Config Loading
 const getConfig = () => JSON.parse(fs.readFileSync(path.join(__dirname, 'server_config.json'), 'utf8'));
