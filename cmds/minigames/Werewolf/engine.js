@@ -257,8 +257,6 @@ async function runDayPhase(client, channel, game) {
     await safeDM(client, game, game.host, "☀️ **Day Phase Started**", { embeds: [dayEmbed] });
   }
   game.dayVotes = new Map();
-  // Broadcast phase embed to all participants + Host
-  const dayEmbed = generateDayEmbed(game, summary, 0, alivePlayers.length, totalDayTime);
   const startTime = Date.now();
   const dayDurationMs = (game.dayTime || 60) * game.players.size * 1000;
   let lastReadyCount = 0;
