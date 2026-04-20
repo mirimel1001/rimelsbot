@@ -1,6 +1,7 @@
 node_modules
 .env
 .DS_Store
+package-lock.json
 server_prefixes.json
 server_winning_rates.json
 server_config.json
