@@ -126,7 +126,9 @@ module.exports = {
             const blacklist = [
               'life', 'portrait', 'beautiful', 'street', 'city', 'background', 'outdoor', 'indoor', 
               'young', 'old', 'face', 'looking', 'person', 'people', 'human', 'adult', 'style',
-              'image', 'photo', 'photography', 'art', 'graphic', 'nature', 'landscape', 'wallpaper'
+              'image', 'photo', 'photography', 'art', 'graphic', 'nature', 'landscape', 'wallpaper',
+              'wilderness', 'wildlife', 'animal', 'animals', 'mammal', 'mammals', 'fauna', 'flora', 
+              'natural', 'ecology', 'environment', 'outside', 'summer', 'winter', 'autumn', 'spring'
             ];
 
             const candidates = allTags.filter(t => 
@@ -137,8 +139,8 @@ module.exports = {
               !t.includes(query) // Avoid 'animal' if category is 'animals'
             );
 
-            // Sort candidates to prefer medium-long words (more descriptive)
-            candidates.sort((a, b) => b.length - a.length);
+            // Prefer the earliest valid candidates (usually the most relevant subjects)
+            // candidates.sort((a, b) => b.length - a.length);
 
             secretWord = candidates[0] || allTags.find(t => t !== query && t.length > 3) || allTags[0];
             
