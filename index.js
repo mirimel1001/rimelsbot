@@ -30,21 +30,26 @@ const initFiles = () => {
     ]
   };
 
+  const getPath = (file) => path.join(__dirname, file);
+
   // 1. Handle JSON files
   for (const [filename, content] of Object.entries(files)) {
-    if (!fs.existsSync(filename)) {
-      fs.writeFileSync(filename, JSON.stringify(content, null, 2));
+    const filePath = getPath(filename);
+    if (!fs.existsSync(filePath)) {
+      fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
       console.log(`[Init] Created missing file: ${filename}`);
     }
   }
 
   // 2. Handle .env template
-  if (!fs.existsSync('.env')) {
+  const envPath = getPath('.env');
+  if (!fs.existsSync(envPath)) {
     const template = `DISCORD_TOKEN=your_token_here
 UNB_TOKEN=your_token_here
 PIXABAY_KEY=your_token_here_optional`;
-    fs.writeFileSync('.env', template);
-    console.warn('[Init] .env file was missing! I’ve created a template for you. Please fill in your tokens and restart.');
+    fs.writeFileSync(envPath, template);
+    console.warn('[Init] .env file was missing! I’ve created a template for you.');
+    console.warn('[Init] IMPORTANT: On WispByte, you should ideally set these as Environment Variables in the Startup tab.');
     process.exit(0); // Exit so the user can fill the .env
   }
 };
@@ -53,7 +58,7 @@ initFiles();
 require('dotenv').config();
 
 // Dynamic Config Loading
-const getConfig = () => JSON.parse(fs.readFileSync('./server_config.json', 'utf8'));
+const getConfig = () => JSON.parse(fs.readFileSync(path.join(__dirname, 'server_config.json'), 'utf8'));
 let config = getConfig();
 
 // --- BOT INITIALIZATION ---
@@ -126,8 +131,9 @@ client.once(Events.ClientReady, () => {
       
       // Load statuses from JSON
       let rotation = [];
-      if (fs.existsSync('./bot_status.json')) {
-        const statusData = JSON.parse(fs.readFileSync('./bot_status.json', 'utf8'));
+      const statusPath = path.join(__dirname, 'bot_status.json');
+      if (fs.existsSync(statusPath)) {
+        const statusData = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
         rotation = statusData.map(s => ({
           name: s.name.replace('{prefix}', config.prefix).replace('{servers}', servers),
           type: ActivityType[s.type] || ActivityType.Watching
@@ -175,7 +181,8 @@ client.on('messageCreate', async (message) => {
   let prefixes = {};
   if (message.guild) {
     try {
-      prefixes = JSON.parse(fs.readFileSync('./server_prefixes.json', 'utf8'));
+      const prefixPath = path.join(__dirname, 'server_prefixes.json');
+      prefixes = JSON.parse(fs.readFileSync(prefixPath, 'utf8'));
     } catch (err) {
       console.error('Error reading server_prefixes.json:', err.message);
     }
@@ -202,14 +209,16 @@ client.on('messageCreate', async (message) => {
       let gameChannelId = null;
       
       // Load Defaults
-      if (fs.existsSync('./default_game_settings.json')) {
-        const defaults = JSON.parse(fs.readFileSync('./default_game_settings.json', 'utf8'));
+      const defaultSettingsPath = path.join(__dirname, 'default_game_settings.json');
+      if (fs.existsSync(defaultSettingsPath)) {
+        const defaults = JSON.parse(fs.readFileSync(defaultSettingsPath, 'utf8'));
         gameChannelId = defaults.gameChannel || null;
       }
 
       // Load Guild Settings (Overrides)
-      if (fs.existsSync('./server_game_settings.json')) {
-        const gameSettings = JSON.parse(fs.readFileSync('./server_game_settings.json', 'utf8'));
+      const serverSettingsPath = path.join(__dirname, 'server_game_settings.json');
+      if (fs.existsSync(serverSettingsPath)) {
+        const gameSettings = JSON.parse(fs.readFileSync(serverSettingsPath, 'utf8'));
         const guildChannel = gameSettings.guilds[message.guild.id]?.gameChannel;
         if (guildChannel) gameChannelId = guildChannel;
       }
