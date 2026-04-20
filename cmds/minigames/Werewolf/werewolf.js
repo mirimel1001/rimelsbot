@@ -4,10 +4,15 @@ const fs = require('fs');
 
 module.exports = {
   name: "werewolf",
-  aliases: ["ww", "warewolf"],
-  description: "Multiplayer Werewolf Game Logic.",
-  usage: "werewolf [setup/status/join/leave/start/cancel/launch/setprize/setplayers/setseer/setnight/setday]",
+  aliases: ["ww", "werewolf"],
+  description: "Participate in the ultimate game of deception! (DM Commands Supported)\n" +
+                "💰 *Note: 80% of host's prize is distributed to winners.*\n\n" +
+                "**Players:** `join`, `leave`, `status`, `ready`, `dm`, `unvote`\n" +
+                "**Actions:** `vote [ID]`, `kill [ID]`, `scan [ID]`\n" +
+                "**Host:** `setup`, `launch`, `start`, `cancel`, `set[prize/wolves/scans/night/day]`",
+  usage: "werewolf [setup/status/join/start/cancel/setprize/..]",
   run: async (client, message, args, prefix, config) => {
+    registerWWListener(client);
     const subCommand = args[0]?.toLowerCase();
     let game = client.werewolfGames.get(message.channel.id);
 
@@ -24,11 +29,13 @@ module.exports = {
         host: message.author.id,
         hostName: message.author.username,
         channelId: message.channel.id,
+        guildId: message.guild.id,
         status: 'SETUP',
         prize: 0,
         maxPlayers: 10,
+        wwCount: null,
         seerMode: 'SIMPLE',
-        seerLimit: null, // Unlimited by default
+        seerLimit: 2, // 2 scans per game by default
         nightTime: 40,
         dayTime: 60,
         players: new Map(),
@@ -43,7 +50,12 @@ module.exports = {
       if (game.status === 'SETUP') {
         return startInteractiveSetup(client, message, game); // Resend/Update dashboard
       }
-      const alive = Array.from(game.players.values()).filter(p => p.alive).map(p => `• ${p.name}`).join('\n') || 'None';
+      
+      const indexed = Array.from(game.players.entries())
+        .filter(([id, p]) => p.alive)
+        .sort((a, b) => a[1].name.localeCompare(b[1].name));
+      
+      const alive = indexed.map(([id, p], idx) => `${idx + 1}. **${p.name}**`).join('\n') || 'None';
       const dead = Array.from(game.players.values()).filter(p => !p.alive).map(p => `• ~~${p.name}~~`).join('\n') || 'None';
       
       const embed = new EmbedBuilder()
@@ -123,34 +135,65 @@ module.exports = {
       const p = game.players.get(message.author.id);
       if (!p || !p.alive) return;
 
+      const resolveTarget = (input) => {
+        const indexed = Array.from(game.players.entries())
+          .filter(([id, tp]) => tp.alive)
+          .sort((a, b) => a[1].name.localeCompare(b[1].name));
+        
+        const num = parseInt(input);
+        if (!isNaN(num) && num > 0 && num <= indexed.length) {
+          return indexed[num - 1]; // Return [id, playerObj]
+        }
+        return indexed.find(([id, tp]) => tp.name.toLowerCase().includes(input.toLowerCase()));
+      };
+
       if (subCommand === 'skip' || subCommand === 's' || subCommand === 'ready') {
         p.ready = true;
         return message.reply("✅ Status: **Ready**.");
       }
 
       if (game.status === 'DAY' && (subCommand === 'vote' || subCommand === 'v')) {
-        const targetName = args.slice(1).join(' ').toLowerCase();
-        const targetEntry = Array.from(game.players.entries()).find(([id, tp]) => tp.alive && tp.name.toLowerCase().includes(targetName) && id !== message.author.id);
-        if (!targetEntry) return message.reply("❌ Player not found.");
+        const targetInput = args.slice(1).join(' ');
+        if (!targetInput) return message.reply("❌ Specify a player name or number.");
+        const targetEntry = resolveTarget(targetInput);
+        if (!targetEntry || targetEntry[0] === message.author.id) return message.reply("❌ Invalid target.");
+        
+        const engine = require('./engine.js');
         game.dayVotes.set(message.author.id, targetEntry[0]);
+        await engine.logToHost(client, game, `🗳️ **Vote:** **${message.author.username}** voted for **${targetEntry[1].name}**`);
         return message.reply(`✅ Voted for **${targetEntry[1].name}**.`);
+      }
+
+      if (game.status === 'DAY' && (subCommand === 'unvote' || subCommand === 'cancel')) {
+        if (!game.dayVotes.has(message.author.id)) return message.reply("⚠️ You haven't voted yet!");
+        const targetId = game.dayVotes.get(message.author.id);
+        const targetName = game.players.get(targetId)?.name || "Unknown";
+        game.dayVotes.delete(message.author.id);
+        const engine = require('./engine.js');
+        await engine.logToHost(client, game, `❌ **Unvote:** **${message.author.username}** cancelled their vote for **${targetName}**.`);
+        return message.reply("✅ Your vote has been **cancelled**.");
       }
 
       if (game.status === 'NIGHT' && (subCommand === 'kill' || subCommand === 'k')) {
         if (p.role !== 'WEREWOLF') return;
-        const targetName = args.slice(1).join(' ').toLowerCase();
-        const targetEntry = Array.from(game.players.entries()).find(([id, tp]) => tp.alive && tp.name.toLowerCase().includes(targetName) && tp.role !== 'WEREWOLF');
-        if (!targetEntry) return message.reply("❌ Invalid target.");
+        const targetInput = args.slice(1).join(' ');
+        if (!targetInput) return message.reply("❌ Specify a player name or number.");
+        const targetEntry = resolveTarget(targetInput);
+        if (!targetEntry || targetEntry[1].role === 'WEREWOLF') return message.reply("❌ Invalid target.");
+        
+        const engine = require('./engine.js');
         game.nightVote.set(message.author.id, targetEntry[0]);
+        await engine.logToHost(client, game, `🔪 **Targeting:** **${message.author.username}** selected **${targetEntry[1].name}** to kill.`);
         return message.reply(`✅ Selection: **${targetEntry[1].name}**.`);
       }
 
       if (game.status === 'NIGHT' && (subCommand === 'scan' || subCommand === 'sc')) {
         if (p.role !== 'SEER') return;
         if (game.seerLimit !== null && p.scans <= 0) return message.reply("❌ No scans left!");
-        const targetName = args.slice(1).join(' ').toLowerCase();
-        const targetEntry = Array.from(game.players.entries()).find(([id, tp]) => tp.alive && tp.name.toLowerCase().includes(targetName) && id !== message.author.id);
-        if (!targetEntry) return message.reply("❌ Invalid target.");
+        const targetInput = args.slice(1).join(' ');
+        if (!targetInput) return message.reply("❌ Specify a player name or number.");
+        const targetEntry = resolveTarget(targetInput);
+        if (!targetEntry || targetEntry[0] === message.author.id) return message.reply("❌ Invalid target.");
         
         if (game.seerLimit !== null) p.scans--;
         let res = targetEntry[1].role;
@@ -187,10 +230,10 @@ module.exports = {
       }
       if (subCommand === 'cancel' || subCommand === 'exit') {
         if (message.author.id !== game.host) return;
-        await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${game.host}`, { cash: game.prize }, {
+        await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${game.guildId}/users/${game.host}`, { cash: game.prize }, {
           headers: { 'Authorization': process.env.UNB_TOKEN }
         });
-        client.werewolfGames.delete(message.channel.id);
+        client.werewolfGames.delete(game.channelId);
         return message.reply("⭕ Game cancelled and funds returned.");
       }
     }
@@ -201,7 +244,7 @@ module.exports = {
 
 async function launchLobby(client, message, game) {
   try {
-    await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${game.host}`, { cash: -game.prize }, {
+    await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${game.guildId}/users/${game.host}`, { cash: -game.prize }, {
       headers: { 'Authorization': process.env.UNB_TOKEN }
     });
   } catch (e) { return message.reply("❌ UNB Error."); }
@@ -234,7 +277,7 @@ async function sendLobbyUI(channel, game) {
     if (i.customId === 'ww_join') {
       if (g.players.has(i.user.id)) return i.reply({ content: 'Already in!', flags: [MessageFlags.Ephemeral] });
       if (g.players.size >= g.maxPlayers) return i.reply({ content: 'Full!', flags: [MessageFlags.Ephemeral] });
-      g.players.set(i.user.id, { name: i.user.username, role: null, alive: true, ready: false });
+      g.players.set(i.user.id, { id: i.user.id, name: i.user.username, role: null, alive: true, ready: false });
       i.reply({ content: '✅ Joined!', flags: [MessageFlags.Ephemeral] });
       updateLobbyUI(msg, g);
     }
@@ -251,7 +294,7 @@ async function sendLobbyUI(channel, game) {
     }
     if (i.customId === 'ww_cancel') {
       if (i.user.id !== g.host) return i.reply({ content: 'Host only.', flags: [MessageFlags.Ephemeral] });
-      await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${i.guildId}/users/${g.host}`, { cash: g.prize }, {
+      await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${g.guildId}/users/${g.host}`, { cash: g.prize }, {
         headers: { 'Authorization': process.env.UNB_TOKEN }
       });
       client.werewolfGames.delete(i.channelId);
@@ -277,23 +320,38 @@ async function sendLobbyUI(channel, game) {
       const menu = new StringSelectMenuBuilder().setCustomId('ww_vote_cast').setPlaceholder('Vote...').addOptions(options);
       return i.reply({ components: [new ActionRowBuilder().addComponents(menu)], flags: [MessageFlags.Ephemeral] });
     }
+    if (i.customId === 'ww_vote_cancel') {
+      if (!g.dayVotes.has(i.user.id)) return i.reply({ content: "⚠️ You haven't voted yet!", flags: [MessageFlags.Ephemeral] });
+      const targetId = g.dayVotes.get(i.user.id);
+      const targetName = g.players.get(targetId)?.name || "Unknown";
+      g.dayVotes.delete(i.user.id);
+      const engine = require('./engine.js');
+      await engine.logToHost(client, g, `❌ **Unvote:** **${i.user.username}** cancelled their vote for **${targetName}**.`);
+      return i.reply({ content: "✅ Your vote has been **cancelled**.", flags: [MessageFlags.Ephemeral] });
+    }
     if (i.customId === 'ww_vote_cast') {
+      const engine = require('./engine.js');
       g.dayVotes.set(i.user.id, i.values[0]);
+      await engine.logToHost(client, g, `🗳️ **Vote:** **${i.user.username}** voted for **${g.players.get(i.values[0]).name}**`);
       return i.update({ content: `✅ Voted for **${g.players.get(i.values[0]).name}**`, components: [] });
     }
     if (i.customId === 'ww_kill') {
+      const engine = require('./engine.js');
+      if (g.status !== 'NIGHT') return i.reply({ content: 'Night phase is over.', flags: [MessageFlags.Ephemeral] });
       g.nightVote.set(i.user.id, i.values[0]);
+      await engine.logToHost(client, g, `🔪 **Targeting:** **${i.user.username}** selected **${g.players.get(i.values[0]).name}** to kill.`);
       return i.update({ content: `✅ Selected **${g.players.get(i.values[0]).name}**`, components: [] });
     }
+    
     if (i.customId === 'ww_scan') {
-      if (g.seerLimit !== null && p.scans <= 0) return i.reply({ content: "❌ No scans left!", flags: [MessageFlags.Ephemeral] });
+      if (g.status !== 'NIGHT') return i.reply({ content: 'Night phase is over.', flags: [MessageFlags.Ephemeral] });
+      if (g.seerLimit !== null && p.scans <= 0) return i.reply({ content: "❌ No scans left for this game!", flags: [MessageFlags.Ephemeral] });
       if (g.seerLimit !== null) p.scans--;
       const target = g.players.get(i.values[0]);
       let res = target.role;
       if (g.seerMode === 'SIMPLE') res = target.role === 'WEREWOLF' ? 'WEREWOLF' : 'NOT a Werewolf';
-      const engine = require('./engine.js');
-      await engine.logToHost(client, game, `🔮 **Seer Scan:** **${p.name}** scanned **${target.name}** saw **${res}** (Left: ${p.scans ?? '∞'})`);
-      return i.update({ content: `🔮 Vision: **${target.name}** is a **${res}**.\n*Remaining: ${p.scans ?? '∞'}*`, components: [] });
+      await engine.logToHost(client, g, `🔮 **Seer Scan:** **${p.name}** scanned **${target.name}** saw **${res}** (Remaining: ${p.scans ?? '∞'})`);
+      return i.update({ content: `🔮 Vision: **${target.name}** is a **${res}**.\n*Remaining in game: ${p.scans ?? '∞'}*`, components: [] });
     }
   });
 }
@@ -328,7 +386,7 @@ function generateSetupEmbed(game) {
       { name: '💰 Prize', value: game.prize > 0 ? `💰 ${game.prize}` : '❌ *Not Set*', inline: true },
       { name: '👥 Players', value: `${game.maxPlayers}`, inline: true },
       { name: '🐺 Wolves', value: game.wwCount ? `${game.wwCount}` : 'Auto', inline: true },
-      { name: '🔮 Seer', value: `${game.seerMode} (${game.seerLimit ?? '∞'} scans)`, inline: true },
+      { name: '🔮 Seer', value: `${game.seerMode} (${game.seerLimit ?? '∞'} scans total)`, inline: true },
       { name: '🌙 Night', value: `${game.nightTime}s/p`, inline: true },
       { name: '☀️ Day', value: `${game.dayTime}s/p`, inline: true }
     )

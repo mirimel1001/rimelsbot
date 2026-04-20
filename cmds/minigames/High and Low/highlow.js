@@ -15,22 +15,29 @@ module.exports = {
       return message.reply(`❌ Usage: \`${prefix}highlow [amount]\` (or \`${prefix}hl [amount]\`)`);
     }
 
+    let cooldownKey = null;
+    let currentNow = Date.now();
+
     // --- COOLDOWN CHECK ---
     try {
+      let delay = null;
+      if (fs.existsSync('./default_game_settings.json')) {
+        const defaults = JSON.parse(fs.readFileSync('./default_game_settings.json', 'utf8'));
+        delay = defaults.delays?.highlow || null;
+      }
       if (fs.existsSync('./server_game_settings.json')) {
         const settings = JSON.parse(fs.readFileSync('./server_game_settings.json', 'utf8'));
-        const delay = settings.guilds[message.guild.id]?.delays?.highlow || settings.defaults?.delays?.highlow;
+        const guildDelay = settings.guilds[message.guild.id]?.delays?.highlow;
+        if (guildDelay) delay = guildDelay;
+      }
 
-        if (delay) {
-          const key = `${message.guild.id}-highlow-${message.author.id}`;
-          const lastPlay = client.cooldowns.get(key);
-          const now = Date.now();
+      if (delay) {
+        cooldownKey = `${message.guild.id}-highlow-${message.author.id}`;
+        const lastPlay = client.cooldowns.get(cooldownKey);
 
-          if (lastPlay && now < lastPlay + delay) {
-            const timeLeft = ((lastPlay + delay - now) / 1000).toFixed(1);
-            return message.reply(`⏳ Slow down! You can play **HighLow** again in **${timeLeft}s**.`);
-          }
-          client.cooldowns.set(key, now);
+        if (lastPlay && currentNow < lastPlay + delay) {
+          const timeLeft = ((lastPlay + delay - currentNow) / 1000).toFixed(1);
+          return message.reply(`⏳ Slow down! You can play **HighLow** again in **${timeLeft}s**.`);
         }
       }
     } catch (err) {
@@ -49,12 +56,26 @@ module.exports = {
         return message.reply(`❌ You don't have enough cash! You currently have \`${currentCash}\` cash.`);
       }
 
-      // 3. Determine Win Rate based on Roles
+      // 3. SET THE COOLDOWN NOW (Balance is verified)
+      if (cooldownKey) client.cooldowns.set(cooldownKey, currentNow);
+
+      // 4. Determine Win Rate based on Roles
       let winRate = 50;
       try {
-        const winData = JSON.parse(fs.readFileSync('./winning_rates.json', 'utf8'));
-        const guildSettings = winData.guilds[message.guild.id]?.highlow || {};
-        const globalDefaults = winData.defaults || {};
+        const defaultPath = './default_winning_rates.json';
+        const serverPath = './server_winning_rates.json';
+
+        let globalDefaults = {};
+        if (fs.existsSync(defaultPath)) {
+          globalDefaults = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
+        }
+
+        let guildSettings = {};
+        if (fs.existsSync(serverPath)) {
+          const winData = JSON.parse(fs.readFileSync(serverPath, 'utf8'));
+          guildSettings = winData.guilds[message.guild.id]?.highlow || {};
+        }
+
         const activeChances = { ...globalDefaults, ...guildSettings };
 
         const memberRoles = message.member.roles.cache.map(r => r.id);

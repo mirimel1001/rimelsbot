@@ -3,6 +3,8 @@ const { PermissionsBitField } = require('discord.js');
 
 module.exports = {
   name: "setprefix",
+  category: "Administrative",
+  adminOnly: true,
   description: "Change the bot's command prefix for your server.",
   usage: "setprefix [new_symbol]",
   run: async (client, message, args, prefix, config) => {

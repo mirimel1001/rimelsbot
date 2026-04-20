@@ -4,7 +4,13 @@ const fs = require('fs');
 module.exports = {
   name: "setcash",
   aliases: ["sc", "rsc"],
-  description: "Sets the range of cash rewards for a specific minigame.",
+  category: "Administrative",
+  adminOnly: true,
+  description: "Sets the range of cash rewards for a specific minigame.\n\n" +
+                "🔹 **Variables:**\n" +
+                "• **[game name]** - The name of the reward game (e.g., imageguess).\n" +
+                "• **[Min]** - The minimum possible cash reward.\n" +
+                "• **[Max]** - The maximum possible cash reward.",
   usage: "setcash [game name] [Min] [Max]",
   run: async (client, message, args, prefix, config) => {
     // 1. Permission Check

@@ -4,7 +4,12 @@ const fs = require('fs');
 module.exports = {
   name: "gamechannel",
   aliases: ["gc", "rgc"],
-  description: "Sets a dedicated channel for minigames.",
+  category: "Administrative",
+  adminOnly: true,
+  description: "Sets a dedicated channel for minigames.\n\n" +
+                "🔹 **Variables:**\n" +
+                "• **[#channel]** - Mention the text channel to restrict games to.\n" +
+                "• **clear** - Removes the restriction, allowing games anywhere.",
   usage: "gamechannel [#channel | clear]",
   run: async (client, message, args, prefix, config) => {
     // 1. Permission Check

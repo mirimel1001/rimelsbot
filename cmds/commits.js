@@ -34,8 +34,13 @@ module.exports = {
 
       return message.reply({ embeds: [commitEmbed] });
     } catch (error) {
+      if (error.stderr?.toString().includes('fatal: your current branch appears to be broken') || 
+          error.stderr?.toString().includes('fatal: index file corrupt')) {
+        return message.reply('⚠️ **Git Repository Error**: Your local Git index or branch reference appears to be corrupted. The bot developer might need to repair the repository.');
+      }
+      
       console.error('Git Log Error:', error);
-      return message.reply('❌ Failed to fetch commit history. Ensure Git is installed and initialized.');
+      return message.reply('❌ Failed to fetch commit history. Ensure Git is installed and initialized properly in this directory.');
     }
   }
 };

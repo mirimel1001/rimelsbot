@@ -8,26 +8,26 @@ const initFiles = () => {
   const files = {
     'server_config.json': { prefix: 'r' },
     'server_prefixes.json': {},
-    'server_winning_rates.json': {
-      defaults: {
-        "551413333765652481": 45,
-        "1447847623321976964": 55,
-        "1447847601201483858": 55,
-        "1447847605555167314": 65,
-        "779433894600376342": 75
-      },
-      guilds: {}
+    'default_winning_rates.json': {
+      "551413333765652481": 45,
+      "1447847623321976964": 55,
+      "1447847601201483858": 55,
+      "1447847605555167314": 65,
+      "779433894600376342": 75
     },
+    'server_winning_rates.json': { guilds: {} },
     'server_prize_configs.json': { guilds: {} },
-    'server_game_settings.json': {
-      defaults: {
-        delays: {
-          highlow: 40000,
-          imageguess: 30000
-        }
-      },
-      guilds: {}
-    }
+    'default_game_settings.json': {
+      delays: {
+        highlow: 40000,
+        imageguess: 30000
+      }
+    },
+    'server_game_settings.json': { guilds: {} },
+    'bot_status.json': [
+      { "name": "{prefix}help || Check bio for support", "type": "Watching" },
+      { "name": "{prefix}help || Servers: {servers}", "type": "Watching" }
+    ]
   };
 
   // 1. Handle JSON files
@@ -85,17 +85,15 @@ const loadCommands = (dir) => {
       const command = require(filePath);
 
       if (command.name && command.run) {
-        // --- DYNAMIC CATEGORY ASSIGNMENT ---
-        const relativePath = path.relative(path.join(__dirname, 'cmds'), dir);
-        if (!relativePath) {
+        // --- DYNAMIC CATEGORY & TAGGING ---
+        const relPath = path.relative(path.join(__dirname, 'cmds'), dir);
+        if (!relPath) {
           command.category = 'General';
-        } else if (relativePath === 'minigames') {
-          command.category = 'Minigames';
-        } else if (relativePath.startsWith('minigames' + path.sep)) {
-          // Use the folder name inside minigames as the category (e.g., 'Werewolf')
-          command.category = relativePath.split(path.sep)[1];
+        } else if (relPath === 'minigames' || relPath.startsWith('minigames' + path.sep)) {
+          command.isMinigame = true;
+          command.category = relPath === 'minigames' ? 'Minigames' : relPath.split(path.sep)[1];
         } else {
-          command.category = relativePath;
+          command.category = relPath;
         }
         // -----------------------------------
 
@@ -123,22 +121,27 @@ client.once(Events.ClientReady, () => {
   let i = 0;
   setInterval(() => {
     try {
-      config = getConfig(); // Refresh prefix
+      config = getConfig(); // Refresh global config
       const servers = client.guilds.cache.size;
-      const rotation = [
-        `${config.prefix}help || Check bio for support`,
-        `${config.prefix}help || Servers: ${servers}`
-      ];
+      
+      // Load statuses from JSON
+      let rotation = [];
+      if (fs.existsSync('./bot_status.json')) {
+        const statusData = JSON.parse(fs.readFileSync('./bot_status.json', 'utf8'));
+        rotation = statusData.map(s => ({
+          name: s.name.replace('{prefix}', config.prefix).replace('{servers}', servers),
+          type: ActivityType[s.type] || ActivityType.Watching
+        }));
+      }
 
-      client.user.setPresence({
-        activities: [{
-          name: rotation[i % rotation.length],
-          type: ActivityType.Watching
-        }],
-        status: 'online',
-      });
-
-      i++;
+      if (rotation.length > 0) {
+        const currentStatus = rotation[i % rotation.length];
+        client.user.setPresence({
+          activities: [currentStatus],
+          status: 'online',
+        });
+        i++;
+      }
     } catch (err) {
       console.error('[Status Error]', err.message);
     }
@@ -170,13 +173,15 @@ client.on('messageCreate', async (message) => {
   // Refresh config and handle prefixes
   config = getConfig();
   let prefixes = {};
-  try {
-    prefixes = JSON.parse(fs.readFileSync('./server_prefixes.json', 'utf8'));
-  } catch (err) {
-    console.error('Error reading server_prefixes.json:', err.message);
+  if (message.guild) {
+    try {
+      prefixes = JSON.parse(fs.readFileSync('./server_prefixes.json', 'utf8'));
+    } catch (err) {
+      console.error('Error reading server_prefixes.json:', err.message);
+    }
   }
 
-  const prefix = prefixes[message.guild.id] || config.prefix;
+  const prefix = (message.guild ? (prefixes[message.guild.id] || config.prefix) : config.prefix);
 
   if (!message.content.toLowerCase().startsWith(prefix.toLowerCase())) return;
 
@@ -192,15 +197,25 @@ client.on('messageCreate', async (message) => {
   if (!command) return;
 
   // --- GAME CHANNEL RESTRICTION ---
-  if (command.category === 'minigame') {
+  if (message.guild && (command.isMinigame || command.category === 'minigame')) {
     try {
+      let gameChannelId = null;
+      
+      // Load Defaults
+      if (fs.existsSync('./default_game_settings.json')) {
+        const defaults = JSON.parse(fs.readFileSync('./default_game_settings.json', 'utf8'));
+        gameChannelId = defaults.gameChannel || null;
+      }
+
+      // Load Guild Settings (Overrides)
       if (fs.existsSync('./server_game_settings.json')) {
         const gameSettings = JSON.parse(fs.readFileSync('./server_game_settings.json', 'utf8'));
-        const dedicatedChannel = gameSettings.guilds[message.guild.id]?.gameChannel;
+        const guildChannel = gameSettings.guilds[message.guild.id]?.gameChannel;
+        if (guildChannel) gameChannelId = guildChannel;
+      }
 
-        if (dedicatedChannel && message.channel.id !== dedicatedChannel) {
-          return message.reply(`🚫 Minigames are restricted to <#${dedicatedChannel}> on this server.`);
-        }
+      if (gameChannelId && message.channel.id !== gameChannelId) {
+        return message.reply(`🚫 Minigames are restricted to <#${gameChannelId}> on this server.`);
       }
     } catch (err) {
       console.error('Game Channel Check Error:', err.message);

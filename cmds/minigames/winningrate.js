@@ -5,7 +5,13 @@ const path = require('path');
 module.exports = {
   name: "winningrate",
   aliases: ["wr"],
-  description: "Sets the win rate for a specific role in a game.",
+  category: "Administrative",
+  adminOnly: true,
+  description: "Sets the win rate for a specific role in a game.\n\n" +
+                "🔹 **Variables:**\n" +
+                "• **[game name]** - The name of the game (e.g., highlow).\n" +
+                "• **[@role/ID]** - Mention the role or paste the Role ID.\n" +
+                "• **[percentage%]** - Win chance from 0 to 100.",
   usage: "winningrate [game name] [@role/ID] [percentage%]",
   run: async (client, message, args, prefix, config) => {
     // 1. Permission Check
@@ -36,7 +42,7 @@ module.exports = {
     }
 
     // 3. Load and Update server_winning_rates.json
-    let data = { defaults: {}, guilds: {} };
+    let data = { guilds: {} };
     const filePath = './server_winning_rates.json';
 
     try {
@@ -53,11 +59,11 @@ module.exports = {
     if (!data.guilds[message.guild.id][gameName]) data.guilds[message.guild.id][gameName] = {};
 
     // Save
-    data.guilds[message.guild.id][gameName][role.id] = rate;
+    data.guilds[message.guild.id][gameName][role.id] = percentage;
 
     try {
       fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-      return message.reply(`✅ Success! Winning rate for **${gameName}** (Role: ${role.name}) is now **${rate}%**.`);
+      return message.reply(`✅ Success! Winning rate for **${gameName}** (Role: ${role.name}) is now **${percentage}%**.`);
     } catch (err) {
       console.error('Error writing server_winning_rates.json:', err.message);
       return message.reply('❌ Could not save winning rate settings.');

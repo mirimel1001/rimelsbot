@@ -4,7 +4,12 @@ const fs = require('fs');
 module.exports = {
   name: "delay",
   aliases: ["rdelay", "dl"],
-  description: "Sets a cooldown delay for a specific minigame.",
+  category: "Administrative",
+  adminOnly: true,
+  description: "Sets a cooldown delay for a specific minigame.\n\n" +
+                "🔹 **Variables:**\n" +
+                "• **[game name]** - The name of the game (e.g., highlow).\n" +
+                "• **[time]** - Cooldown duration (e.g., 10s, 5m, 1h).",
   usage: "delay [game name] [time]",
   run: async (client, message, args, prefix, config) => {
     // 1. Permission Check

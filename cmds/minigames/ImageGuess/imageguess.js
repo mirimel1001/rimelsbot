@@ -1,5 +1,5 @@
 const { EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
-const Jimp = require('jimp');
+const { Jimp } = require('jimp');
 const fs = require('fs');
 const axios = require('axios');
 
@@ -18,22 +18,29 @@ module.exports = {
 
     client.imageGuessGames.add(message.channel.id);
 
+    let cooldownKey = null;
+    let currentNow = Date.now();
+
     try {
       // --- COOLDOWN CHECK ---
+      let delay = null;
+      if (fs.existsSync('./default_game_settings.json')) {
+        const defaults = JSON.parse(fs.readFileSync('./default_game_settings.json', 'utf8'));
+        delay = defaults.delays?.imageguess || null;
+      }
       if (fs.existsSync('./server_game_settings.json')) {
         const settings = JSON.parse(fs.readFileSync('./server_game_settings.json', 'utf8'));
-        const delay = settings.guilds[message.guild.id]?.delays?.imageguess || settings.defaults?.delays?.imageguess;
+        const guildDelay = settings.guilds[message.guild.id]?.delays?.imageguess;
+        if (guildDelay) delay = guildDelay;
+      }
 
-        if (delay) {
-          const key = `${message.guild.id}-imageguess-${message.author.id}`;
-          const lastPlay = client.cooldowns.get(key);
-          const now = Date.now();
+      if (delay) {
+        cooldownKey = `${message.guild.id}-imageguess-${message.author.id}`;
+        const lastPlay = client.cooldowns.get(cooldownKey);
 
-          if (lastPlay && now < lastPlay + delay) {
-            const timeLeft = ((lastPlay + delay - now) / 1000).toFixed(1);
-            return message.reply(`⏳ Slow down! You can play **ImageGuess** again in **${timeLeft}s**.`);
-          }
-          client.cooldowns.set(key, now);
+        if (lastPlay && currentNow < lastPlay + delay) {
+          const timeLeft = ((lastPlay + delay - currentNow) / 1000).toFixed(1);
+          return message.reply(`⏳ Slow down! You can play **ImageGuess** again in **${timeLeft}s**.`);
         }
       }
 
@@ -108,17 +115,39 @@ module.exports = {
           });
 
           const hits = response.data.hits.filter(h => h.tags.split(',')[0].length > 3);
-          const selection = hits[Math.floor(Math.random() * hits.length)];
           
-          const tagList = selection.tags.split(',').map(t => t.trim().toLowerCase());
-          // Prefer a word that isn't just the category name (e.g. if category is Animals, don't pick 'animal')
-          secretWord = tagList.find(t => t !== query && t.length > 3) || tagList[0];
-          
-          const imgUrl = selection.webformatURL;
-          const imgRes = await axios.get(imgUrl, { responseType: 'arraybuffer' });
-          imageSource = Buffer.from(imgRes.data);
-          
-          console.log(`[ImageGuess] Selection: ${secretWord} (Query: ${searchQuery})`);
+          if (hits.length === 0) {
+            console.warn(`[ImageGuess] No valid hits found for query: ${searchQuery}. Falling back to local assets.`);
+          } else {
+            const selection = hits[Math.floor(Math.random() * hits.length)];
+            const allTags = selection.tags.split(',').map(t => t.trim().toLowerCase());
+            
+            // --- REFINED SELECTION LOGIC ---
+            const blacklist = [
+              'life', 'portrait', 'beautiful', 'street', 'city', 'background', 'outdoor', 'indoor', 
+              'young', 'old', 'face', 'looking', 'person', 'people', 'human', 'adult', 'style',
+              'image', 'photo', 'photography', 'art', 'graphic', 'nature', 'landscape', 'wallpaper'
+            ];
+
+            const candidates = allTags.filter(t => 
+              t !== query && 
+              t.length >= 4 && 
+              t.length <= 10 && 
+              !blacklist.includes(t) &&
+              !t.includes(query) // Avoid 'animal' if category is 'animals'
+            );
+
+            // Sort candidates to prefer medium-long words (more descriptive)
+            candidates.sort((a, b) => b.length - a.length);
+
+            secretWord = candidates[0] || allTags.find(t => t !== query && t.length > 3) || allTags[0];
+            
+            const imgUrl = selection.webformatURL;
+            const imgRes = await axios.get(imgUrl, { responseType: 'arraybuffer' });
+            imageSource = Buffer.from(imgRes.data);
+            
+            console.log(`[ImageGuess] Selection: ${secretWord} (Query: ${searchQuery}) | All Tags: ${allTags.join(', ')}`);
+          }
         } catch (apiErr) {
           console.error('[ImageGuess] API Error, falling back:', apiErr.message);
         }
@@ -133,6 +162,7 @@ module.exports = {
       }
 
       // 4. Game Start
+      if (cooldownKey) client.cooldowns.set(cooldownKey, currentNow);
       let prize = Math.floor(Math.random() * (600 - 300 + 1)) + 300; 
       try {
         if (fs.existsSync('./server_prize_configs.json')) {
@@ -181,7 +211,7 @@ module.exports = {
               .setImage('attachment://final.png');
 
             const finalImage = await Jimp.read(imageSource);
-            const buffer = await finalImage.getBufferAsync(Jimp.MIME_PNG);
+            const buffer = await finalImage.getBuffer('image/png');
             const attachment = new AttachmentBuilder(buffer, { name: 'final.png' });
 
             await m.reply({ embeds: [winEmbed], files: [attachment] });
@@ -204,7 +234,7 @@ module.exports = {
         const pixelSize = levels[levelIdx];
         const image = await Jimp.read(imageSource);
         if (pixelSize > 1) image.pixelate(pixelSize);
-        const buffer = await image.getBufferAsync(Jimp.MIME_PNG);
+        const buffer = await image.getBuffer('image/png');
         const attachment = new AttachmentBuilder(buffer, { name: `reveal_${levelIdx}.png` });
 
         const revealEmbed = new EmbedBuilder()

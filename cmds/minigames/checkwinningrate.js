@@ -4,7 +4,9 @@ const fs = require('fs');
 module.exports = {
   name: "checkwinningrate",
   aliases: ["cwr"],
-  description: "Check the winning rates for all roles in a specific game.",
+  description: "Check the winning rates configured for a specific game.\n\n" +
+                "🔹 **Variables:**\n" +
+                "• **[game name]** - The name of the game to check (e.g., highlow).",
   usage: "checkwinningrate [game name]",
   run: async (client, message, args, prefix, config) => {
     const gameName = args[0]?.toLowerCase();
@@ -20,17 +22,21 @@ module.exports = {
       return message.reply(`❌ Please provide a valid minigame name.\nAvailable games: ${gameList}`);
     }
 
-    const filePath = './winning_rates.json';
-    if (!fs.existsSync(filePath)) {
-      return message.reply("❌ Winning rates have not been configured yet.");
-    }
+    const defaultPath = './default_winning_rates.json';
+    const serverPath = './server_winning_rates.json';
 
     try {
-      const winData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      
-      // Load and Merge
-      const globalDefaults = winData.defaults || {};
-      const guildSettings = winData.guilds[message.guild.id]?.[gameName] || {};
+      let globalDefaults = {};
+      if (fs.existsSync(defaultPath)) {
+        globalDefaults = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
+      }
+
+      let guildSettings = {};
+      if (fs.existsSync(serverPath)) {
+        const serverData = JSON.parse(fs.readFileSync(serverPath, 'utf8'));
+        guildSettings = serverData.guilds[message.guild.id]?.[gameName] || {};
+      }
+
       const mergedRates = { ...globalDefaults, ...guildSettings };
 
       if (Object.keys(mergedRates).length === 0) {

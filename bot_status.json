@@ -1,0 +1,4 @@
+[
+  { "name": "{prefix}help || Check bio for support", "type": "Watching" },
+  { "name": "{prefix}help || Servers: {servers}", "type": "Watching" }
+]

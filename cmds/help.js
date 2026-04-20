@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ComponentType, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ComponentType, ButtonBuilder, ButtonStyle, MessageFlags, PermissionsBitField } = require('discord.js');
 
 module.exports = {
   name: "help",
@@ -6,8 +6,13 @@ module.exports = {
   usage: "help",
   run: async (client, message, args, prefix, config) => {
     // 1. GROUP COMMANDS BY CATEGORY
+    const isAdmin = message.member.permissions.has(PermissionsBitField.Flags.Administrator) || message.guild.ownerId === message.author.id;
+
     const categories = {};
     client.commands.forEach(cmd => {
+      // Filter Administrative Commands for non-admins
+      if (cmd.adminOnly && !isAdmin) return;
+
       const cat = cmd.category || 'Other';
       if (!categories[cat]) categories[cat] = [];
       categories[cat].push(cmd);
