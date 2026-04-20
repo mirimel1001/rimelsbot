@@ -46,7 +46,12 @@ async function safeDM(client, game, userId, content, options = {}) {
 
 async function logToHost(client, game, message) {
   if (!game.logs) game.logs = [];
-  game.logs.push(message);
+  
+  const phasePrefix = game.status === 'NIGHT' ? `[N${game.nightCount}] ` : 
+                     game.status === 'DAY' ? `[D${game.nightCount}] ` : 
+                     '[Game] ';
+  
+  game.logs.push(phasePrefix + message);
   if (game.logs.length > 50) game.logs.shift(); // Keep readable length
 
   const timeStr = game.startTime ? game.startTime.toLocaleString() : new Date().toLocaleString();
@@ -126,7 +131,7 @@ function generateNightEmbed(game, ready = 0, total = 0, remainingTime = 0) {
 
   return new EmbedBuilder()
     .setColor('#2C3E50')
-    .setTitle('🌙 Night Phase')
+    .setTitle(`🌙 Night Phase ${game.nightCount}`)
     .setDescription(`The sun sets. The village sleeps...\nNight ends in **${remainingTime}s**.\n\n**Ready:** ${ready}/${total}`)
     .addFields(
       { name: '👥 Alive', value: aliveList, inline: true },
@@ -158,7 +163,7 @@ function generateDayEmbed(game, summary, ready = 0, total = 0, remainingTime = 0
 
   return new EmbedBuilder()
     .setColor('#F1C40F')
-    .setTitle('☀️ Day Phase: Discussion')
+    .setTitle(`☀️ Day Phase ${game.nightCount}: Discussion`)
     .setDescription(`${summary}\n\nDiscuss & Vote! Ends in: **${remainingTime}s**\n\n**Ready:** ${ready}/${total}`)
     .addFields(
       { name: '👥 Alive', value: aliveList, inline: true },
@@ -227,10 +232,10 @@ async function runNightPhase(client, channel, game) {
   // Broadcast phase embed to all participants + Host
   const nightEmbed = generateNightEmbed(game, 0, alivePlayers.length, totalNightTime);
   for (const [id] of game.players) {
-    await safeDM(client, game, id, "🌙 **Night Phase Started**", { embeds: [nightEmbed] });
+    await safeDM(client, game, id, `🌙 **Night ${game.nightCount} Started**`, { embeds: [nightEmbed] });
   }
   if (!game.players.has(game.host)) {
-    await safeDM(client, game, game.host, "🌙 **Night Phase Started**", { embeds: [nightEmbed] });
+    await safeDM(client, game, game.host, `🌙 **Night ${game.nightCount} Started**`, { embeds: [nightEmbed] });
   }
   
   game.nightVote = new Map();
@@ -311,10 +316,10 @@ async function runDayPhase(client, channel, game) {
   // Broadcast phase embed to all participants + Host
   const dayEmbed = generateDayEmbed(game, summary, 0, alivePlayers.length, totalDayTime);
   for (const [id] of game.players) {
-    await safeDM(client, game, id, "☀️ **Day Phase Started**", { embeds: [dayEmbed] });
+    await safeDM(client, game, id, `☀️ **Day ${game.nightCount} Started**`, { embeds: [dayEmbed] });
   }
   if (!game.players.has(game.host)) {
-    await safeDM(client, game, game.host, "☀️ **Day Phase Started**", { embeds: [dayEmbed] });
+    await safeDM(client, game, game.host, `☀️ **Day ${game.nightCount} Started**`, { embeds: [dayEmbed] });
   }
   game.dayVotes = new Map();
   const startTime = Date.now();
