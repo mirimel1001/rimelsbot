@@ -49,12 +49,37 @@ async function logToHost(client, game, message) {
 
 async function relayWWChat(client, game, senderId, content) {
   const p = game.players.get(senderId);
-  const others = Array.from(game.players.entries()).filter(([id, op]) => op.role === 'WEREWOLF' && op.alive && id !== senderId);
-  await logToHost(client, game, `💬 **WW Chat** from **${p.name}**: ${content}`);
-  for (const [id] of others) {
+  if (!game.packChatHistory) game.packChatHistory = [];
+  if (!game.packChatMsgIds) game.packChatMsgIds = new Map();
+
+  game.packChatHistory.push(`[Werewolf] **${p.name}** says: ${content}`);
+  if (game.packChatHistory.length > 25) game.packChatHistory.shift(); // Keep readable
+
+  const chatEmbed = new EmbedBuilder()
+    .setColor('#E74C3C')
+    .setTitle('🐺 Werewolf Pack Chat')
+    .setDescription(game.packChatHistory.join('\n'))
+    .setFooter({ text: 'Type "wsay [text]" to chat with your pack.' });
+
+  const recipients = Array.from(game.players.entries())
+    .filter(([id, op]) => op.role === 'WEREWOLF' && op.alive)
+    .map(([id]) => id);
+  if (!recipients.includes(game.host)) recipients.push(game.host);
+
+  for (const id of recipients) {
     try {
       const user = await client.users.fetch(id);
-      await user.send(`🐺 **${p.name}:** ${content}`);
+      
+      // Delete old message if it exists
+      if (game.packChatMsgIds.has(id)) {
+        const oldMsgId = game.packChatMsgIds.get(id);
+        const dmChannel = user.dmChannel || await user.createDM();
+        const oldMsg = await dmChannel.messages.fetch(oldMsgId).catch(() => null);
+        if (oldMsg) await oldMsg.delete().catch(() => null);
+      }
+
+      const newMsg = await user.send({ embeds: [chatEmbed] });
+      game.packChatMsgIds.set(id, newMsg.id);
     } catch (e) {}
   }
 }
@@ -85,8 +110,8 @@ function generateNightEmbed(game, ready = 0, total = 0, remainingTime = 0) {
       { name: '💀 Dead', value: deadList, inline: true },
       { name: '📜 Available Commands', value: 
         "**Players:** `rww status`, `rww ready`, `rww dm`\n" +
-        "**Werewolves:** `rww kill [name]`\n" +
-        "**Seer:** `rww scan [name]`\n" +
+        "**Werewolves:** `rww kill [name/id]`, `rww wsay [text]`\n" +
+        "**Seer:** `rww scan [name/id]`\n" +
         "**Host:** `rww cancel`"
       }
     )
@@ -116,7 +141,7 @@ function generateDayEmbed(game, summary, ready = 0, total = 0, remainingTime = 0
       { name: '👥 Alive', value: aliveList, inline: true },
       { name: '💀 Dead', value: deadList, inline: true },
       { name: '📜 Available Commands', value: 
-        "**Players:** `rww vote [name]`, `rww ready`, `rww status`, `rww dm`\n" +
+        "**Players:** `rww vote [name/id]`, `rww ready`, `rww status`, `rww dm`\n" +
         "**Host:** `rww cancel`"
       }
     )
@@ -158,8 +183,11 @@ function getRoleDescription(role) {
 
 async function runNightPhase(client, channel, game) {
   game.status = 'NIGHT';
+  game.packChatHistory = [];
+  game.packChatMsgIds = new Map();
   
   const totalNightTime = (game.nightTime || 40) * game.players.size;
+  game.players.forEach(p => { p.ready = false; p.scannedThisNight = false; });
   const alivePlayers = Array.from(game.players.values()).filter(p => p.alive);
   const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ww_ready').setLabel('Ready (Skip)').setStyle(ButtonStyle.Secondary));
   const nightMsg = await channel.send({ embeds: [generateNightEmbed(game, 0, alivePlayers.length, totalNightTime)], components: [row] });

@@ -97,7 +97,7 @@ try {
   process.exit(1);
 }
 
-const { Client, GatewayIntentBits, Collection, ActivityType, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ActivityType, Events, Partials } = require('discord.js');
 
 // Dynamic Config Loading
 const getConfig = () => JSON.parse(fs.readFileSync(path.join(__dirname, 'server_config.json'), 'utf8'));
@@ -109,7 +109,9 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.DirectMessages,
   ],
+  partials: [Partials.Channel],
 });
 
 // Setup Collections
@@ -203,16 +205,19 @@ client.on('messageCreate', async (message) => {
   if (!message.guild) {
     const prefix = getConfig().prefix;
     if (!message.content.toLowerCase().startsWith(prefix.toLowerCase())) {
-      // Werewolf DM Relay (Pack Chat)
-      const game = Array.from(client.werewolfGames.values()).find(g =>
-        g.status === 'NIGHT' &&
-        g.players.has(message.author.id) &&
-        g.players.get(message.author.id).role === 'WEREWOLF' &&
-        g.players.get(message.author.id).alive
-      );
-      if (game) {
-        const engine = require('./cmds/minigames/Werewolf/engine.js');
-        return engine.relayChat(client, game, message.author.id, message.content);
+      // Standalone wsay support for Werewolves
+      if (message.content.toLowerCase().startsWith('wsay ')) {
+        const game = Array.from(client.werewolfGames.values()).find(g =>
+          g.status === 'NIGHT' &&
+          g.players.has(message.author.id) &&
+          g.players.get(message.author.id).role === 'WEREWOLF' &&
+          g.players.get(message.author.id).alive
+        );
+        if (game) {
+          const text = message.content.slice(5).trim();
+          const engine = require('./cmds/minigames/Werewolf/engine.js');
+          return engine.relayChat(client, game, message.author.id, text);
+        }
       }
       return; // Ignore non-command, non-game DMs
     }

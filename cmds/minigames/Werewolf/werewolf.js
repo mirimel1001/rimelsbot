@@ -176,32 +176,46 @@ module.exports = {
 
       if (game.status === 'NIGHT' && (subCommand === 'kill' || subCommand === 'k')) {
         if (p.role !== 'WEREWOLF') return;
+        if (message.guild) return message.reply("🤫 **Werewolf actions MUST be taken in DMs.** Check your private messages!");
         const targetInput = args.slice(1).join(' ');
         if (!targetInput) return message.reply("❌ Specify a player name or number.");
         const targetEntry = resolveTarget(targetInput);
         if (!targetEntry || targetEntry[1].role === 'WEREWOLF') return message.reply("❌ Invalid target.");
         
         const engine = require('./engine.js');
+        const action = game.nightVote.has(message.author.id) ? "switched their target to" : "selected to kill";
         game.nightVote.set(message.author.id, targetEntry[0]);
-        await engine.logToHost(client, game, `🔪 **Targeting:** **${message.author.username}** selected **${targetEntry[1].name}** to kill.`);
+        await engine.logToHost(client, game, `🔪 **Targeting:** **${message.author.username}** ${action} **${targetEntry[1].name}**`);
         return message.reply(`✅ Selection: **${targetEntry[1].name}**.`);
       }
 
       if (game.status === 'NIGHT' && (subCommand === 'scan' || subCommand === 'sc')) {
         if (p.role !== 'SEER') return;
-        if (game.seerLimit !== null && p.scans <= 0) return message.reply("❌ No scans left!");
+        if (message.guild) return message.reply("🔮 **Seer scans MUST be taken in DMs.** Check your private messages!");
+        if (p.scannedThisNight) return message.reply("⚠️ You have already scanned someone tonight!");
+        if (game.seerLimit !== null && p.scans <= 0) return message.reply("❌ No scans left represent!");
         const targetInput = args.slice(1).join(' ');
         if (!targetInput) return message.reply("❌ Specify a player name or number.");
         const targetEntry = resolveTarget(targetInput);
         if (!targetEntry || targetEntry[0] === message.author.id) return message.reply("❌ Invalid target.");
         
         if (game.seerLimit !== null) p.scans--;
+        p.scannedThisNight = true;
         let res = targetEntry[1].role;
         if (game.seerMode === 'SIMPLE') res = targetEntry[1].role === 'WEREWOLF' ? 'WEREWOLF' : 'NOT a Werewolf';
         
         const engine = require('./engine.js');
-        await engine.logToHost(client, game, `🔮 **Seer Scan:** **${p.name}** scanned **${targetEntry[1].name}** and saw: **${res}** (Left: ${p.scans ?? '∞'})`);
-        return message.reply(`🔮 Your vision reveals: **${targetEntry[1].name}** is a **${res}**.\n*Remaining: ${p.scans ?? '∞'}*`);
+        await engine.logToHost(client, game, `🔮 **Seer Scan:** **${p.name}** scanned **${targetEntry[1].name}** and saw: **${res}** (Remaining scans: ${p.scans ?? '∞'})`);
+        return message.reply(`🔮 Your vision reveals: **${targetEntry[1].name}** is a **${res}**.\n*Remaining scans: ${p.scans ?? '∞'}*`);
+      }
+
+      if (subCommand === 'wsay' || subCommand === 'w') {
+        if (p.role !== 'WEREWOLF') return;
+        const text = args.slice(1).join(' ');
+        if (!text) return message.reply("❌ Usage: `rww wsay [text]`");
+        const engine = require('./engine.js');
+        await engine.relayChat(client, game, message.author.id, text);
+        return message.reply(`✅ Sent to pack: "${text}"`);
       }
 
       if (subCommand === 'dm') {
@@ -460,15 +474,19 @@ function registerWWListener(client) {
     }
     if (i.customId === 'ww_kill') {
       if (g.status !== 'NIGHT') return i.reply({ content: 'Night phase is over.', flags: [MessageFlags.Ephemeral] });
+      const action = g.nightVote.has(i.user.id) ? "switched their target to" : "selected";
       g.nightVote.set(i.user.id, i.values[0]);
-      await engine.logToHost(client, g, `🔪 **Targeting:** **${i.user.username}** selected **${g.players.get(i.values[0]).name}** to kill.`);
+      await engine.logToHost(client, g, `🔪 **Targeting:** **${i.user.username}** ${action} **${g.players.get(i.values[0]).name}** to kill.`);
       return i.update({ content: `✅ Selected **${g.players.get(i.values[0]).name}**`, components: [] });
     }
     
     if (i.customId === 'ww_scan') {
+      const engine = require('./engine.js');
       if (g.status !== 'NIGHT') return i.reply({ content: 'Night phase is over.', flags: [MessageFlags.Ephemeral] });
+      if (p.scannedThisNight) return i.reply({ content: "⚠️ You have already scanned someone tonight!", flags: [MessageFlags.Ephemeral] });
       if (g.seerLimit !== null && p.scans <= 0) return i.reply({ content: "❌ No scans left for this game!", flags: [MessageFlags.Ephemeral] });
       if (g.seerLimit !== null) p.scans--;
+      p.scannedThisNight = true;
       const target = g.players.get(i.values[0]);
       let res = target.role;
       if (g.seerMode === 'SIMPLE') res = target.role === 'WEREWOLF' ? 'WEREWOLF' : 'NOT a Werewolf';
