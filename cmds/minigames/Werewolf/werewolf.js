@@ -147,7 +147,7 @@ module.exports = {
         return indexed.find(([id, tp]) => tp.name.toLowerCase().includes(input.toLowerCase()));
       };
 
-      if (subCommand === 'skip' || subCommand === 's' || subCommand === 'ready') {
+      if (subCommand === 'skip' || subCommand === 'ready') {
         p.ready = true;
         return message.reply("✅ Status: **Ready**.");
       }

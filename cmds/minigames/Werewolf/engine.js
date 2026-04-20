@@ -4,8 +4,12 @@ const axios = require('axios');
 module.exports = {
   run: async (client, channel, game) => {
     try {
+      game.logs = [];
+      game.startTime = new Date();
+      game.hostLogMsgId = null;
       await assignRoles(game);
       await notifyRoles(client, game);
+      game.nightCount = 0;
 
       while (game.status !== 'ENDED') {
         await runNightPhase(client, channel, game);
@@ -41,9 +45,28 @@ async function safeDM(client, game, userId, content, options = {}) {
 }
 
 async function logToHost(client, game, message) {
+  if (!game.logs) game.logs = [];
+  game.logs.push(message);
+  if (game.logs.length > 50) game.logs.shift(); // Keep readable length
+
+  const timeStr = game.startTime ? game.startTime.toLocaleString() : new Date().toLocaleString();
+  const logEmbed = new EmbedBuilder()
+    .setColor('#3498DB')
+    .setTitle(`📜 A Game of Werewolf - ${timeStr}`)
+    .setDescription(game.logs.join('\n'));
+
   try {
     const host = await client.users.fetch(game.host);
-    await host.send(`📜 **Game Log:** ${message}`);
+    
+    // Delete old message if it exists
+    if (game.hostLogMsgId) {
+      const dmChannel = host.dmChannel || await host.createDM();
+      const oldMsg = await dmChannel.messages.fetch(game.hostLogMsgId).catch(() => null);
+      if (oldMsg) await oldMsg.delete().catch(() => null);
+    }
+
+    const newMsg = await host.send({ embeds: [logEmbed] });
+    game.hostLogMsgId = newMsg.id;
   } catch (e) {}
 }
 
@@ -57,7 +80,7 @@ async function relayWWChat(client, game, senderId, content) {
 
   const chatEmbed = new EmbedBuilder()
     .setColor('#E74C3C')
-    .setTitle('🐺 Werewolf Pack Chat')
+    .setTitle(`🐺 Werewolf Pack Chat (Night ${game.nightCount})`)
     .setDescription(game.packChatHistory.join('\n'))
     .setFooter({ text: 'Type "wsay [text]" to chat with your pack.' });
 
@@ -109,7 +132,7 @@ function generateNightEmbed(game, ready = 0, total = 0, remainingTime = 0) {
       { name: '👥 Alive', value: aliveList, inline: true },
       { name: '💀 Dead', value: deadList, inline: true },
       { name: '📜 Available Commands', value: 
-        "**Players:** `rww status`, `rww ready`, `rww dm`\n" +
+        "**Players:** `rww status`, `rww skip`, `rww dm`\n" +
         "**Werewolves:** `rww kill [name/id]`, `rww wsay [text]`\n" +
         "**Seer:** `rww scan [name/id]`\n" +
         "**Host:** `rww cancel`"
@@ -141,7 +164,7 @@ function generateDayEmbed(game, summary, ready = 0, total = 0, remainingTime = 0
       { name: '👥 Alive', value: aliveList, inline: true },
       { name: '💀 Dead', value: deadList, inline: true },
       { name: '📜 Available Commands', value: 
-        "**Players:** `rww vote [name/id]`, `rww ready`, `rww status`, `rww dm`\n" +
+        "**Players:** `rww vote [name/id]`, `rww skip`, `rww status`, `rww dm`\n" +
         "**Host:** `rww cancel`"
       }
     )
@@ -168,8 +191,16 @@ async function notifyRoles(client, game) {
   await logToHost(client, game, "🌑 **Game Started!** Dispatching roles...");
   for (const [id, p] of game.players) {
     const roleEmojis = { 'WEREWOLF': '🐺', 'SEER': '🔮', 'VILLAGER': '👨‍🌾' };
+    let description = getRoleDescription(p.role);
+    
+    if (p.role === 'WEREWOLF') {
+      const pack = Array.from(game.players.values()).filter(tp => tp.role === 'WEREWOLF').map(tp => `• **${tp.name}**`).join('\n');
+      description += `\n\n**🐺 Your Pack:**\n${pack}`;
+    }
+
     const embed = new EmbedBuilder().setColor(p.role === 'WEREWOLF' ? '#E74C3C' : '#2ECC71')
-      .setTitle(`${roleEmojis[p.role] || '👤'} You are a ${p.role}!`).setDescription(getRoleDescription(p.role));
+      .setTitle(`${roleEmojis[p.role] || '👤'} You are a ${p.role}!`)
+      .setDescription(description);
     await safeDM(client, game, id, "", { embeds: [embed] });
     await logToHost(client, game, `• <@${id}> is a **${p.role}**`);
   }
@@ -183,6 +214,7 @@ function getRoleDescription(role) {
 
 async function runNightPhase(client, channel, game) {
   game.status = 'NIGHT';
+  game.nightCount++;
   game.packChatHistory = [];
   game.packChatMsgIds = new Map();
   
