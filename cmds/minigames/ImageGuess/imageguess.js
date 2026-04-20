@@ -192,7 +192,8 @@ module.exports = {
       const guessCollector = message.channel.createMessageCollector({ filter: guessFilter, time: 60000 });
 
       guessCollector.on('collect', async (m) => {
-        if (m.content.toLowerCase() === secretWord) {
+        const guess = m.content.toLowerCase().trim();
+        if (guess === secretWord || (guess.length >= 3 && secretWord.includes(guess)) || (secretWord.length >= 3 && guess.includes(secretWord))) {
           gameWon = true;
           guessCollector.stop('won');
 
