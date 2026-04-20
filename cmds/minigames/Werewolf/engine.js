@@ -52,7 +52,7 @@ async function logToHost(client, game, message) {
                      '[Game] ';
   
   game.logs.push(phasePrefix + message);
-  if (game.logs.length > 50) game.logs.shift(); // Keep readable length
+  if (game.logs.length > 50) game.logs.shift();
 
   const timeStr = game.startTime ? game.startTime.toLocaleString() : new Date().toLocaleString();
   const logEmbed = new EmbedBuilder()
@@ -62,17 +62,51 @@ async function logToHost(client, game, message) {
 
   try {
     const host = await client.users.fetch(game.host);
-    
-    // Delete old message if it exists
     if (game.hostLogMsgId) {
       const dmChannel = host.dmChannel || await host.createDM();
       const oldMsg = await dmChannel.messages.fetch(game.hostLogMsgId).catch(() => null);
       if (oldMsg) await oldMsg.delete().catch(() => null);
     }
-
     const newMsg = await host.send({ embeds: [logEmbed] });
     game.hostLogMsgId = newMsg.id;
   } catch (e) {}
+}
+
+async function logToPlayer(client, game, userId, message) {
+  const p = game.players.get(userId);
+  if (!p) return;
+  if (!p.logs) p.logs = [];
+  
+  const phasePrefix = game.status === 'NIGHT' ? `[N${game.nightCount}] ` : 
+                     game.status === 'DAY' ? `[D${game.nightCount}] ` : 
+                     '[Game] ';
+  
+  p.logs.push(phasePrefix + message);
+  if (p.logs.length > 30) p.logs.shift();
+
+  const timeStr = game.startTime ? game.startTime.toLocaleString() : new Date().toLocaleString();
+  const logEmbed = new EmbedBuilder()
+    .setColor(p.role === 'WEREWOLF' ? '#E74C3C' : '#3498DB')
+    .setTitle(`📜 A Game of Werewolf - ${timeStr}`)
+    .setDescription(p.logs.join('\n'));
+
+  try {
+    const user = await client.users.fetch(userId);
+    if (p.logMsgId) {
+      const dmChannel = user.dmChannel || await user.createDM();
+      const oldMsg = await dmChannel.messages.fetch(p.logMsgId).catch(() => null);
+      if (oldMsg) await oldMsg.delete().catch(() => null);
+    }
+    const newMsg = await user.send({ embeds: [logEmbed] });
+    p.logMsgId = newMsg.id;
+  } catch (e) {}
+}
+
+async function logToBoth(client, game, message) {
+  await logToHost(client, game, message);
+  for (const [id] of game.players) {
+    await logToPlayer(client, game, id, message);
+  }
 }
 
 async function relayWWChat(client, game, senderId, content) {
@@ -184,6 +218,8 @@ async function assignRoles(game) {
   for (let i = 0; i < playerIds.length; i++) {
     const p = game.players.get(playerIds[i]);
     p.id = playerIds[i]; // Ensure ID is stored
+    p.logs = [];
+    p.logMsgId = null;
     if (i < wwCount) p.role = 'WEREWOLF';
     else if (i === wwCount) {
       p.role = 'SEER';
@@ -203,10 +239,7 @@ async function notifyRoles(client, game) {
       description += `\n\n**🐺 Your Pack:**\n${pack}`;
     }
 
-    const embed = new EmbedBuilder().setColor(p.role === 'WEREWOLF' ? '#E74C3C' : '#2ECC71')
-      .setTitle(`${roleEmojis[p.role] || '👤'} You are a ${p.role}!`)
-      .setDescription(description);
-    await safeDM(client, game, id, "", { embeds: [embed] });
+    await logToPlayer(client, game, id, `${roleEmojis[p.role] || '👤'} **You are a ${p.role}!**\n${description}`);
     await logToHost(client, game, `• <@${id}> is a **${p.role}**`);
   }
 }
@@ -229,14 +262,8 @@ async function runNightPhase(client, channel, game) {
   const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ww_ready').setLabel('Ready (Skip)').setStyle(ButtonStyle.Secondary));
   const nightMsg = await channel.send({ embeds: [generateNightEmbed(game, 0, alivePlayers.length, totalNightTime)], components: [row] });
   
-  // Broadcast phase embed to all participants + Host
-  const nightEmbed = generateNightEmbed(game, 0, alivePlayers.length, totalNightTime);
-  for (const [id] of game.players) {
-    await safeDM(client, game, id, `🌙 **Night ${game.nightCount} Started**`, { embeds: [nightEmbed] });
-  }
-  if (!game.players.has(game.host)) {
-    await safeDM(client, game, game.host, `🌙 **Night ${game.nightCount} Started**`, { embeds: [nightEmbed] });
-  }
+  // Broadcast phase logic via logToBoth
+  await logToBoth(client, game, `🌙 **Night ${game.nightCount} Started**`);
   
   game.nightVote = new Map();
   const wwIds = Array.from(game.players.entries()).filter(([id, p]) => p.alive && p.role === 'WEREWOLF').map(([id]) => id);
@@ -313,14 +340,8 @@ async function runDayPhase(client, channel, game) {
   );
   const dayMsg = await channel.send({ embeds: [generateDayEmbed(game, summary, 0, alivePlayers.length, totalDayTime)], components: [row] });
   
-  // Broadcast phase embed to all participants + Host
-  const dayEmbed = generateDayEmbed(game, summary, 0, alivePlayers.length, totalDayTime);
-  for (const [id] of game.players) {
-    await safeDM(client, game, id, `☀️ **Day ${game.nightCount} Started**`, { embeds: [dayEmbed] });
-  }
-  if (!game.players.has(game.host)) {
-    await safeDM(client, game, game.host, `☀️ **Day ${game.nightCount} Started**`, { embeds: [dayEmbed] });
-  }
+  // Broadcast phase logic via logToBoth
+  await logToBoth(client, game, `☀️ **Day ${game.nightCount} Started**`);
   game.dayVotes = new Map();
   const startTime = Date.now();
   const dayDurationMs = (game.dayTime || 60) * game.players.size * 1000;
