@@ -54,4 +54,4 @@ To keep your community active and fun, here is a categorized list of minigames y
 
 > [!TIP]
 > **Which one should we do first?** I recommend starting with a **Counting Channel** or **High/Low Betting**. I can add the code for either of these to your `index.js` in about 30 seconds!
-.
+..
