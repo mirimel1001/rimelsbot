@@ -231,7 +231,7 @@ module.exports = {
         if (game.players.has(message.author.id)) return message.reply("⚠️ Already in!");
         if (game.players.size >= game.maxPlayers) return message.reply("⚠️ Lobby full!");
         game.players.set(message.author.id, { name: message.author.username, role: null, alive: true, ready: false });
-        return message.reply("✅ Joined!");
+        return message.reply("✅ **Joined!** ⚠️ **IMPORTANT:** Please ensure you have **'Allow Direct Messages from other members in this server'** enabled in your **Privacy Settings** for this server so the bot can send you your secret role and prompts!");
       }
       if (subCommand === 'leave') {
         game.players.delete(message.author.id);
