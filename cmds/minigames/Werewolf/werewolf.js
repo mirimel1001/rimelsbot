@@ -302,58 +302,6 @@ async function sendLobbyUI(channel, game) {
       i.update({ content: '⭕ Cancelled.', embeds: [], components: [] });
     }
   });
-
-  client.on('interactionCreate', async (i) => {
-    if (!i.isButton() && !i.isStringSelectMenu()) return;
-    const g = Array.from(client.werewolfGames.values()).find(game => game.players.has(i.user.id));
-    if (!g) return;
-    const p = g.players.get(i.user.id);
-    if (!p || !p.alive) return;
-
-    if (i.customId === 'ww_ready') {
-      p.ready = true;
-      return i.reply({ content: '✅ Ready!', flags: [MessageFlags.Ephemeral] });
-    }
-    if (i.customId === 'ww_vote_open') {
-      const options = Array.from(g.players.entries()).filter(([id, tp]) => tp.alive && id !== i.user.id).map(([id, tp]) => ({ label: tp.name, value: id }));
-      if (options.length === 0) return i.reply({ content: '❌ No targets.', flags: [MessageFlags.Ephemeral] });
-      const menu = new StringSelectMenuBuilder().setCustomId('ww_vote_cast').setPlaceholder('Vote...').addOptions(options);
-      return i.reply({ components: [new ActionRowBuilder().addComponents(menu)], flags: [MessageFlags.Ephemeral] });
-    }
-    if (i.customId === 'ww_vote_cancel') {
-      if (!g.dayVotes.has(i.user.id)) return i.reply({ content: "⚠️ You haven't voted yet!", flags: [MessageFlags.Ephemeral] });
-      const targetId = g.dayVotes.get(i.user.id);
-      const targetName = g.players.get(targetId)?.name || "Unknown";
-      g.dayVotes.delete(i.user.id);
-      const engine = require('./engine.js');
-      await engine.logToHost(client, g, `❌ **Unvote:** **${i.user.username}** cancelled their vote for **${targetName}**.`);
-      return i.reply({ content: "✅ Your vote has been **cancelled**.", flags: [MessageFlags.Ephemeral] });
-    }
-    if (i.customId === 'ww_vote_cast') {
-      const engine = require('./engine.js');
-      g.dayVotes.set(i.user.id, i.values[0]);
-      await engine.logToHost(client, g, `🗳️ **Vote:** **${i.user.username}** voted for **${g.players.get(i.values[0]).name}**`);
-      return i.update({ content: `✅ Voted for **${g.players.get(i.values[0]).name}**`, components: [] });
-    }
-    if (i.customId === 'ww_kill') {
-      const engine = require('./engine.js');
-      if (g.status !== 'NIGHT') return i.reply({ content: 'Night phase is over.', flags: [MessageFlags.Ephemeral] });
-      g.nightVote.set(i.user.id, i.values[0]);
-      await engine.logToHost(client, g, `🔪 **Targeting:** **${i.user.username}** selected **${g.players.get(i.values[0]).name}** to kill.`);
-      return i.update({ content: `✅ Selected **${g.players.get(i.values[0]).name}**`, components: [] });
-    }
-    
-    if (i.customId === 'ww_scan') {
-      if (g.status !== 'NIGHT') return i.reply({ content: 'Night phase is over.', flags: [MessageFlags.Ephemeral] });
-      if (g.seerLimit !== null && p.scans <= 0) return i.reply({ content: "❌ No scans left for this game!", flags: [MessageFlags.Ephemeral] });
-      if (g.seerLimit !== null) p.scans--;
-      const target = g.players.get(i.values[0]);
-      let res = target.role;
-      if (g.seerMode === 'SIMPLE') res = target.role === 'WEREWOLF' ? 'WEREWOLF' : 'NOT a Werewolf';
-      await engine.logToHost(client, g, `🔮 **Seer Scan:** **${p.name}** scanned **${target.name}** saw **${res}** (Remaining: ${p.scans ?? '∞'})`);
-      return i.update({ content: `🔮 Vision: **${target.name}** is a **${res}**.\n*Remaining in game: ${p.scans ?? '∞'}*`, components: [] });
-    }
-  });
 }
 
 function updateLobbyUI(msg, game) {
@@ -467,6 +415,65 @@ async function startInteractiveSetup(client, message, game) {
       client.werewolfGames.delete(message.channel.id);
       collector.stop();
       i.update({ content: '⭕ Exit.', embeds: [], components: [] });
+    }
+  });
+}
+
+function registerWWListener(client) {
+  if (client.wwListenerRegistered) return;
+  client.wwListenerRegistered = true;
+
+  client.on('interactionCreate', async (i) => {
+    if (!i.isButton() && !i.isStringSelectMenu()) return;
+    const g = Array.from(client.werewolfGames.values()).find(game => game.players.has(i.user.id));
+    if (!g) return;
+    const p = g.players.get(i.user.id);
+    if (!p || !p.alive) return;
+
+    const engine = require('./engine.js');
+
+    if (i.customId === 'ww_ready') {
+      p.ready = true;
+      return i.reply({ content: '✅ Ready!', flags: [MessageFlags.Ephemeral] });
+    }
+    if (i.customId === 'ww_vote_open') {
+      const options = Array.from(g.players.entries())
+        .filter(([id, tp]) => tp.alive && id !== i.user.id)
+        .map(([id, tp]) => ({ label: tp.name, value: id }));
+      
+      if (options.length === 0) return i.reply({ content: '❌ No targets.', flags: [MessageFlags.Ephemeral] });
+      const menu = new StringSelectMenuBuilder().setCustomId('ww_vote_cast').setPlaceholder('Vote...').addOptions(options);
+      return i.reply({ components: [new ActionRowBuilder().addComponents(menu)], flags: [MessageFlags.Ephemeral] });
+    }
+    if (i.customId === 'ww_vote_cancel') {
+      if (!g.dayVotes.has(i.user.id)) return i.reply({ content: "⚠️ You haven't voted yet!", flags: [MessageFlags.Ephemeral] });
+      const targetId = g.dayVotes.get(i.user.id);
+      const targetName = g.players.get(targetId)?.name || "Unknown";
+      g.dayVotes.delete(i.user.id);
+      await engine.logToHost(client, g, `❌ **Unvote:** **${i.user.username}** cancelled their vote for **${targetName}**.`);
+      return i.reply({ content: "✅ Your vote has been **cancelled**.", flags: [MessageFlags.Ephemeral] });
+    }
+    if (i.customId === 'ww_vote_cast') {
+      g.dayVotes.set(i.user.id, i.values[0]);
+      await engine.logToHost(client, g, `🗳️ **Vote:** **${i.user.username}** voted for **${g.players.get(i.values[0]).name}**`);
+      return i.update({ content: `✅ Voted for **${g.players.get(i.values[0]).name}**`, components: [] });
+    }
+    if (i.customId === 'ww_kill') {
+      if (g.status !== 'NIGHT') return i.reply({ content: 'Night phase is over.', flags: [MessageFlags.Ephemeral] });
+      g.nightVote.set(i.user.id, i.values[0]);
+      await engine.logToHost(client, g, `🔪 **Targeting:** **${i.user.username}** selected **${g.players.get(i.values[0]).name}** to kill.`);
+      return i.update({ content: `✅ Selected **${g.players.get(i.values[0]).name}**`, components: [] });
+    }
+    
+    if (i.customId === 'ww_scan') {
+      if (g.status !== 'NIGHT') return i.reply({ content: 'Night phase is over.', flags: [MessageFlags.Ephemeral] });
+      if (g.seerLimit !== null && p.scans <= 0) return i.reply({ content: "❌ No scans left for this game!", flags: [MessageFlags.Ephemeral] });
+      if (g.seerLimit !== null) p.scans--;
+      const target = g.players.get(i.values[0]);
+      let res = target.role;
+      if (g.seerMode === 'SIMPLE') res = target.role === 'WEREWOLF' ? 'WEREWOLF' : 'NOT a Werewolf';
+      await engine.logToHost(client, g, `🔮 **Seer Scan:** **${p.name}** scanned **${target.name}** saw **${res}** (Remaining: ${p.scans ?? '∞'})`);
+      return i.update({ content: `🔮 Vision: **${target.name}** is a **${res}**.\n*Remaining in game: ${p.scans ?? '∞'}*`, components: [] });
     }
   });
 }

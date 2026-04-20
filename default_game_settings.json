@@ -1,6 +1,6 @@
 {
   "delays": {
-    "highlow": 40000,
+    "highlow": 60000,
     "imageguess": 30000
   }
 }
