@@ -1,0 +1,45 @@
+[
+  {
+    "version": "1.4.0",
+    "date": "2026-04-21",
+    "title": "Wispbyte & UX Core",
+    "items": [
+      "Forced .env priority to fix 'Invalid Token' errors on Wispbyte.",
+      "Added token sanitization (trim/quote removal) for safety.",
+      "Self-healing configuration system for missing/corrupted files.",
+      "Permission-based help menu (hides admin cmds from members)."
+    ]
+  },
+  {
+    "version": "1.5.0",
+    "date": "2026-04-21",
+    "title": "Werewolf: Tactical Overhaul",
+    "items": [
+      "Player Indexing (1, 2, 3...) for fast targeting.",
+      "Secret DM commands for Wolves and Seers.",
+      "Tactical Vote Cancellation during the Day phase.",
+      "20% Prize Tax and Seer scan limits (default 2)."
+    ]
+  },
+  {
+    "version": "1.6.0",
+    "date": "2026-04-21",
+    "title": "The Social & Logging Update",
+    "items": [
+      "Collaborative 'Death Stories' for Werewolves via standalone commands.",
+      "Unified persistent DM log embeds for the Host and all Players.",
+      "Standalone DM commands (skip, wsay, how) requiring no prefix.",
+      "Winner summaries now pushed to persistent logs at endgame."
+    ]
+  },
+  {
+    "version": "1.7.0",
+    "date": "2026-04-22",
+    "title": "Persistence & Metadata",
+    "items": [
+      "Migrated from Git-based 'commits' to local 'updates.json' storage.",
+      "Added support for rich, multi-line update descriptions.",
+      "Enhanced update embeds with better visibility and organization."
+    ]
+  }
+]
