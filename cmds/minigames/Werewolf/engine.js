@@ -48,6 +48,26 @@ async function safeDM(client, game, userId, content, options = {}) {
   }
 }
 
+function getDMCommandsField(game, p = null) {
+  if (!p) { // Host
+    return "`rww cancel`, `rww status`, `rww dm`";
+  }
+
+  if (!p.alive) return "`rww status`, `rww dm` (You are dead)";
+
+  if (game.status === 'NIGHT') {
+    if (p.role === 'WEREWOLF') return "**Kill:** `k [ID/Name]`\n**Chat:** `wsay [Text]`\n**Story:** `how [Text]`\n**Misc:** `skip`, `status`, `dm`";
+    if (p.role === 'SEER') return `**Scan:** \`sc [ID/Name]\` (Scans: ${p.scans ?? '∞'})\n**Misc:** \`skip\`, \`status\`, \`dm\``;
+    return "**Wait:** Village is sleeping...\n**Misc:** `skip`, `status`, `dm`";
+  }
+
+  if (game.status === 'DAY') {
+    return "**Vote:** `v [ID/Name]`, `unvote`\n**Misc:** `skip`, `status`, `dm`";
+  }
+
+  return "`rww status`, `rww dm` (Waiting for phase...)";
+}
+
 async function logToHost(client, game, message) {
   if (!game.logs) game.logs = [];
   
@@ -65,7 +85,8 @@ async function logToHost(client, game, message) {
     .setDescription(game.logs.join('\n'))
     .addFields(
       { name: '👥 Alive', value: getAliveList(game), inline: true },
-      { name: '💀 Dead', value: getDeadList(game), inline: true }
+      { name: '💀 Dead', value: getDeadList(game), inline: true },
+      { name: '📜 Available Commands', value: getDMCommandsField(game), inline: false }
     );
 
   try {
@@ -99,7 +120,8 @@ async function logToPlayer(client, game, userId, message) {
     .setDescription(p.logs.join('\n'))
     .addFields(
       { name: '👥 Alive', value: getAliveList(game, userId), inline: true },
-      { name: '💀 Dead', value: getDeadList(game), inline: true }
+      { name: '💀 Dead', value: getDeadList(game), inline: true },
+      { name: '📜 Available Commands', value: getDMCommandsField(game, p), inline: false }
     );
 
   try {
@@ -325,7 +347,7 @@ async function runNightPhase(client, channel, game) {
   for (const id of wwIds) {
     const options = targets.filter(([tId]) => !wwIds.includes(tId)).map(([tId, tp]) => ({ label: tp.name, value: tId }));
     const menu = new StringSelectMenuBuilder().setCustomId('ww_kill').setPlaceholder('Choose a victim...').addOptions(options);
-    await safeDM(client, game, id, '🌑 **Night falls.** Use the menu or type `rww k [name]` to select a victim.', { components: [new ActionRowBuilder().addComponents(menu)] });
+    await safeDM(client, game, id, '🌑 **Night falls.** Use the menu or type `k [number/name]` to select a victim.', { components: [new ActionRowBuilder().addComponents(menu)] });
   }
 
   if (seerId) {
@@ -333,7 +355,7 @@ async function runNightPhase(client, channel, game) {
     if (game.seerLimit === null || sp.scans > 0) {
       const options = targets.filter(([tId]) => tId !== seerId).map(([tId, tp]) => ({ label: tp.name, value: tId }));
       const menu = new StringSelectMenuBuilder().setCustomId('ww_scan').setPlaceholder('Choose a target...').addOptions(options);
-      await safeDM(client, game, seerId, `🔮 **The crystal ball glows.** Use the menu or type \`rww sc [name]\` to scan a player.\n*Remaining scans: ${sp.scans !== undefined ? sp.scans : '∞'}*`, { components: [new ActionRowBuilder().addComponents(menu)] });
+      await safeDM(client, game, seerId, `🔮 **The crystal ball glows.** Use the menu or type \`sc [number/name]\` to scan a player.\n*Remaining scans: ${sp.scans !== undefined ? sp.scans : '∞'}*`, { components: [new ActionRowBuilder().addComponents(menu)] });
     } else {
       await safeDM(client, game, seerId, "🔮 **The crystal ball is dim.** You have no scans remaining.");
     }

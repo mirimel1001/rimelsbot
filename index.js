@@ -237,6 +237,45 @@ client.on('messageCreate', async (message) => {
         }
       }
 
+      // Standalone kill support for Werewolves
+      if (msgLower.startsWith('k ') || msgLower.startsWith('kill ')) {
+        const game = Array.from(client.werewolfGames.values()).find(g =>
+          g.status === 'NIGHT' &&
+          g.players.has(message.author.id) &&
+          g.players.get(message.author.id).role === 'WEREWOLF' &&
+          g.players.get(message.author.id).alive
+        );
+        if (game) {
+          const targetInput = message.content.split(' ').slice(1).join(' ').trim();
+          if (!targetInput) return message.reply("❌ Specify a player name or number.");
+          
+          const werewolfCmd = require('./cmds/minigames/Werewolf/werewolf.js');
+          const p = game.players.get(message.author.id);
+          
+          // Mimic the rww command structure to reuse logic
+          const fakeArgs = ['kill', ...targetInput.split(' ')];
+          return werewolfCmd.run(client, message, fakeArgs, prefix, getConfig());
+        }
+      }
+
+      // Standalone scan support for Seers
+      if (msgLower.startsWith('sc ') || msgLower.startsWith('scan ')) {
+        const game = Array.from(client.werewolfGames.values()).find(g =>
+          g.status === 'NIGHT' &&
+          g.players.has(message.author.id) &&
+          g.players.get(message.author.id).role === 'SEER' &&
+          g.players.get(message.author.id).alive
+        );
+        if (game) {
+          const targetInput = message.content.split(' ').slice(1).join(' ').trim();
+          if (!targetInput) return message.reply("❌ Specify a player name or number.");
+
+          const werewolfCmd = require('./cmds/minigames/Werewolf/werewolf.js');
+          const fakeArgs = ['scan', ...targetInput.split(' ')];
+          return werewolfCmd.run(client, message, fakeArgs, prefix, getConfig());
+        }
+      }
+
       // Standalone how (death story) support for Werewolves
       if (msgLower.startsWith('how ')) {
         const game = Array.from(client.werewolfGames.values()).find(g =>
@@ -253,6 +292,36 @@ client.on('messageCreate', async (message) => {
           await engine.updateDeathStory(client, game, p.name, text);
           const victim = game.players.get(game.lastVictim);
           return message.reply(`📝 **Story updated!** Added your line for **${victim.name}**'s death.`);
+        }
+      }
+
+      // Standalone vote support for Day phase
+      if (msgLower.startsWith('v ') || msgLower.startsWith('vote ')) {
+        const game = Array.from(client.werewolfGames.values()).find(g =>
+          g.status === 'DAY' &&
+          g.players.has(message.author.id) &&
+          g.players.get(message.author.id).alive
+        );
+        if (game) {
+          const targetInput = message.content.split(' ').slice(1).join(' ').trim();
+          if (!targetInput) return message.reply("❌ Specify a player name or number.");
+          const werewolfCmd = require('./cmds/minigames/Werewolf/werewolf.js');
+          const fakeArgs = ['vote', ...targetInput.split(' ')];
+          return werewolfCmd.run(client, message, fakeArgs, prefix, getConfig());
+        }
+      }
+
+      // Standalone unvote support
+      if (msgLower === 'unvote' || msgLower === 'retract') {
+        const game = Array.from(client.werewolfGames.values()).find(g =>
+          g.status === 'DAY' &&
+          g.players.has(message.author.id) &&
+          g.players.get(message.author.id).alive
+        );
+        if (game) {
+          const werewolfCmd = require('./cmds/minigames/Werewolf/werewolf.js');
+          const fakeArgs = ['unvote'];
+          return werewolfCmd.run(client, message, fakeArgs, prefix, getConfig());
         }
       }
 
