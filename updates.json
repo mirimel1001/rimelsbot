@@ -78,5 +78,16 @@
       "Added support for rich, multi-line update descriptions.",
       "Enhanced update embeds with better visibility and organization."
     ]
+  },
+  {
+    "version": "1.8.0",
+    "date": "2026-04-22",
+    "title": "Dynamic DM Dashboard & Shorthands",
+    "items": [
+      "Updated DM log embeds to show only relevant commands for your role/phase.",
+      "Added prefix-less support for 'v [ID]' (vote) and 'unvote' in DMs.",
+      "Added auto-highlighting (➡️) for the player's own name in their DM logs.",
+      "Synchronized Seer scan counts and Werewolf shortcuts across all DMs."
+    ]
   }
 ]

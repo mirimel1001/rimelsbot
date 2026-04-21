@@ -24,8 +24,8 @@ module.exports = {
       // We reverse to show the latest updates first
       const sortedUpdates = [...updatesData].reverse();
       
-      // Limit to last 5 major updates to keep the embed clean
-      const recentUpdates = sortedUpdates.slice(0, 5);
+      // Limit to last 10 major updates to show more history while staying under Discord limits
+      const recentUpdates = sortedUpdates.slice(0, 10);
 
       const updateEmbed = new EmbedBuilder()
         .setColor('#5865F2')
@@ -33,7 +33,7 @@ module.exports = {
         .setDescription(`View the latest improvements and features added to the bot.\n*Total updates tracked: ${updatesData.length}*`)
         .setThumbnail(client.user.displayAvatarURL())
         .setTimestamp()
-        .setFooter({ text: `Type ${prefix}updates for full history` });
+        .setFooter({ text: `Showing latest ${recentUpdates.length} updates` });
 
       recentUpdates.forEach(update => {
         const items = update.items.map(item => `• ${item}`).join('\n');
