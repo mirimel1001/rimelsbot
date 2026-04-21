@@ -206,8 +206,24 @@ client.on('messageCreate', async (message) => {
   if (!message.guild) {
     const prefix = getConfig().prefix;
     if (!message.content.toLowerCase().startsWith(prefix.toLowerCase())) {
+      const msgLower = message.content.toLowerCase().trim();
+
+      // Standalone skip support
+      if (msgLower === 'skip' || msgLower === 'ready') {
+        const game = Array.from(client.werewolfGames.values()).find(g =>
+          g.players.has(message.author.id) &&
+          g.players.get(message.author.id).alive &&
+          (g.status === 'NIGHT' || g.status === 'DAY')
+        );
+        if (game) {
+          const p = game.players.get(message.author.id);
+          p.ready = true;
+          return message.reply("✅ **Ready!** You have voted to skip this phase.");
+        }
+      }
+
       // Standalone wsay support for Werewolves
-      if (message.content.toLowerCase().startsWith('wsay ')) {
+      if (msgLower.startsWith('wsay ')) {
         const game = Array.from(client.werewolfGames.values()).find(g =>
           g.status === 'NIGHT' &&
           g.players.has(message.author.id) &&
@@ -220,8 +236,29 @@ client.on('messageCreate', async (message) => {
           return engine.relayChat(client, game, message.author.id, text);
         }
       }
+
+      // Standalone how (death story) support for Werewolves
+      if (msgLower.startsWith('how ')) {
+        const game = Array.from(client.werewolfGames.values()).find(g =>
+          g.status === 'NIGHT' &&
+          g.players.has(message.author.id) &&
+          g.players.get(message.author.id).role === 'WEREWOLF' &&
+          g.players.get(message.author.id).alive
+        );
+        if (game) {
+          if (!game.lastVictim) return message.reply("⚠️ No victim has been selected yet. Decide who to kill first!");
+          const text = message.content.slice(4).trim();
+          const p = game.players.get(message.author.id);
+          const engine = require('./cmds/minigames/Werewolf/engine.js');
+          await engine.updateDeathStory(client, game, p.name, text);
+          const victim = game.players.get(game.lastVictim);
+          return message.reply(`📝 **Story updated!** Added your line for **${victim.name}**'s death.`);
+        }
+      }
+
       return; // Ignore non-command, non-game DMs
     }
+
   }
 
   // Refresh config and handle prefixes

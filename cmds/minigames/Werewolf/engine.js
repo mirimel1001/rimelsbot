@@ -7,7 +7,11 @@ module.exports = {
       game.logs = [];
       game.startTime = new Date();
       game.hostLogMsgId = null;
+      game.deathStory = [];
+      game.hostDeathStoryMsgId = null;
+      game.storyPromptSentTo = null; // Track who was prompted to avoid spam
       await assignRoles(game);
+
       await notifyRoles(client, game);
       game.nightCount = 0;
 
@@ -145,6 +149,37 @@ async function relayWWChat(client, game, senderId, content) {
     } catch (e) {}
   }
 }
+
+async function updateDeathStory(client, game, senderName, content) {
+  if (!game.deathStory) game.deathStory = [];
+  if (!game.lastVictim) return;
+
+  const victimName = game.players.get(game.lastVictim)?.name || "Unknown";
+  game.deathStory.push(`**${senderName}**: ${content}`);
+  
+  const storyEmbed = new EmbedBuilder()
+    .setColor('#9B59B6')
+    .setTitle(`📝 ${victimName} death story`)
+    .setDescription(game.deathStory.join('\n'))
+    .setFooter({ text: 'Collaborative story from Werewolves' });
+
+  try {
+    const host = await client.users.fetch(game.host);
+    
+    // Delete old message if it exists
+    if (game.hostDeathStoryMsgId) {
+      const dmChannel = host.dmChannel || await host.createDM();
+      const oldMsg = await dmChannel.messages.fetch(game.hostDeathStoryMsgId).catch(() => null);
+      if (oldMsg) await oldMsg.delete().catch(() => null);
+    }
+
+    const newMsg = await host.send({ embeds: [storyEmbed] });
+    game.hostDeathStoryMsgId = newMsg.id;
+  } catch (e) {
+    console.error('Error updating death story:', e);
+  }
+}
+
 
 function getAliveIndexed(game) {
   // Sort by name for consistent indexing during the phase
@@ -309,9 +344,21 @@ async function runNightPhase(client, channel, game) {
       const lastEntry = wwVotes[wwVotes.length - 1];
       if (lastEntry[1] !== victim) {
         victim = lastEntry[1];
+        game.lastVictim = victim; // Update this early for the 'how' command
+        game.deathStory = []; // Reset story for new victim
+        game.hostDeathStoryMsgId = null;
+        game.storyPromptSentTo = victim; // Reuse this field to track current victim being story-fied
+
         await logToHost(client, game, `🐺 **${game.players.get(lastEntry[0]).name}** selected to kill **${game.players.get(victim).name}**`);
+        
+        // Prompt Werewolves
+        const wws = Array.from(game.players.values()).filter(p => p.role === 'WEREWOLF' && p.alive);
+        for (const ww of wws) {
+          await safeDM(client, game, ww.id, `🐺 **Target Selected: ${game.players.get(victim).name}**\nYou can now write their death story! Use \`how [text]\` to add lines.`);
+        }
       }
     }
+
     await new Promise(r => setTimeout(r, 1000));
   }
 
@@ -421,4 +468,4 @@ async function endGame(channel, game, winners) {
 
 
 async function cleanup(client, game) { client.werewolfGames.delete(game.channelId); }
-module.exports.relayChat = relayWWChat; module.exports.safeDM = safeDM; module.exports.logToHost = logToHost;
+module.exports.relayChat = relayWWChat; module.exports.safeDM = safeDM; module.exports.logToHost = logToHost; module.exports.updateDeathStory = updateDeathStory;
