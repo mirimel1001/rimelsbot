@@ -62,7 +62,11 @@ async function logToHost(client, game, message) {
   const logEmbed = new EmbedBuilder()
     .setColor('#3498DB')
     .setTitle(`📜 A Game of Werewolf - ${timeStr}`)
-    .setDescription(game.logs.join('\n'));
+    .setDescription(game.logs.join('\n'))
+    .addFields(
+      { name: '👥 Alive', value: getAliveList(game), inline: true },
+      { name: '💀 Dead', value: getDeadList(game), inline: true }
+    );
 
   try {
     const host = await client.users.fetch(game.host);
@@ -92,7 +96,11 @@ async function logToPlayer(client, game, userId, message) {
   const logEmbed = new EmbedBuilder()
     .setColor(p.role === 'WEREWOLF' ? '#E74C3C' : '#3498DB')
     .setTitle(`📜 A Game of Werewolf - ${timeStr}`)
-    .setDescription(p.logs.join('\n'));
+    .setDescription(p.logs.join('\n'))
+    .addFields(
+      { name: '👥 Alive', value: getAliveList(game, userId), inline: true },
+      { name: '💀 Dead', value: getDeadList(game), inline: true }
+    );
 
   try {
     const user = await client.users.fetch(userId);
@@ -188,15 +196,27 @@ function getAliveIndexed(game) {
     .sort((a, b) => a[1].name.localeCompare(b[1].name));
 }
 
-function generateNightEmbed(game, ready = 0, total = 0, remainingTime = 0) {
+function getAliveList(game, highlightId = null) {
   const indexed = getAliveIndexed(game);
-  const aliveList = indexed
-    .map(([id, p], idx) => `${idx + 1}. **${p.name}**${p.ready ? ' ✅' : ''}`)
+  return indexed
+    .map(([id, p], idx) => {
+      let line = `${idx + 1}. **${p.name}**${p.ready ? ' ✅' : ''}`;
+      if (id === highlightId) line = `➡️ ${line}`;
+      return line;
+    })
     .join('\n') || 'None';
-  const deadList = Array.from(game.players.values())
+}
+
+function getDeadList(game) {
+  return Array.from(game.players.values())
     .filter(p => !p.alive)
     .map(p => `• ~~${p.name}~~`)
     .join('\n') || 'None';
+}
+
+function generateNightEmbed(game, ready = 0, total = 0, remainingTime = 0) {
+  const aliveList = getAliveList(game);
+  const deadList = getDeadList(game);
 
   return new EmbedBuilder()
     .setColor('#2C3E50')
@@ -225,10 +245,7 @@ function generateDayEmbed(game, summary, ready = 0, total = 0, remainingTime = 0
   const aliveList = indexed
     .map(([id, p], idx) => `${idx + 1}. **${p.name}**${counts[id] ? ` (**${counts[id]} votes**)` : ''}${p.ready ? ' ✅' : ''}`)
     .join('\n') || 'None';
-  const deadList = Array.from(game.players.values())
-    .filter(p => !p.alive)
-    .map(p => `• ~~${p.name}~~`)
-    .join('\n') || 'None';
+  const deadList = getDeadList(game);
 
   return new EmbedBuilder()
     .setColor('#F1C40F')
