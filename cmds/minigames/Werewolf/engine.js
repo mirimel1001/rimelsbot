@@ -400,6 +400,10 @@ async function endGame(channel, game, winners) {
   game.status = 'ENDED';
   const winnerList = Array.from(game.players.values()).filter(p => (winners === 'Villagers' ? p.role !== 'WEREWOLF' : p.role === 'WEREWOLF') && p.alive);
   
+  // Log final results to Host and Players
+  await logToBoth(channel.client, game, `🏆 **Winners:** ${winnerList.map(w => w.name).join(', ') || 'None'}`);
+  await logToBoth(channel.client, game, `🎊 **${winners} win!**`);
+
   const netPrize = Math.floor(game.prize * 0.8);
   const payout = Math.floor(netPrize / (winnerList.length || 1));
   
@@ -414,6 +418,7 @@ async function endGame(channel, game, winners) {
   }
   return true;
 }
+
 
 async function cleanup(client, game) { client.werewolfGames.delete(game.channelId); }
 module.exports.relayChat = relayWWChat; module.exports.safeDM = safeDM; module.exports.logToHost = logToHost;
