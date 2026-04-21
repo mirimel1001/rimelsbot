@@ -1,5 +1,42 @@
 [
   {
+    "version": "1.1.0",
+    "date": "2026-04-18",
+    "title": "Foundation & Core Framework",
+    "items": [
+      "Initial bot setup with a modular and recursive command handler.",
+      "Implemented per-server prefix system (r) with case-insensitive detection.",
+      "Added auto-healing JSON initialization for configuration persistence.",
+      "Integrated UnbelievaBoat economy with optimized Axios requests.",
+      "Launched High/Low betting game with interactive buttons.",
+      "Implemented ImageGuess (Gartic) with Pixabay and Jimp image processing."
+    ]
+  },
+  {
+    "version": "1.2.0",
+    "date": "2026-04-18",
+    "title": "Minigame Maturity & Dashboard",
+    "items": [
+      "Launched the Multiplayer Host-Funded Werewolf game system.",
+      "Implemented an interactive Setup Dashboard for game masters.",
+      "Added dedicated game channel restrictions (rgamechannel).",
+      "Introduced per-game cooldowns and custom delays (rdelay).",
+      "Modernized the help system with dropdown categories and buttons."
+    ]
+  },
+  {
+    "version": "1.3.0",
+    "date": "2026-04-20",
+    "title": "Engine Stability & Deployment",
+    "items": [
+      "Overhauled Werewolf engine with manual commands and team chat.",
+      "Added live skip progress logic and alive/dead player lists to embeds.",
+      "Implemented partial matching logic for more lenient ImageGuessing.",
+      "Hardened file pathing for seamless Wispbyte hosting compatibility.",
+      "Fixed interaction collisions and duplicate embed declarations."
+    ]
+  },
+  {
     "version": "1.4.0",
     "date": "2026-04-21",
     "title": "Wispbyte & UX Core",
