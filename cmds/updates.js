@@ -99,11 +99,25 @@ module.exports = {
 
       // --- Handle Initial Search Argument ---
       if (searchQuery) {
-        currentUpdates = currentUpdates.filter(u => 
-          u.title.toLowerCase().includes(searchQuery) || 
-          u.version.toLowerCase().includes(searchQuery) ||
-          u.items.some(item => item.toLowerCase().includes(searchQuery))
-        );
+        currentUpdates = updatesData
+          .map(u => ({ ...u })) // Clone to avoid mutating original data
+          .filter(u => {
+            const titleMatch = u.title.toLowerCase().includes(searchQuery);
+            const versionMatch = u.version.toLowerCase().includes(searchQuery);
+            const matchingItems = u.items.filter(item => item.toLowerCase().includes(searchQuery));
+            
+            // If the version or title itself matches, show everything in that update
+            if (titleMatch || versionMatch) return true;
+            
+            // Otherwise, filter items and only keep the update if there are matches
+            if (matchingItems.length > 0) {
+              u.items = matchingItems;
+              return true;
+            }
+            return false;
+          }).reverse();
+      } else {
+        currentUpdates = [...updatesData].reverse();
       }
 
       const mainMsg = await message.reply(generateMessageData(currentUpdates, pageIndex, searchQuery));
@@ -153,11 +167,20 @@ module.exports = {
 
             if (submitted) {
               searchQuery = submitted.fields.getTextInputValue('search_query').toLowerCase();
-              currentUpdates = [...updatesData].reverse().filter(u => 
-                u.title.toLowerCase().includes(searchQuery) || 
-                u.version.toLowerCase().includes(searchQuery) ||
-                u.items.some(item => item.toLowerCase().includes(searchQuery))
-              );
+              currentUpdates = updatesData
+                .map(u => ({ ...u }))
+                .filter(u => {
+                  const titleMatch = u.title.toLowerCase().includes(searchQuery);
+                  const versionMatch = u.version.toLowerCase().includes(searchQuery);
+                  const matchingItems = u.items.filter(item => item.toLowerCase().includes(searchQuery));
+                  
+                  if (titleMatch || versionMatch) return true;
+                  if (matchingItems.length > 0) {
+                    u.items = matchingItems;
+                    return true;
+                  }
+                  return false;
+                }).reverse();
               pageIndex = 0;
               await submitted.update(generateMessageData(currentUpdates, pageIndex, searchQuery));
             }
