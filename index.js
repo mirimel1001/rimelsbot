@@ -87,7 +87,8 @@ initFiles();
 let dotenv;
 try {
   dotenv = require('dotenv');
-  dotenv.config();
+  // Use override: true to ensure .env values win over system/hosting environment variables
+  dotenv.config({ override: true });
 } catch (err) {
   console.error('\n' + '='.repeat(50));
   console.error('[CRITICAL ERROR] The "dotenv" module is missing.');
@@ -288,11 +289,19 @@ client.on('messageCreate', async (message) => {
 });
 
 // --- LOGIN ---
-const token = process.env.DISCORD_TOKEN;
-if (!token) {
-  console.error('[Error] DISCORD_TOKEN is missing in environment variables.');
+let token = process.env.DISCORD_TOKEN;
+if (!token || token === 'your_token_here') {
+  console.error('[Error] DISCORD_TOKEN is missing or still set to the template value.');
 } else {
+  // Sanitize token: trim whitespace and remove potential surrounding quotes
+  token = token.trim().replace(/^["'](.+)["']$/, '$1');
+  
   client.login(token).catch(err => {
     console.error('[Error] Failed to login to Discord:', err.message);
+    if (err.message.includes('invalid token')) {
+      console.error('[Debug Info] Token length:', token.length);
+      console.error('[Debug Info] Ensure you have uploaded the correct .env file AND checked the "Startup" tab on Wispbyte.');
+    }
   });
 }
+
