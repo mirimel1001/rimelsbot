@@ -7,7 +7,7 @@ const { getEconomyToken } = require('../../../utils/economy.js');
 module.exports = {
   name: "imageguess",
   aliases: ["ig"],
-  category: "minigame",
+  category: "Games",
   description: "Guess the hidden image as it reveals itself! Pick a category and win cash.",
   usage: "imageguess",
   run: async (client, message, args, prefix, config) => {

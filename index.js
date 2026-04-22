@@ -172,10 +172,14 @@ const loadCommands = (dir) => {
           command.category = 'General';
         } else if (relPath === 'minigames' || relPath.startsWith('minigames' + path.sep)) {
           command.isMinigame = true;
-          command.category = 'Minigames';
-          // Determine if it's a Game or a Setting
           // Settings are directly in cmds/minigames, Games are in subfolders
-          command.minigameType = relPath === 'minigames' ? 'Settings' : 'Games';
+          if (relPath === 'minigames') {
+            command.category = 'Game Settings';
+            command.minigameType = 'Settings';
+          } else {
+            command.category = 'Games';
+            command.minigameType = 'Games';
+          }
         } else {
           command.category = relPath;
         }

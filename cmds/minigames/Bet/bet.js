@@ -6,7 +6,7 @@ const { getEconomyToken } = require('../../../utils/economy.js');
 module.exports = {
   name: "bet",
   aliases: ["b"],
-  category: "Minigames",
+  category: "Games",
   description: "Challenge another player to a 50/50 bet!",
   usage: "bet [username/@mention] [amount]",
   run: async (client, message, args, prefix, config) => {
