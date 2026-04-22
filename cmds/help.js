@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ComponentType, ButtonBuilder, ButtonStyle, MessageFlags, PermissionsBitField } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ComponentType, ButtonBuilder, ButtonStyle, MessageFlags, PermissionsBitField, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 
 module.exports = {
   name: "help",
@@ -135,14 +135,18 @@ module.exports = {
         .setLabel('Invite Bot')
         .setStyle(ButtonStyle.Link)
         .setURL(inviteLink)
-        .setEmoji('➕')
+        .setEmoji('➕'),
+      new ButtonBuilder()
+        .setCustomId('help_search')
+        .setLabel('Search')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('🔍')
     );
 
     const helpMsg = await message.reply({ embeds: [initialEmbed], components: [row, row2] });
 
     // 5. COLLECTOR
     const collector = helpMsg.createMessageComponentCollector({
-      componentType: ComponentType.StringSelect,
       time: 60000 // 1 minute
     });
 
@@ -151,15 +155,96 @@ module.exports = {
         return i.reply({ content: '❌ You did not trigger this command.', flags: [MessageFlags.Ephemeral] });
       }
 
-      const selected = i.values[0];
-      await i.update({ embeds: [embeds[selected]] });
+      if (i.isStringSelectMenu()) {
+        const selected = i.values[0];
+        await i.update({ embeds: [embeds[selected]] });
+      } else if (i.isButton()) {
+        if (i.customId === 'help_search') {
+          const modal = new ModalBuilder()
+            .setCustomId('help_search_modal')
+            .setTitle('Search Commands');
+
+          const searchInput = new TextInputBuilder()
+            .setCustomId('search_query')
+            .setLabel("What are you looking for?")
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('Enter command name, alias, or keyword...')
+            .setRequired(true);
+
+          modal.addComponents(new ActionRowBuilder().addComponents(searchInput));
+          await i.showModal(modal);
+
+          const submitted = await i.awaitModalSubmit({
+            time: 60000,
+            filter: it => it.customId === 'help_search_modal' && it.user.id === message.author.id,
+          }).catch(() => null);
+
+          if (submitted) {
+            const query = submitted.fields.getTextInputValue('search_query').toLowerCase();
+            let resultEmbed;
+            
+            const catMatch = categoryNames.find(c => c.toLowerCase() === query || c.toLowerCase().includes(query));
+            if (catMatch) {
+              resultEmbed = embeds[catMatch];
+            } else {
+              const allAvailableCommands = [];
+              Object.values(categories).forEach(catCmds => allAvailableCommands.push(...catCmds));
+              
+              const matches = allAvailableCommands.filter(cmd => 
+                cmd.name.toLowerCase().includes(query) ||
+                (cmd.aliases && cmd.aliases.some(a => a.toLowerCase().includes(query))) ||
+                (cmd.description && cmd.description.toLowerCase().includes(query))
+              );
+
+              if (matches.length === 1) {
+                const cmd = matches[0];
+                const aliasText = cmd.aliases && cmd.aliases.length > 0 ? ` [${cmd.aliases.join(', ')}]` : '';
+                const usage = cmd.usage ? `\`${prefix}${cmd.usage}\`` : `\`${prefix}${cmd.name}\``;
+                
+                resultEmbed = new EmbedBuilder()
+                  .setColor('#F1C40F')
+                  .setTitle(`🔍 Command: ${cmd.name.toUpperCase()}`)
+                  .setDescription(`${cmd.description || 'No description.'}`)
+                  .addFields(
+                    { name: 'Category', value: `📁 ${cmd.category || 'Other'}`, inline: true },
+                    { name: 'Usage', value: `⌨️ ${usage}`, inline: true }
+                  )
+                  .setTimestamp()
+                  .setFooter({ text: '✨ Use the dropdown to browse all categories.' });
+                
+                if (cmd.aliases && cmd.aliases.length > 0) {
+                  resultEmbed.addFields({ name: 'Aliases', value: `\`${cmd.aliases.join(', ')}\``, inline: true });
+                }
+              } else if (matches.length > 1) {
+                resultEmbed = new EmbedBuilder()
+                  .setColor('#F1C40F')
+                  .setTitle(`🔍 Search Results: ${query}`)
+                  .setDescription(`Multiple commands matched your search:\n\n${matches.map(cmd => `• **${cmd.name.toUpperCase()}** (${cmd.category})`).join('\n')}\n\n*Type \`${prefix}help [name]\` for more details.*`)
+                  .setTimestamp()
+                  .setFooter({ text: '✨ Use the dropdown to browse all categories.' });
+              } else {
+                resultEmbed = new EmbedBuilder()
+                  .setColor('#E74C3C')
+                  .setTitle('❌ No Results Found')
+                  .setDescription(`I couldn't find any commands or categories matching **${query}**.\nShowing the default menu below.`)
+                  .setTimestamp()
+                  .setFooter({ text: '✨ Use the dropdown to browse all categories.' });
+              }
+            }
+            await submitted.update({ embeds: [resultEmbed] });
+          }
+        }
+      }
     });
 
     collector.on('end', () => {
       const disabledRow = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder(row.components[0].data).setDisabled(true)
       );
-      helpMsg.edit({ components: [disabledRow] }).catch(() => {});
+      const disabledRow2 = new ActionRowBuilder().addComponents(
+        row2.components.map(comp => new ButtonBuilder(comp.data).setDisabled(true))
+      );
+      helpMsg.edit({ components: [disabledRow, disabledRow2] }).catch(() => {});
     });
   }
 };
