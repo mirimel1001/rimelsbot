@@ -18,7 +18,8 @@ const initFiles = () => {
     'default_game_settings.json': {
       delays: {
         highlow: 40000,
-        imageguess: 30000
+        imageguess: 30000,
+        bet: 30000
       }
     },
     'server_game_settings.json': { guilds: {} },
@@ -171,7 +172,10 @@ const loadCommands = (dir) => {
           command.category = 'General';
         } else if (relPath === 'minigames' || relPath.startsWith('minigames' + path.sep)) {
           command.isMinigame = true;
-          command.category = relPath === 'minigames' ? 'Minigames' : relPath.split(path.sep)[1];
+          command.category = 'Minigames';
+          // Determine if it's a Game or a Setting
+          // Settings are directly in cmds/minigames, Games are in subfolders
+          command.minigameType = relPath === 'minigames' ? 'Settings' : 'Games';
         } else {
           command.category = relPath;
         }

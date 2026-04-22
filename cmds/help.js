@@ -30,14 +30,44 @@ module.exports = {
         .setTimestamp()
         .setFooter({ text: '✨ Use the dropdown to switch categories.' });
 
-      categories[cat].forEach(cmd => {
-        const aliasText = cmd.aliases && cmd.aliases.length > 0 ? ` [${cmd.aliases.join(', ')}]` : '';
-        const usage = cmd.usage ? `\`${prefix}${cmd.usage}\`` : `\`${prefix}${cmd.name}\``;
-        embed.addFields({
-          name: `🔹 ${cmd.name.toUpperCase()}${aliasText}`,
-          value: `${cmd.description || 'No description.'}\n**Usage:** ${usage}`
+      if (cat === 'Minigames') {
+        const games = categories[cat].filter(cmd => cmd.minigameType === 'Games');
+        const settings = categories[cat].filter(cmd => cmd.minigameType === 'Settings');
+
+        if (games.length > 0) {
+          let gamesContent = '';
+          games.forEach(cmd => {
+            const aliasText = cmd.aliases && cmd.aliases.length > 0 ? ` [${cmd.aliases.join(', ')}]` : '';
+            const usage = cmd.usage ? `\`${prefix}${cmd.usage}\`` : `\`${prefix}${cmd.name}\``;
+            gamesContent += `🔹 **${cmd.name.toUpperCase()}${aliasText}**\n${cmd.description || 'No description.'}\n**Usage:** ${usage}\n\n`;
+          });
+          embed.addFields({ name: '🎮 Games', value: gamesContent.slice(0, 1024) });
+        }
+
+        if (settings.length > 0) {
+          let settingsContent = '';
+          settings.forEach(cmd => {
+            const aliasText = cmd.aliases && cmd.aliases.length > 0 ? ` [${cmd.aliases.join(', ')}]` : '';
+            const usage = cmd.usage ? `\`${prefix}${cmd.usage}\`` : `\`${prefix}${cmd.name}\``;
+            
+            // Remove Variables section from description
+            let desc = cmd.description || 'No description.';
+            desc = desc.split(/🔹 \*\*Variables:\*\*|\*\*Variables:\*\*/i)[0].trim();
+            
+            settingsContent += `🔹 **${cmd.name.toUpperCase()}${aliasText}**\n${desc}\n**Usage:** ${usage}\n\n`;
+          });
+          embed.addFields({ name: '⚙️ Game Settings', value: settingsContent.slice(0, 1024) });
+        }
+      } else {
+        categories[cat].forEach(cmd => {
+          const aliasText = cmd.aliases && cmd.aliases.length > 0 ? ` [${cmd.aliases.join(', ')}]` : '';
+          const usage = cmd.usage ? `\`${prefix}${cmd.usage}\`` : `\`${prefix}${cmd.name}\``;
+          embed.addFields({
+            name: `🔹 ${cmd.name.toUpperCase()}${aliasText}`,
+            value: `${cmd.description || 'No description.'}\n**Usage:** ${usage}`
+          });
         });
-      });
+      }
 
       embeds[cat] = embed;
     });
@@ -57,10 +87,7 @@ module.exports = {
     // 4. SELECT MENU
     const emojiMap = {
       'General': '🛡️',
-      'Minigames': '🎮',
-      'Werewolf': '🐺',
-      'High and Low': '📈',
-      'ImageGuess': '🎨'
+      'Minigames': '🎮'
     };
 
     const menuOptions = categoryNames.map(cat => ({

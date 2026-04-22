@@ -222,7 +222,8 @@ function getAliveList(game, highlightId = null) {
   const indexed = getAliveIndexed(game);
   return indexed
     .map(([id, p], idx) => {
-      let line = `${idx + 1}. **${p.name}**${p.ready ? ' ✅' : ''}`;
+      const hasVoted = game.status === 'DAY' && game.dayVotes && game.dayVotes.has(id);
+      let line = `${idx + 1}. **${p.name}**${hasVoted ? ' 🗳️' : ''}${p.ready ? ' ✅' : ''}`;
       if (id === highlightId) line = `➡️ ${line}`;
       return line;
     })
@@ -265,7 +266,10 @@ function generateDayEmbed(game, summary, ready = 0, total = 0, remainingTime = 0
 
   const indexed = getAliveIndexed(game);
   const aliveList = indexed
-    .map(([id, p], idx) => `${idx + 1}. **${p.name}**${counts[id] ? ` (**${counts[id]} votes**)` : ''}${p.ready ? ' ✅' : ''}`)
+    .map(([id, p], idx) => {
+      const hasVoted = game.dayVotes && game.dayVotes.has(id);
+      return `${idx + 1}. **${p.name}**${hasVoted ? ' 🗳️' : ''}${counts[id] ? ` (**${counts[id]} votes**)` : ''}${p.ready ? ' ✅' : ''}`;
+    })
     .join('\n') || 'None';
   const deadList = getDeadList(game);
 
