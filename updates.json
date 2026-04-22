@@ -101,5 +101,17 @@
       "Modernized UI/UX: Fixed deprecated ephemeral flags and updated technical guides with precise Bot Client ID steps.",
       "File Cleanup: Removed redundant source files to maintain a lean and professional directory structure."
     ]
+  },
+  {
+    "version": "2.0.0",
+    "date": "2026-04-22",
+    "title": "The Competition & Organization Update",
+    "items": [
+      "New Game: Launched the 'bet' command for 50/50 PvP gambling with other users.",
+      "Help Overhaul: Consolidated all games into a single 'Minigames' category for a cleaner dropdown menu.",
+      "Categorized Help: Minigame help is now split into 'Games' and 'Game Settings' with polished descriptions.",
+      "Visual Feedback: Added 🗳️ (ballot box) icons for voters in Werewolf and improved 'Ready' visibility.",
+      "Smarter Loader: Refactored the command engine to support nested folder categorization and type tagging."
+    ]
   }
 ]
