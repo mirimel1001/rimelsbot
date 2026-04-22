@@ -26,6 +26,7 @@ module.exports = {
       const prefixes = JSON.parse(fs.readFileSync('./server_prefixes.json', 'utf8'));
       prefixes[message.guild.id] = newPrefix;
       fs.writeFileSync('./server_prefixes.json', JSON.stringify(prefixes, null, 2));
+      client.prefixes.set(message.guild.id, newPrefix);
 
       return message.reply(`✅ Prefix updated! The new prefix for this server is \`${newPrefix}\``);
     } catch (err) {

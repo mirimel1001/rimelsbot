@@ -89,5 +89,17 @@
       "Added auto-highlighting (➡️) for the player's own name in their DM logs.",
       "Synchronized Seer scan counts and Werewolf shortcuts across all DMs."
     ]
+  },
+  {
+    "version": "1.9.0",
+    "date": "2026-04-22",
+    "title": "Decentralization & Performance",
+    "items": [
+      "Decentralized Economy: Added per-server UnbelievaBoat linking with live API validation (rrunbtoken).",
+      "Memory Caching: Implemented global memory collections for prefixes and settings, drastically reducing disk I/O.",
+      "Robust Restrictions: Minigames now verify channel existence before blocking commands to prevent deadlocks.",
+      "Modernized UI/UX: Fixed deprecated ephemeral flags and updated technical guides with precise Bot Client ID steps.",
+      "File Cleanup: Removed redundant source files to maintain a lean and professional directory structure."
+    ]
   }
 ]

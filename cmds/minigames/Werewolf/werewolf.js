@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
+const { getEconomyToken } = require('../../../utils/economy.js');
 
 module.exports = {
   name: "werewolf",
@@ -245,7 +246,7 @@ module.exports = {
       if (subCommand === 'cancel' || subCommand === 'exit') {
         if (message.author.id !== game.host) return;
         await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${game.guildId}/users/${game.host}`, { cash: game.prize }, {
-          headers: { 'Authorization': process.env.UNB_TOKEN }
+          headers: { 'Authorization': getEconomyToken(client, message.guild.id) }
         });
         client.werewolfGames.delete(game.channelId);
         return message.reply("⭕ Game cancelled and funds returned.");
@@ -257,9 +258,14 @@ module.exports = {
 };
 
 async function launchLobby(client, message, game) {
+  const token = getEconomyToken(client, message.guild.id);
+  if (!token) {
+    return message.reply(`⚠️ **Economy Link Required!** This server has not linked an UnbelievaBoat API token yet. Please ask an Administrator to use the \`${prefix}unbtoken\` command to get started.`);
+  }
+  
   try {
     await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${game.guildId}/users/${game.host}`, { cash: -game.prize }, {
-      headers: { 'Authorization': process.env.UNB_TOKEN }
+      headers: { 'Authorization': token }
     });
   } catch (e) { return message.reply("❌ UNB Error."); }
   game.status = 'LOBBY';
@@ -309,7 +315,7 @@ async function sendLobbyUI(channel, game) {
     if (i.customId === 'ww_cancel') {
       if (i.user.id !== g.host) return i.reply({ content: 'Host only.', flags: [MessageFlags.Ephemeral] });
       await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${g.guildId}/users/${g.host}`, { cash: g.prize }, {
-        headers: { 'Authorization': process.env.UNB_TOKEN }
+        headers: { 'Authorization': getEconomyToken(client, i.guildId) }
       });
       client.werewolfGames.delete(i.channelId);
       collector.stop();

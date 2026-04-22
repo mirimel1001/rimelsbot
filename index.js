@@ -25,7 +25,8 @@ const initFiles = () => {
     'bot_status.json': [
       { "name": "{prefix}help || Check bio for support", "type": "Watching" },
       { "name": "{prefix}help || Servers: {servers}", "type": "Watching" }
-    ]
+    ],
+    'server_unbtokens.json': { tokens: {} }
   };
 
   const getPath = (file) => path.join(__dirname, file);
@@ -72,6 +73,7 @@ const initFiles = () => {
   if (!fs.existsSync(envPath)) {
     const template = `DISCORD_TOKEN=your_token_here
 UNB_TOKEN=your_token_here
+MAIN_GUILD_ID=your_id_here
 PIXABAY_KEY=your_token_here_optional`;
     fs.writeFileSync(envPath, template);
     console.warn('[Init] .env file was missing! I’ve created a template for you.');
@@ -120,6 +122,34 @@ client.commands = new Collection();
 client.aliases = new Collection();
 client.cooldowns = new Collection();
 client.werewolfGames = new Map();
+
+// Setup Cache Collections
+client.prefixes = new Collection();
+client.gameSettings = new Collection();
+client.unbTokens = new Collection();
+
+// Populate Caches
+const loadCaches = () => {
+  try {
+    const prefixes = JSON.parse(fs.readFileSync(path.join(__dirname, 'server_prefixes.json'), 'utf8'));
+    for (const [id, prefix] of Object.entries(prefixes)) client.prefixes.set(id, prefix);
+    
+    const settings = JSON.parse(fs.readFileSync(path.join(__dirname, 'server_game_settings.json'), 'utf8'));
+    if (settings.guilds) {
+      for (const [id, data] of Object.entries(settings.guilds)) client.gameSettings.set(id, data);
+    }
+    
+    const tokens = JSON.parse(fs.readFileSync(path.join(__dirname, 'server_unbtokens.json'), 'utf8'));
+    if (tokens.tokens) {
+      for (const [id, token] of Object.entries(tokens.tokens)) client.unbTokens.set(id, token);
+    }
+    
+    console.log('[Cache] Server configurations loaded into memory.');
+  } catch (err) {
+    console.error('[Cache] Error initializing caches:', err.message);
+  }
+};
+loadCaches();
 
 // --- RECURSIVE COMMAND LOADER ---
 const loadCommands = (dir) => {
@@ -330,19 +360,7 @@ client.on('messageCreate', async (message) => {
 
   }
 
-  // Refresh config and handle prefixes
-  config = getConfig();
-  let prefixes = {};
-  if (message.guild) {
-    try {
-      const prefixPath = path.join(__dirname, 'server_prefixes.json');
-      prefixes = JSON.parse(fs.readFileSync(prefixPath, 'utf8'));
-    } catch (err) {
-      console.error('Error reading server_prefixes.json:', err.message);
-    }
-  }
-
-  const prefix = (message.guild ? (prefixes[message.guild.id] || config.prefix) : config.prefix);
+  const prefix = (message.guild ? (client.prefixes.get(message.guild.id) || config.prefix) : config.prefix);
 
   if (!message.content.toLowerCase().startsWith(prefix.toLowerCase())) return;
 
@@ -362,23 +380,25 @@ client.on('messageCreate', async (message) => {
     try {
       let gameChannelId = null;
       
-      // Load Defaults
+      // Load Defaults (Fast check)
       const defaultSettingsPath = path.join(__dirname, 'default_game_settings.json');
       if (fs.existsSync(defaultSettingsPath)) {
         const defaults = JSON.parse(fs.readFileSync(defaultSettingsPath, 'utf8'));
         gameChannelId = defaults.gameChannel || null;
       }
 
-      // Load Guild Settings (Overrides)
-      const serverSettingsPath = path.join(__dirname, 'server_game_settings.json');
-      if (fs.existsSync(serverSettingsPath)) {
-        const gameSettings = JSON.parse(fs.readFileSync(serverSettingsPath, 'utf8'));
-        const guildChannel = gameSettings.guilds[message.guild.id]?.gameChannel;
-        if (guildChannel) gameChannelId = guildChannel;
+      // Load Guild Settings (From Cache)
+      const guildSettings = client.gameSettings.get(message.guild.id);
+      if (guildSettings?.gameChannel) {
+        gameChannelId = guildSettings.gameChannel;
       }
 
+      // Verify channel actually exists in this guild
       if (gameChannelId && message.channel.id !== gameChannelId) {
-        return message.reply(`🚫 Minigames are restricted to <#${gameChannelId}> on this server.`);
+        const channelExists = message.guild.channels.cache.has(gameChannelId);
+        if (channelExists) {
+          return message.reply(`🚫 Minigames are restricted to <#${gameChannelId}> on this server.`);
+        }
       }
     } catch (err) {
       console.error('Game Channel Check Error:', err.message);

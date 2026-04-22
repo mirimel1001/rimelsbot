@@ -1,4 +1,4 @@
-const { PermissionsBitField } = require('discord.js');
+const { PermissionsBitField, ChannelType } = require('discord.js');
 const fs = require('fs');
 
 module.exports = {
@@ -36,13 +36,14 @@ module.exports = {
     if (input?.toLowerCase() === 'clear') {
       delete settingsData.guilds[message.guild.id].gameChannel;
       fs.writeFileSync(filePath, JSON.stringify(settingsData, null, 2));
+      client.gameSettings.set(message.guild.id, settingsData.guilds[message.guild.id]);
       return message.reply("✅ The dedicated game channel has been **cleared**. Minigames can now be played anywhere.");
     }
 
     // 4. Handle setting channel
     const channel = message.mentions.channels.first() || message.guild.channels.cache.get(input);
 
-    if (!channel || channel.type !== 0) { // 0 is text channel
+    if (!channel || channel.type !== ChannelType.GuildText) { 
       return message.reply(`❌ Please mention a valid text channel or provide a valid ID.\nUsage: \`${prefix}gamechannel [#channel | clear]\``);
     }
 
@@ -50,6 +51,7 @@ module.exports = {
 
     try {
       fs.writeFileSync(filePath, JSON.stringify(settingsData, null, 2));
+      client.gameSettings.set(message.guild.id, settingsData.guilds[message.guild.id]);
       return message.reply(`✅ Success! Minigames are now restricted to ${channel}.`);
     } catch (err) {
       console.error("Error writing game_settings.json:", err);

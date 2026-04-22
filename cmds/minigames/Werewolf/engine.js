@@ -498,9 +498,10 @@ async function endGame(channel, game, winners) {
     .setDescription(`**Total prize pool from Host:** 💰 ${game.prize}\n**Net prize after 20% cut:** 💰 ${netPrize}`)
     .addFields({ name: 'Winners', value: winnerList.map(w => `• ${w.name} (+${payout})`).join('\n') || 'None' });
   channel.send({ embeds: [winEmbed] });
+  const { getEconomyToken } = require('../../../utils/economy.js');
   for (const w of winnerList) {
     const entry = Array.from(game.players.entries()).find(([id, p]) => p.name === w.name);
-    if (entry) await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${game.guildId}/users/${entry[0]}`, { cash: payout }, { headers: { 'Authorization': process.env.UNB_TOKEN } }).catch(() => null);
+    if (entry) await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${game.guildId}/users/${entry[0]}`, { cash: payout }, { headers: { 'Authorization': getEconomyToken(channel.client, game.guildId) } }).catch(() => null);
   }
   return true;
 }

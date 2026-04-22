@@ -2,6 +2,7 @@ const { EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, Button
 const { Jimp } = require('jimp');
 const fs = require('fs');
 const axios = require('axios');
+const { getEconomyToken } = require('../../../utils/economy.js');
 
 module.exports = {
   name: "imageguess",
@@ -14,6 +15,12 @@ module.exports = {
     if (!client.imageGuessGames) client.imageGuessGames = new Set();
     if (client.imageGuessGames.has(message.channel.id)) {
       return message.reply("⚠️ An ImageGuess game is already running in this channel!");
+    }
+
+    const token = getEconomyToken(client, message.guild.id);
+    if (!token) {
+      client.imageGuessGames.delete(message.channel.id);
+      return message.reply(`⚠️ **Economy Link Required!** This server has not linked an UnbelievaBoat API token yet. Please ask an Administrator to use the \`${prefix}unbtoken\` command to get started.`);
     }
 
     client.imageGuessGames.add(message.channel.id);
@@ -203,7 +210,7 @@ module.exports = {
             await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${m.author.id}`, {
               cash: prize
             }, {
-              headers: { 'Authorization': process.env.UNB_TOKEN }
+              headers: { 'Authorization': getEconomyToken(client, message.guild.id) }
             });
 
             const winEmbed = new EmbedBuilder()

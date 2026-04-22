@@ -6,7 +6,8 @@ const {
   ModalBuilder, 
   TextInputBuilder, 
   TextInputStyle, 
-  ComponentType 
+  ComponentType,
+  MessageFlags
 } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
@@ -124,7 +125,7 @@ module.exports = {
       const collector = mainMsg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 });
 
       collector.on('collect', async (i) => {
-        if (i.user.id !== message.author.id) return i.reply({ content: 'Only the command user can navigate.', ephemeral: true });
+        if (i.user.id !== message.author.id) return i.reply({ content: 'Only the command user can navigate.', flags: [MessageFlags.Ephemeral] });
 
         if (i.customId === 'prev') {
           pageIndex--;

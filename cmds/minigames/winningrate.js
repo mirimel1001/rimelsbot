@@ -63,6 +63,14 @@ module.exports = {
 
     try {
       fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+      
+      // Update Cache: Note that winning rates are stored as part of the guild's settings in memory
+      const currentSettings = client.gameSettings.get(message.guild.id) || {};
+      if (!currentSettings.winningRates) currentSettings.winningRates = {}; 
+      currentSettings.winningRates[gameName] = currentSettings.winningRates[gameName] || {};
+      currentSettings.winningRates[gameName][role.id] = percentage;
+      client.gameSettings.set(message.guild.id, currentSettings);
+
       return message.reply(`✅ Success! Winning rate for **${gameName}** (Role: ${role.name}) is now **${percentage}%**.`);
     } catch (err) {
       console.error('Error writing server_winning_rates.json:', err.message);

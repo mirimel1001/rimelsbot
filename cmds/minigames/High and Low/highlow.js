@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
+const { getEconomyToken } = require('../../../utils/economy.js');
 
 module.exports = {
   name: "highlow",
@@ -47,8 +48,13 @@ module.exports = {
 
     try {
       // 2. Fetch UnbelievaBoat Balance via Axios
+      const token = getEconomyToken(client, message.guild.id);
+      if (!token) {
+        return message.reply(`⚠️ **Economy Link Required!** This server has not linked an UnbelievaBoat API token yet. Please ask an Administrator to use the \`${prefix}unbtoken\` command to get started.`);
+      }
+
       const ubResponse = await axios.get(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${message.author.id}`, {
-        headers: { 'Authorization': process.env.UNB_TOKEN }
+        headers: { 'Authorization': token }
       });
       const currentCash = ubResponse.data.cash;
 
@@ -148,7 +154,7 @@ module.exports = {
           await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${message.author.id}`, {
             cash: updateAmount
           }, {
-            headers: { 'Authorization': process.env.UNB_TOKEN }
+            headers: { 'Authorization': getEconomyToken(client, message.guild.id) }
           });
 
           if (isActualWin) {

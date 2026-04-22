@@ -59,6 +59,13 @@ module.exports = {
 
     try {
       fs.writeFileSync(filePath, JSON.stringify(prizeData, null, 2));
+      
+      // Update Cache: Note that prize ranges are stored as part of the guild's settings in memory
+      const currentSettings = client.gameSettings.get(message.guild.id) || {};
+      if (!currentSettings.prizes) currentSettings.prizes = {};
+      currentSettings.prizes[gameName] = { min, max };
+      client.gameSettings.set(message.guild.id, currentSettings);
+
       return message.reply(`✅ Success! The cash reward for **${gameName}** in this server is now set to a range of **💰 ${min} - ${max} Cash**.`);
     } catch (err) {
       console.error("Error writing prize_configs.json:", err);
