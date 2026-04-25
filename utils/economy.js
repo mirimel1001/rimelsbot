@@ -9,14 +9,17 @@ const path = require('path');
  * @returns {string} The API token to use for Authorization headers.
  */
 function getEconomyToken(client, guildId) {
-  // Check Cache First
+  // Check Cache First (Server-specific tokens)
   if (client.unbTokens.has(guildId)) {
     return client.unbTokens.get(guildId);
   }
 
-  // Fallback ONLY for the main server
-  if (guildId === process.env.MAIN_GUILD_ID) {
-    return process.env.UNB_TOKEN;
+  // Fallback ONLY for the main server (Global token from .env)
+  const mainGuildId = process.env.MAIN_GUILD_ID?.trim().replace(/^["'](.+)["']$/, '$1');
+  const globalToken = process.env.UNB_TOKEN?.trim().replace(/^["'](.+)["']$/, '$1');
+
+  if (guildId === mainGuildId) {
+    return globalToken;
   }
 
   return null;

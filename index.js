@@ -92,6 +92,14 @@ try {
   dotenv = require('dotenv');
   // Use override: true to ensure .env values win over system/hosting environment variables
   dotenv.config({ override: true });
+  
+  // Sanitize key environment variables
+  if (process.env.MAIN_GUILD_ID) {
+    process.env.MAIN_GUILD_ID = process.env.MAIN_GUILD_ID.trim().replace(/^["'](.+)["']$/, '$1');
+  }
+  if (process.env.UNB_TOKEN) {
+    process.env.UNB_TOKEN = process.env.UNB_TOKEN.trim().replace(/^["'](.+)["']$/, '$1');
+  }
 } catch (err) {
   console.error('\n' + '='.repeat(50));
   console.error('[CRITICAL ERROR] The "dotenv" module is missing.');
