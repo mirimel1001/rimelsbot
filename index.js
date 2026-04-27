@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+require('events').EventEmitter.defaultMaxListeners = 20;
 
 // --- AUTO-INITIALIZATION (SELF-HEALING) ---
 const initFiles = () => {
