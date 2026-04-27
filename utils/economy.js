@@ -67,8 +67,33 @@ function removeServerToken(client, guildId) {
   }
 }
 
+/**
+ * Parses shorthand currency strings (e.g. 1k, 5.5m, 2b) into integers.
+ * @param {string} str 
+ * @returns {number} The parsed amount or NaN.
+ */
+function parseShorthand(str) {
+  if (typeof str !== 'string') return NaN;
+  const input = str.toLowerCase().trim();
+  const match = input.match(/^([\d.]+)([kmbt]?)$/);
+  if (!match) return NaN;
+
+  const value = parseFloat(match[1]);
+  const suffix = match[2];
+
+  const multipliers = {
+    'k': 1000,
+    'm': 1000000,
+    'b': 1000000000,
+    't': 1000000000000
+  };
+
+  return Math.floor(value * (multipliers[suffix] || 1));
+}
+
 module.exports = {
   getEconomyToken,
   saveServerToken,
-  removeServerToken
+  removeServerToken,
+  parseShorthand
 };

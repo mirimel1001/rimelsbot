@@ -5,10 +5,8 @@ module.exports = {
   aliases: ["hlp"],
   category: "Games",
   description: "Toggle the cooldown reminder for HighLow. If on, you'll be pinged when you can play again.",
-  usage: "highlowping [on/off]",
+  usage: "highlowping",
   run: async (client, message, args, prefix, config) => {
-    let choice = args[0]?.toLowerCase();
-    
     // 1. Load Settings
     const filePath = './server_game_settings.json';
     let data = { guilds: {} };
@@ -27,29 +25,36 @@ module.exports = {
     if (!data.guilds[message.guild.id].reminders[message.author.id]) data.guilds[message.guild.id].reminders[message.author.id] = {};
 
     const currentStatus = data.guilds[message.guild.id].reminders[message.author.id].highlow || false;
+    const statusText = currentStatus ? "✅ **ON**" : "❌ **OFF**";
 
-    // 2. Determine action
-    if (!choice) {
-      // Toggle if no arg provided
-      choice = currentStatus ? 'off' : 'on';
-    }
+    const promptMsg = await message.reply(`🔔 **HighLow Reminder Status:** ${statusText}\nDo you want to change it? Type **yes** or **no**.`);
 
-    if (choice === 'on') {
-      data.guilds[message.guild.id].reminders[message.author.id].highlow = true;
-      message.reply("✅ **HighLow Reminder:** ON. I will ping you when your cooldown expires!");
-    } else if (choice === 'off') {
-      data.guilds[message.guild.id].reminders[message.author.id].highlow = false;
-      message.reply("❌ **HighLow Reminder:** OFF. You will no longer receive cooldown pings.");
-    } else {
-      return message.reply(`❌ Invalid choice! Use \`${prefix}hlp on\` or \`${prefix}hlp off\`.`);
-    }
+    const filter = m => m.author.id === message.author.id && ['yes', 'no', 'y', 'n'].includes(m.content.toLowerCase());
+    const collector = message.channel.createMessageCollector({ filter, time: 20000, max: 1 });
 
-    // 3. Save
-    try {
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-    } catch (err) {
-      console.error('Error saving server_game_settings.json:', err.message);
-      return message.reply("❌ Error saving settings.");
-    }
+    collector.on('collect', async m => {
+      const input = m.content.toLowerCase();
+      if (input === 'yes' || input === 'y') {
+        const newStatus = !currentStatus;
+        data.guilds[message.guild.id].reminders[message.author.id].highlow = newStatus;
+        
+        try {
+          fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+          const resultText = newStatus ? "✅ **ON**" : "❌ **OFF**";
+          message.reply(`🔄 **Updated!** Your HighLow reminder is now ${resultText}.`);
+        } catch (err) {
+          console.error('Error saving settings:', err.message);
+          message.reply("❌ Failed to save setting.");
+        }
+      } else {
+        message.reply("👌 **Cancelled.** Status remains unchanged.");
+      }
+    });
+
+    collector.on('end', collected => {
+      if (collected.size === 0) {
+        promptMsg.edit({ content: `⏰ **Timed out.** Reminder status is still ${statusText}.` }).catch(() => {});
+      }
+    });
   }
 };

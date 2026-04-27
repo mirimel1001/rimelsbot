@@ -1,7 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
-const { getEconomyToken } = require('../../../utils/economy.js');
+const { getEconomyToken, parseShorthand } = require('../../../utils/economy.js');
 
 module.exports = {
   name: "bet",
@@ -15,7 +15,7 @@ module.exports = {
                    message.guild.members.cache.find(m => m.user.username.toLowerCase() === args[0]?.toLowerCase()) ||
                    message.guild.members.cache.get(args[0]);
 
-    const amount = parseInt(args[1]);
+    const amount = parseShorthand(args[1]);
 
     if (!target || target.id === message.author.id) {
       return message.reply(`❌ Usage: \`${prefix}bet [@mention/username] [amount]\`. You cannot bet against yourself!`);

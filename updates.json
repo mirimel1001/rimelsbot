@@ -125,7 +125,11 @@
       "Smart Shorthand: Economy commands now support k, m, b, t multipliers (e.g., 10k, 1m) for faster transactions.",
       "Admin Aliases: winningrate and checkwinningrate (cwr) now support game aliases like 'hl' for 'highlow'.",
       "Cooldown Reminders: Added highlowping (hlp) to notify users exactly when they can play HighLow again.",
-      "Stability Fixes: Implemented API cache-busting and robust data parsing to ensure leaderboard accuracy."
+      "Stability Fixes: Implemented API cache-busting and robust data parsing to ensure leaderboard accuracy.",
+      "Global Silence: Disabled replied-user pings across all commands for a less intrusive user experience.",
+      "HighLow Draw: Ties no longer result in a loss or fine; it is now a neutral draw.",
+      "Refined Defaults: Cleaned up global winning rates to correctly apply only to HighLow.",
+      "Minimalist Economy: Removed avatars from withdraw/deposit messages for a cleaner look."
     ]
   }
 ]

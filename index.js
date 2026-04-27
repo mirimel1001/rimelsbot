@@ -7,11 +7,13 @@ const initFiles = () => {
     'server_config.json': { prefix: 'r' },
     'server_prefixes.json': {},
     'default_winning_rates.json': {
-      "551413333765652481": 45,
-      "1447847623321976964": 55,
-      "1447847601201483858": 55,
-      "1447847605555167314": 65,
-      "779433894600376342": 75
+      "highlow": {
+        "551413333765652481": 45,
+        "1447847623321976964": 55,
+        "1447847601201483858": 55,
+        "1447847605555167314": 65,
+        "779433894600376342": 75
+      }
     },
     'server_winning_rates.json': { guilds: {} },
     'server_prize_configs.json': { guilds: {} },
@@ -124,6 +126,9 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
   ],
   partials: [Partials.Channel],
+  allowedMentions: {
+    repliedUser: false
+  }
 });
 
 // Setup Collections
