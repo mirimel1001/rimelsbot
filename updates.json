@@ -131,5 +131,17 @@
       "Refined Defaults: Cleaned up global winning rates to correctly apply only to HighLow.",
       "Minimalist Economy: Removed avatars from withdraw/deposit messages for a cleaner look."
     ]
+  },
+  {
+    "version": "2.1.1",
+    "date": "2026-04-27",
+    "title": "The Polish & Peer-to-Peer Update",
+    "items": [
+      "P2P Transfers: Added give-money (aliases: give, pay) to transfer cash to other members with full shorthand support.",
+      "Visual Refinement: Standardized 'no avatar/name' format for economy embeds to ensure a clean, consistent UI.",
+      "Reliable Pings: Upgraded HighLow cooldown reminders to use replies, ensuring notifications trigger reliably on mobile.",
+      "Text Alignment: Updated deposit and withdraw responses to match UnbelievaBoat's exact phrasing for a seamless experience.",
+      "Unified Palette: Synced the leaderboard color with the rest of the economy suite for a more cohesive design."
+    ]
   }
 ]
