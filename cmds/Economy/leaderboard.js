@@ -34,11 +34,9 @@ module.exports = {
       }
     }
 
-    // Show usage if invalid argument is given (matches UnbelievaBoat behavior)
     if (invalidArg) {
       const usageEmbed = new EmbedBuilder()
         .setColor('#f04747')
-        .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL() })
         .setDescription(`❌ Invalid \`[-cash | -bank | -total]\` argument given.\n\n**Usage:**\n\`leaderboard [page] [-cash | -bank | -total]\``);
       return message.reply({ embeds: [usageEmbed] });
     }
@@ -67,10 +65,9 @@ module.exports = {
 
     const createEmbed = (users, p) => {
       const embed = new EmbedBuilder()
-        .setColor('#e91e63') // UnbelievaBoat Pink/Red
+        .setColor('#2ECC71')
         .setTitle(`Leaderboard - ${message.guild.name}`)
-        .setDescription(`Ranking by **${sortLabels[sort]}**\nPage **${p}**`)
-        .setTimestamp();
+        .setDescription(`Ranking by **${sortLabels[sort]}**\nPage **${p}**`);
 
       let description = "";
       users.forEach((userData, index) => {
@@ -82,7 +79,6 @@ module.exports = {
       });
 
       embed.addFields({ name: '\u200B', value: description || 'No users found.' });
-      embed.setFooter({ text: `Requested by ${message.author.tag}`, iconURL: message.author.displayAvatarURL() });
       return embed;
     };
 

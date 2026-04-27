@@ -75,7 +75,10 @@ module.exports = {
             
             if (isReminderOn) {
               setTimeout(() => {
-                message.channel.send(`🔔 <@${message.author.id}>, your **HighLow** cooldown has expired! You can play again now.`).catch(() => {});
+                message.reply({ 
+                  content: `🔔 <@${message.author.id}>, your **HighLow** cooldown has expired! You can play again now.`,
+                  allowedMentions: { repliedUser: true } 
+                }).catch(() => {});
               }, delay);
             }
           }

@@ -27,8 +27,26 @@ module.exports = {
 
       const amount = (input === 'all' || input === 'max') ? bank : parseShorthand(input);
 
-      if (isNaN(amount) || amount <= 0) return message.reply("❌ **Invalid amount!**");
-      if (amount > bank) return message.reply(`❌ **Insufficient Funds!** You only have **TK${bank.toLocaleString()}** in your bank.`);
+      if (isNaN(amount)) {
+        const errorEmbed = new EmbedBuilder()
+          .setColor('#f04747')
+          .setDescription(`❌ **Invalid amount!**`);
+        return message.reply({ embeds: [errorEmbed] });
+      }
+
+      if (amount <= 0) {
+        const errorEmbed = new EmbedBuilder()
+          .setColor('#f04747')
+          .setDescription((input === 'all' || input === 'max') ? `❌ You don't have any money in your bank to withdraw.` : `❌ **Invalid amount!**`);
+        return message.reply({ embeds: [errorEmbed] });
+      }
+
+      if (amount > bank) {
+        const errorEmbed = new EmbedBuilder()
+          .setColor('#f04747')
+          .setDescription(`❌ You don't have enough money in your bank to withdraw that much.`);
+        return message.reply({ embeds: [errorEmbed] });
+      }
 
       await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${message.author.id}`, 
         { cash: amount, bank: -amount }, 
@@ -36,13 +54,16 @@ module.exports = {
       );
 
       const successEmbed = new EmbedBuilder()
-        .setColor('#43b581')
-        .setDescription(`✅ <@${message.author.id}> withdrew **TK${amount.toLocaleString()}** from their bank!`);
+        .setColor('#2ECC71')
+        .setDescription(`✅ <@${message.author.id}>, you have withdrawn **TK${amount.toLocaleString()}** from your bank account!`);
 
       message.reply({ embeds: [successEmbed] });
     } catch (err) {
       console.error('withdraw error:', err.message);
-      message.reply("❌ **Error processing withdrawal.**");
+      const errorEmbed = new EmbedBuilder()
+        .setColor('#f04747')
+        .setDescription("❌ **Error processing withdrawal.**");
+      message.reply({ embeds: [errorEmbed] });
     }
   }
 };

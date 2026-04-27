@@ -27,8 +27,26 @@ module.exports = {
 
       const amount = (input === 'all' || input === 'max') ? cash : parseShorthand(input);
 
-      if (isNaN(amount) || amount <= 0) return message.reply("❌ **Invalid amount!**");
-      if (amount > cash) return message.reply(`❌ **Insufficient Funds!** You only have **TK${cash.toLocaleString()}** in your pocket.`);
+      if (isNaN(amount)) {
+        const errorEmbed = new EmbedBuilder()
+          .setColor('#f04747')
+          .setDescription(`❌ **Invalid amount!**`);
+        return message.reply({ embeds: [errorEmbed] });
+      }
+
+      if (amount <= 0) {
+        const errorEmbed = new EmbedBuilder()
+          .setColor('#f04747')
+          .setDescription((input === 'all' || input === 'max') ? `❌ You don't have any money to deposit.` : `❌ **Invalid amount!**`);
+        return message.reply({ embeds: [errorEmbed] });
+      }
+
+      if (amount > cash) {
+        const errorEmbed = new EmbedBuilder()
+          .setColor('#f04747')
+          .setDescription(`❌ You don't have enough money to deposit that much.`);
+        return message.reply({ embeds: [errorEmbed] });
+      }
 
       await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${message.author.id}`, 
         { cash: -amount, bank: amount }, 
@@ -36,13 +54,16 @@ module.exports = {
       );
 
       const successEmbed = new EmbedBuilder()
-        .setColor('#43b581')
-        .setDescription(`✅ <@${message.author.id}> deposited **TK${amount.toLocaleString()}** to their bank!`);
+        .setColor('#2ECC71')
+        .setDescription(`✅ <@${message.author.id}>, you have deposited **TK${amount.toLocaleString()}** into your bank account!`);
 
       message.reply({ embeds: [successEmbed] });
     } catch (err) {
       console.error('deposit error:', err.message);
-      message.reply("❌ **Error processing deposit.**");
+      const errorEmbed = new EmbedBuilder()
+        .setColor('#f04747')
+        .setDescription("❌ **Error processing deposit.**");
+      message.reply({ embeds: [errorEmbed] });
     }
   }
 };
