@@ -111,7 +111,8 @@ module.exports = {
     const emojiMap = {
       'General': '🛡️',
       'Games': '🎮',
-      'Game Settings': '⚙️'
+      'Game Settings': '⚙️',
+      'Economy': '💰'
     };
 
     const menuOptions = categoryNames.map(cat => ({

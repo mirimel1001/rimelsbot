@@ -18,10 +18,10 @@ module.exports = {
 
     let cooldownKey = null;
     let currentNow = Date.now();
+    let delay = null;
 
     // --- COOLDOWN CHECK ---
     try {
-      let delay = null;
       if (fs.existsSync('./default_game_settings.json')) {
         const defaults = JSON.parse(fs.readFileSync('./default_game_settings.json', 'utf8'));
         delay = defaults.delays?.highlow || null;
@@ -65,6 +65,26 @@ module.exports = {
       // 3. SET THE COOLDOWN NOW (Balance is verified)
       if (cooldownKey) client.cooldowns.set(cooldownKey, currentNow);
 
+      // --- REMINDER LOGIC ---
+      if (cooldownKey && delay) {
+        try {
+          const settingsPath = './server_game_settings.json';
+          if (fs.existsSync(settingsPath)) {
+            const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+            const isReminderOn = settings.guilds[message.guild.id]?.reminders?.[message.author.id]?.highlow;
+            
+            if (isReminderOn) {
+              setTimeout(() => {
+                message.channel.send(`🔔 <@${message.author.id}>, your **HighLow** cooldown has expired! You can play again now.`).catch(() => {});
+              }, delay);
+            }
+          }
+        } catch (err) {
+          console.error('Reminder Logic Error:', err.message);
+        }
+      }
+      // ----------------------
+
       // 4. Determine Win Rate based on Roles
       let winRate = 50;
       try {
@@ -73,7 +93,8 @@ module.exports = {
 
         let globalDefaults = {};
         if (fs.existsSync(defaultPath)) {
-          globalDefaults = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
+          const winRatesData = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
+          globalDefaults = winRatesData.highlow || {};
         }
 
         let guildSettings = {};
@@ -96,7 +117,7 @@ module.exports = {
         console.error("Error calculating win rate:", err);
       }
 
-      // 4. Start Game UI
+      // 5. Start Game UI
       const firstRoll = Math.floor(Math.random() * 100) + 1;
       
       const gameEmbed = new EmbedBuilder()
@@ -113,7 +134,7 @@ module.exports = {
 
       const msg = await message.reply({ embeds: [gameEmbed], components: [row] });
 
-      // 5. Button Collector
+      // 6. Button Collector
       const filter = (i) => i.user.id === message.author.id;
       const collector = msg.createMessageComponentCollector({ filter, time: 30000 });
 

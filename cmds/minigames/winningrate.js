@@ -9,7 +9,7 @@ module.exports = {
   adminOnly: true,
   description: "Sets the win rate for a specific role in a game.\n\n" +
                 "🔹 **Variables:**\n" +
-                "• **[game name]** - The name of the game (e.g., highlow).\n" +
+                "• **[game name]** - The name or alias of the game (e.g., highlow or hl).\n" +
                 "• **[@role/ID]** - Mention the role or paste the Role ID.\n" +
                 "• **[percentage%]** - Win chance from 0 to 100.",
   usage: "winningrate [game name] [@role/ID] [percentage%]",
@@ -20,13 +20,19 @@ module.exports = {
     }
 
     // 2. Validate Args
-    const gameName = args[0]?.toLowerCase();
+    let inputGame = args[0]?.toLowerCase();
     const roleInput = args[1];
     const percentInput = args[2];
 
-    if (!gameName || !roleInput || !percentInput) {
-      return message.reply(`❌ Usage: \`${prefix}winningrate [game] [@role/ID] [percentage%]\`\nExample: \`${prefix}wr highlow @Weak 60%\``);
+    if (!inputGame || !roleInput || !percentInput) {
+      return message.reply(`❌ Usage: \`${prefix}winningrate [game] [@role/ID] [percentage%]\`\nExample: \`${prefix}wr hl @Weak 60%\``);
     }
+
+    // Resolve game name from aliases/names
+    const command = client.commands.get(inputGame) || 
+                    client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(inputGame));
+    
+    const gameName = (command && command.category === "Games") ? command.name : inputGame;
 
     // Parse Percentage
     const percentage = parseInt(percentInput.replace('%', ''));
@@ -64,7 +70,7 @@ module.exports = {
     try {
       fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
       
-      // Update Cache: Note that winning rates are stored as part of the guild's settings in memory
+      // Update Cache
       const currentSettings = client.gameSettings.get(message.guild.id) || {};
       if (!currentSettings.winningRates) currentSettings.winningRates = {}; 
       currentSettings.winningRates[gameName] = currentSettings.winningRates[gameName] || {};

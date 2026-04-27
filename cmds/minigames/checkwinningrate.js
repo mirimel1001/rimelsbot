@@ -6,21 +6,33 @@ module.exports = {
   aliases: ["cwr"],
   description: "Check the winning rates configured for a specific game.\n\n" +
                 "🔹 **Variables:**\n" +
-                "• **[game name]** - The name of the game to check (e.g., highlow).",
+                "• **[game name]** - The name or alias of the game (e.g., highlow or hl).",
   usage: "checkwinningrate [game name]",
   run: async (client, message, args, prefix, config) => {
-    const gameName = args[0]?.toLowerCase();
-
-    // 1. Validate against existing minigames
-    const minigamesDir = './cmds/minigames/';
-    const folders = fs.readdirSync(minigamesDir, { withFileTypes: true })
-      .filter(dirent => dirent.isDirectory())
-      .map(dirent => dirent.name.toLowerCase().replace(/ /g, '')); // e.g. "highlow"
-
-    if (!gameName || !folders.includes(gameName)) {
-      const gameList = folders.map(f => `\`${f}\``).join(', ');
-      return message.reply(`❌ Please provide a valid minigame name.\nAvailable games: ${gameList}`);
+    let inputGame = args[0]?.toLowerCase();
+    if (!inputGame) {
+      return message.reply(`❌ Usage: \`${prefix}checkwinningrate [game name]\``);
     }
+
+    // Resolve game name from aliases/names in client commands
+    const command = client.commands.get(inputGame) || 
+                    client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(inputGame));
+
+    if (!command || command.category !== "Games") {
+      // Fallback: Check folders if command lookup fails or isn't a game
+      const minigamesDir = './cmds/minigames/';
+      const folders = fs.readdirSync(minigamesDir, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+        .map(dirent => dirent.name.toLowerCase().replace(/ /g, ''));
+
+      if (!folders.includes(inputGame)) {
+        const gameList = folders.map(f => `\`${f}\``).join(', ');
+        return message.reply(`❌ Please provide a valid minigame name or alias.\nAvailable games: ${gameList}`);
+      }
+    }
+
+    // Use the primary command name if found, otherwise use input
+    const gameName = command ? command.name : inputGame;
 
     const defaultPath = './default_winning_rates.json';
     const serverPath = './server_winning_rates.json';
@@ -28,7 +40,8 @@ module.exports = {
     try {
       let globalDefaults = {};
       if (fs.existsSync(defaultPath)) {
-        globalDefaults = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
+        const defaultsData = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
+        globalDefaults = defaultsData[gameName] || {};
       }
 
       let guildSettings = {};

@@ -113,5 +113,19 @@
       "Visual Feedback: Added 🗳️ (ballot box) icons for voters in Werewolf and improved 'Ready' visibility.",
       "Smarter Loader: Refactored the command engine to support nested folder categorization and type tagging."
     ]
+  },
+  {
+    "version": "2.1.0",
+    "date": "2026-04-27",
+    "title": "The Economy & Integration Update",
+    "items": [
+      "Economy Suite: Launched fully linked UnbelievaBoat commands: balance, leaderboard, withdraw, and deposit.",
+      "Visual Aesthetics: Styled economy responses to match UnbelievaBoat's minimalist design and signature color palette.",
+      "Interactive Leaderboard: Added 'Next' and 'Previous' buttons for seamless browsing of server rankings.",
+      "Smart Shorthand: Economy commands now support k, m, b, t multipliers (e.g., 10k, 1m) for faster transactions.",
+      "Admin Aliases: winningrate and checkwinningrate (cwr) now support game aliases like 'hl' for 'highlow'.",
+      "Cooldown Reminders: Added highlowping (hlp) to notify users exactly when they can play HighLow again.",
+      "Stability Fixes: Implemented API cache-busting and robust data parsing to ensure leaderboard accuracy."
+    ]
   }
 ]
