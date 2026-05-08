@@ -505,7 +505,11 @@ async function endGame(channel, game, winners) {
   const { getEconomyToken } = require('../../../utils/economy.js');
   for (const w of winnerList) {
     const entry = Array.from(game.players.entries()).find(([id, p]) => p.name === w.name);
-    if (entry) await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${game.guildId}/users/${entry[0]}`, { cash: payout }, { headers: { 'Authorization': getEconomyToken(channel.client, game.guildId) } }).catch(() => null);
+    if (entry) {
+      await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${game.guildId}/users/${entry[0]}`, { cash: payout }, { headers: { 'Authorization': getEconomyToken(channel.client, game.guildId) } }).catch(() => null);
+      const { enforceMaxBalance } = require('../../../utils/economy.js');
+      await enforceMaxBalance(channel.client, game.guildId, entry[0]);
+    }
   }
   return true;
 }

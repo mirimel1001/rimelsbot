@@ -234,6 +234,8 @@ module.exports = {
             const attachment = new AttachmentBuilder(buffer, { name: 'final.png' });
 
             await m.reply({ embeds: [winEmbed], files: [attachment] });
+            const { enforceMaxBalance } = require('../../../utils/economy.js');
+            await enforceMaxBalance(client, message.guild.id, m.author.id);
           } catch (err) {
             console.error('ImageGuess Prize Error:', err.message);
             m.reply(`🎉 You won! The word was **${secretWord}**, but I couldn't update your balance automatically.`);

@@ -154,9 +154,9 @@ module.exports = {
 
             await i.editReply({ content: '🎉 The bet is settled!', embeds: [resultEmbed], components: [] });
             
-            // Set cooldown after successful game
-            client.cooldowns.set(cooldownKey, Date.now());
-            
+            const { enforceMaxBalance } = require('../../../utils/economy.js');
+            await enforceMaxBalance(client, message.guild.id, winner.id);
+
           } catch (err) {
             console.error('Bet API Error:', err.response?.data || err.message);
             await i.editReply({ content: `❌ An error occurred while updating balances. Please check if the bot has enough permissions or if the UNB token is valid.`, embeds: [], components: [] });

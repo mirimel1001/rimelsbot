@@ -156,5 +156,17 @@
       "Auto-Migration: Added a smart initialization system that automatically transitions legacy data to the new structure on startup.",
       "Optimized Performance: Refactored all game and administrative commands to utilize memory caches for faster response times."
     ]
+  },
+  {
+    "version": "2.1.3",
+    "date": "2026-05-09",
+    "title": "The Reactive Security & Optimization Update",
+    "items": [
+      "Reactive Audits: Implemented instant balance checks after every minigame win (Bet, HighLow, ImageGuess, Werewolf) to enforce limits in real-time.",
+      "Optimized Audit Timing: Switched background audits to a 3-hour interval to drastically reduce API overhead and server load.",
+      "Silent Background Logs: Cleaned up the console by redirecting background debug messages to bot_logs.txt while keeping the UI clear for important events.",
+      "Stability Fix: Resolved 'MaxListenersExceeded' warnings by increasing internal EventEmitter limits to accommodate large-scale server audits.",
+      "Synchronized Deployment: Updated all core files and backup zips to ensure latest optimizations are included in future server migrations."
+    ]
   }
 ]

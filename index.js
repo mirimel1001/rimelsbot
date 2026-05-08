@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-require('events').EventEmitter.defaultMaxListeners = 20;
+require('events').EventEmitter.defaultMaxListeners = 50;
 
 // --- FILE LOGGER ---
 const logFile = path.join(__dirname, 'bot_logs.txt');
@@ -15,8 +15,11 @@ const writeToFile = (msg) => {
 
 console.log = (...args) => {
   const msg = args.join(' ');
-  originalLog(...args);
   writeToFile(`INFO: ${msg}`);
+  // Only print to console if it's NOT a repetitive debug/background message
+  if (!msg.includes('[MaxBalance Debug]') && !msg.includes('[Cache]') && !msg.includes('[Loader]')) {
+    originalLog(...args);
+  }
 };
 console.error = (...args) => {
   const msg = args.join(' ');
@@ -573,7 +576,7 @@ const checkMaxBalances = async () => {
   const customData = JSON.parse(fs.readFileSync(customPath, 'utf8'));
   const defaultData = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
   const axios = require('axios');
-  const { getEconomyToken } = require('./utils/economy.js');
+  const { getEconomyToken, enforceMaxBalance } = require('./utils/economy.js');
 
   // Iterate over all guilds the bot is currently in
   for (const [guildId, guild] of client.guilds.cache) {
@@ -585,7 +588,8 @@ const checkMaxBalances = async () => {
 
     if (maxBal === false) continue;
     if (maxBal === undefined) {
-      if (guildId === process.env.MAIN_GUILD_ID) {
+      const mainGuildId = process.env.MAIN_GUILD_ID?.trim().replace(/^["'](.+)["']$/, '$1');
+      if (guildId === mainGuildId) {
         maxBal = defaultData.maxBalance;
       } else {
         continue; 
@@ -609,38 +613,9 @@ const checkMaxBalances = async () => {
 
       // 2. Audit each user individually for 100% accuracy
       for (const userId of topUserIds) {
-        try {
-          const userRes = await axios.get(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${userId}`, {
-            headers: { 'Authorization': token }
-          });
-
-          const cash = parseFloat(userRes.data.cash) || 0;
-          const bank = parseFloat(userRes.data.bank) || 0;
-          const total = cash + bank;
-
-          if (total > maxBal) {
-            const excess = total - maxBal;
-            console.log(`[MaxBalance] Redacting from user ${userId}: Total ${total.toLocaleString()} is over ${maxBal.toLocaleString()}`);
-
-            // Redact from Cash first, then Bank
-            let redactCash = Math.min(cash, excess);
-            let redactBank = Math.max(0, excess - redactCash);
-
-            await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${userId}`, {
-              cash: -redactCash,
-              bank: -redactBank,
-              reason: "Max balance limit exceeded (Auto-redact)"
-            }, {
-              headers: { 'Authorization': token }
-            });
-            console.log(`[MaxBalance] Success! Redacted ${excess.toLocaleString()} from ${userId}`);
-          }
-          
-          // Small sleep to prevent aggressive rate-limiting
-          await new Promise(r => setTimeout(r, 500));
-        } catch (userErr) {
-          // Skip if user not found or other minor issues
-        }
+        await enforceMaxBalance(client, guildId, userId);
+        // Small sleep to prevent aggressive rate-limiting
+        await new Promise(r => setTimeout(r, 500));
       }
     } catch (err) {
       if (err.response?.status !== 404) {
@@ -650,8 +625,8 @@ const checkMaxBalances = async () => {
   }
 };
 
-// Reasonable cooldown: Every 15 minutes to stay within API limits and Discord policy
-setInterval(checkMaxBalances, 15 * 60 * 1000);
+// Reasonable cooldown: Every 3 hours to stay within API limits and Discord policy
+setInterval(checkMaxBalances, 3 * 60 * 60 * 1000);
 
 // --- LOGIN ---
 let token = process.env.DISCORD_TOKEN;

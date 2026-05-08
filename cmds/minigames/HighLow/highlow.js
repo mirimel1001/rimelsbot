@@ -204,6 +204,8 @@ module.exports = {
             } else {
               resultEmbed.addFields({ name: 'Losses', value: `-${amount} Cash Removed.`, inline: true });
             }
+            const { enforceMaxBalance } = require('../../../utils/economy.js');
+            await enforceMaxBalance(client, message.guild.id, message.author.id);
           } catch (apiErr) {
             console.error('UB API Patch Error:', apiErr.response?.data || apiErr.message);
             resultEmbed.addFields({ name: '⚠️ Error', value: `Game finished, but could not update your UnbelievaBoat balance automatically.`, inline: false });

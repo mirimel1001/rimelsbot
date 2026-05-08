@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 
 /**
  * Retrieves the UnbelievaBoat token for a specific guild.
@@ -22,6 +23,74 @@ function getEconomyToken(client, guildId) {
     return globalToken;
   }
 
+  return null;
+}
+
+/**
+ * Audits a specific user's balance and redacts excess if they exceed the max balance limit.
+ * @param {object} client - Discord Client
+ * @param {string} guildId - Guild ID
+ * @param {string} userId - User ID
+ * @returns {Promise<object|null>} Result of redaction or null
+ */
+async function enforceMaxBalance(client, guildId, userId) {
+  const token = getEconomyToken(client, guildId);
+  if (!token) return null;
+
+  try {
+    // 1. Load Configs
+    const customPath = path.join(__dirname, '../custom_guilds.json');
+    const defaultPath = path.join(__dirname, '../default_myserver.json');
+    if (!fs.existsSync(customPath) || !fs.existsSync(defaultPath)) return null;
+
+    const customData = JSON.parse(fs.readFileSync(customPath, 'utf8'));
+    const defaultData = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
+
+    const guildData = customData.guilds[guildId] || {};
+    let maxBal = guildData.maxBalance;
+
+    if (maxBal === false) return null;
+    if (maxBal === undefined) {
+      const mainGuildId = process.env.MAIN_GUILD_ID?.trim().replace(/^["'](.+)["']$/, '$1');
+      if (guildId === mainGuildId) {
+        maxBal = defaultData.maxBalance;
+      } else {
+        return null; 
+      }
+    }
+
+    // 2. Fetch User Data
+    const res = await axios.get(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${userId}`, {
+      headers: { 'Authorization': token }
+    });
+
+    const cash = parseFloat(res.data.cash) || 0;
+    const bank = parseFloat(res.data.bank) || 0;
+    const total = cash + bank;
+
+    if (total > maxBal) {
+      const excess = total - maxBal;
+      
+      // Redact from Cash first, then Bank
+      let redactCash = Math.min(cash, excess);
+      let redactBank = Math.max(0, excess - redactCash);
+
+      await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${userId}`, {
+        cash: -redactCash,
+        bank: -redactBank,
+        reason: "Max balance limit exceeded (Reactive Audit)"
+      }, {
+        headers: { 'Authorization': token }
+      });
+
+      console.log(`[MaxBalance] Reactive Redaction: Redacted ${excess.toLocaleString()} from ${userId} in ${guildId}`);
+      return { redacted: excess, userId };
+    }
+  } catch (err) {
+    if (err.response?.status !== 404) {
+      console.error(`[MaxBalance Error] Reactive check failed for ${userId} in ${guildId}:`, err.message);
+    }
+  }
   return null;
 }
 
@@ -95,5 +164,6 @@ module.exports = {
   getEconomyToken,
   saveServerToken,
   removeServerToken,
-  parseShorthand
+  parseShorthand,
+  enforceMaxBalance
 };
