@@ -3,73 +3,147 @@ const path = require('path');
 require('events').EventEmitter.defaultMaxListeners = 20;
 
 // --- AUTO-INITIALIZATION (SELF-HEALING) ---
+// --- AUTO-INITIALIZATION (SELF-HEALING & MIGRATION) ---
 const initFiles = () => {
-  const defaults = {
-    'server_config.json': { prefix: 'r' },
-    'server_prefixes.json': {},
-    'default_winning_rates.json': {
-      "highlow": {
-        "551413333765652481": 45,
-        "1447847623321976964": 55,
-        "1447847601201483858": 55,
-        "1447847605555167314": 65,
-        "779433894600376342": 75
-      }
-    },
-    'server_winning_rates.json': { guilds: {} },
-    'server_prize_configs.json': { guilds: {} },
-    'default_game_settings.json': {
-      delays: {
-        highlow: 40000,
-        imageguess: 30000,
-        bet: 30000
-      }
-    },
-    'server_game_settings.json': { guilds: {} },
-    'bot_status.json': [
-      { "name": "{prefix}help || Check bio for support", "type": "Watching" },
-      { "name": "{prefix}help || Servers: {servers}", "type": "Watching" }
-    ],
-    'server_unbtokens.json': { tokens: {} }
-  };
-
   const getPath = (file) => path.join(__dirname, file);
 
-  // 1. Handle JSON files (Creation & Structural Healing)
-  for (const [filename, defaultContent] of Object.entries(defaults)) {
-    const filePath = getPath(filename);
-    let shouldWrite = false;
-    let currentContent = {};
+  // 1. Migration Logic (Run once if old files exist)
+  const customPath = getPath('custom_guilds.json');
+  if (!fs.existsSync(customPath)) {
+    console.log('[Migration] Centralizing server settings into custom_guilds.json...');
+    const customData = {
+      "_comment_tokens": "All server-specific UnbelievaBoat API tokens are stored here.",
+      "unbTokens": {},
+      "_comment_guilds": "Individual server configurations (prefixes, game settings, win rates, etc.)",
+      "guilds": {}
+    };
 
-    if (!fs.existsSync(filePath)) {
-      console.log(`[Init] File missing, creating: ${filename}`);
-      currentContent = defaultContent;
-      shouldWrite = true;
-    } else {
+    // Migrate Prefixes
+    const prefixPath = getPath('server_prefixes.json');
+    if (fs.existsSync(prefixPath)) {
       try {
-        const data = fs.readFileSync(filePath, 'utf8');
-        currentContent = JSON.parse(data);
-        
-        // Structural Healing: Check if top-level keys from defaults are missing
-        if (typeof defaultContent === 'object' && !Array.isArray(defaultContent)) {
-          for (const key in defaultContent) {
-            if (currentContent[key] === undefined) {
-              console.log(`[Init] Structural healing: Adding missing key "${key}" to ${filename}`);
-              currentContent[key] = defaultContent[key];
-              shouldWrite = true;
-            }
+        const prefixes = JSON.parse(fs.readFileSync(prefixPath, 'utf8'));
+        for (const [id, prefix] of Object.entries(prefixes)) {
+          if (!customData.guilds[id]) customData.guilds[id] = {};
+          customData.guilds[id].prefix = prefix;
+        }
+      } catch (e) {}
+    }
+
+    // Migrate Game Settings
+    const settingsPath = getPath('server_game_settings.json');
+    if (fs.existsSync(settingsPath)) {
+      try {
+        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        if (settings.guilds) {
+          for (const [id, data] of Object.entries(settings.guilds)) {
+            if (!customData.guilds[id]) customData.guilds[id] = {};
+            customData.guilds[id].gameSettings = data;
           }
         }
-      } catch (err) {
-        console.error(`[Init] Corrupted file detected: ${filename}. Resetting to default.`);
-        currentContent = defaultContent;
-        shouldWrite = true;
-      }
+      } catch (e) {}
     }
 
-    if (shouldWrite) {
-      fs.writeFileSync(filePath, JSON.stringify(currentContent, null, 2));
+    // Migrate Prize Configs
+    const prizePath = getPath('server_prize_configs.json');
+    if (fs.existsSync(prizePath)) {
+      try {
+        const prizes = JSON.parse(fs.readFileSync(prizePath, 'utf8'));
+        if (prizes.guilds) {
+          for (const [id, data] of Object.entries(prizes.guilds)) {
+            if (!customData.guilds[id]) customData.guilds[id] = {};
+            customData.guilds[id].prizeConfigs = data;
+          }
+        }
+      } catch (e) {}
     }
+
+    // Migrate UNB Tokens
+    const tokensPath = getPath('server_unbtokens.json');
+    if (fs.existsSync(tokensPath)) {
+      try {
+        const tokens = JSON.parse(fs.readFileSync(tokensPath, 'utf8'));
+        if (tokens.tokens) {
+          for (const [id, token] of Object.entries(tokens.tokens)) {
+            customData.unbTokens[id] = token;
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Migrate Winning Rates
+    const ratesPath = getPath('server_winning_rates.json');
+    if (fs.existsSync(ratesPath)) {
+      try {
+        const rates = JSON.parse(fs.readFileSync(ratesPath, 'utf8'));
+        if (rates.guilds) {
+          for (const [id, data] of Object.entries(rates.guilds)) {
+            if (!customData.guilds[id]) customData.guilds[id] = {};
+            customData.guilds[id].winningRates = data;
+          }
+        }
+      } catch (e) {}
+    }
+
+    fs.writeFileSync(customPath, JSON.stringify(customData, null, 2));
+    console.log('[Migration] custom_guilds.json created!');
+    
+    // Cleanup old server files
+    ['server_prefixes.json', 'server_game_settings.json', 'server_prize_configs.json', 'server_unbtokens.json', 'server_winning_rates.json', 'server_config.json'].forEach(file => {
+      if (fs.existsSync(getPath(file))) fs.unlinkSync(getPath(file));
+    });
+  }
+
+  // 2. Default Server Config Migration
+  const defaultPath = getPath('default_myserver.json');
+  if (!fs.existsSync(defaultPath)) {
+    console.log('[Migration] Creating default_myserver.json...');
+    const defaultData = {
+      "_comment_info": "Detailed settings for the bot's default behavior.",
+      "gameSettings": {
+        "_comment": "Default cooldowns (in ms) for minigames",
+        "delays": { "highlow": 60000, "imageguess": 30000, "bet": 30000 }
+      },
+      "winningRates": {
+        "_comment": "Default winning rates for specific roles (Role ID -> Percentage)",
+        "highlow": {
+          "551413333765652481": 45,
+          "1447847623321976964": 55,
+          "1447847601201483858": 55,
+          "1447847605555167314": 65,
+          "779433894600376342": 75
+        }
+      },
+      "maxBalance": 10000000000
+    };
+
+    // Load from old defaults if they exist
+    if (fs.existsSync(getPath('default_game_settings.json'))) {
+      try {
+        const oldSettings = JSON.parse(fs.readFileSync(getPath('default_game_settings.json'), 'utf8'));
+        if (oldSettings.delays) defaultData.gameSettings.delays = oldSettings.delays;
+      } catch (e) {}
+    }
+    if (fs.existsSync(getPath('default_winning_rates.json'))) {
+      try {
+        const oldRates = JSON.parse(fs.readFileSync(getPath('default_winning_rates.json'), 'utf8'));
+        defaultData.winningRates = { ...defaultData.winningRates, ...oldRates };
+      } catch (e) {}
+    }
+
+    fs.writeFileSync(defaultPath, JSON.stringify(defaultData, null, 2));
+    ['default_game_settings.json', 'default_winning_rates.json'].forEach(f => {
+      if (fs.existsSync(getPath(f))) fs.unlinkSync(getPath(f));
+    });
+  }
+
+  // 3. Status Init
+  const statusPath = getPath('bot_status.json');
+  if (!fs.existsSync(statusPath)) {
+    fs.writeFileSync(statusPath, JSON.stringify([
+      { "name": "{prefix}help || Check bio for support", "type": "Watching" },
+      { "name": "{prefix}help || Servers: {servers}", "type": "Watching" }
+    ], null, 2));
   }
 
   // 2. Handle .env template
@@ -115,7 +189,15 @@ try {
 const { Client, GatewayIntentBits, Collection, ActivityType, Events, Partials } = require('discord.js');
 
 // Dynamic Config Loading
-const getConfig = () => JSON.parse(fs.readFileSync(path.join(__dirname, 'server_config.json'), 'utf8'));
+// Dynamic Config Loading
+const getConfig = () => {
+  const customPath = path.join(__dirname, 'custom_guilds.json');
+  if (fs.existsSync(customPath)) {
+    const data = JSON.parse(fs.readFileSync(customPath, 'utf8'));
+    return { prefix: data.globalPrefix || 'r' };
+  }
+  return { prefix: 'r' };
+};
 let config = getConfig();
 
 // --- BOT INITIALIZATION ---
@@ -144,22 +226,35 @@ client.gameSettings = new Collection();
 client.unbTokens = new Collection();
 
 // Populate Caches
+// Populate Caches
 const loadCaches = () => {
   try {
-    const prefixes = JSON.parse(fs.readFileSync(path.join(__dirname, 'server_prefixes.json'), 'utf8'));
-    for (const [id, prefix] of Object.entries(prefixes)) client.prefixes.set(id, prefix);
+    const customData = JSON.parse(fs.readFileSync(path.join(__dirname, 'custom_guilds.json'), 'utf8'));
     
-    const settings = JSON.parse(fs.readFileSync(path.join(__dirname, 'server_game_settings.json'), 'utf8'));
-    if (settings.guilds) {
-      for (const [id, data] of Object.entries(settings.guilds)) client.gameSettings.set(id, data);
+    // Load Tokens
+    if (customData.unbTokens) {
+      for (const [id, token] of Object.entries(customData.unbTokens)) {
+        client.unbTokens.set(id, token);
+      }
+    }
+
+    // Load Guild Settings
+    if (customData.guilds) {
+      for (const [id, data] of Object.entries(customData.guilds)) {
+        if (data.prefix) client.prefixes.set(id, data.prefix);
+        
+        // Merge settings into a single object for the cache
+        const guildSettings = {
+          ...(data.gameSettings || {}),
+          prizeConfigs: data.prizeConfigs || {},
+          winningRates: data.winningRates || {},
+          maxBalance: data.maxBalance
+        };
+        client.gameSettings.set(id, guildSettings);
+      }
     }
     
-    const tokens = JSON.parse(fs.readFileSync(path.join(__dirname, 'server_unbtokens.json'), 'utf8'));
-    if (tokens.tokens) {
-      for (const [id, token] of Object.entries(tokens.tokens)) client.unbTokens.set(id, token);
-    }
-    
-    console.log('[Cache] Server configurations loaded into memory.');
+    console.log('[Cache] Consolidated configurations loaded into memory.');
   } catch (err) {
     console.error('[Cache] Error initializing caches:', err.message);
   }
@@ -403,10 +498,10 @@ client.on('messageCreate', async (message) => {
       let gameChannelId = null;
       
       // Load Defaults (Fast check)
-      const defaultSettingsPath = path.join(__dirname, 'default_game_settings.json');
-      if (fs.existsSync(defaultSettingsPath)) {
-        const defaults = JSON.parse(fs.readFileSync(defaultSettingsPath, 'utf8'));
-        gameChannelId = defaults.gameChannel || null;
+      const defaultPath = path.join(__dirname, 'default_myserver.json');
+      if (fs.existsSync(defaultPath)) {
+        const defaults = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
+        gameChannelId = defaults.gameSettings?.gameChannel || null;
       }
 
       // Load Guild Settings (From Cache)
@@ -435,6 +530,76 @@ client.on('messageCreate', async (message) => {
     message.reply('❌ There was an error trying to execute that command!');
   }
 });
+
+// --- MAX BALANCE MONITOR ---
+const checkMaxBalances = async () => {
+  const customPath = path.join(__dirname, 'custom_guilds.json');
+  const defaultPath = path.join(__dirname, 'default_myserver.json');
+  if (!fs.existsSync(customPath) || !fs.existsSync(defaultPath)) return;
+
+  const customData = JSON.parse(fs.readFileSync(customPath, 'utf8'));
+  const defaultData = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
+  const axios = require('axios');
+  const { getEconomyToken } = require('./utils/economy.js');
+
+  for (const [guildId, guildData] of Object.entries(customData.guilds)) {
+    let maxBal = guildData.maxBalance;
+    
+    // Logic:
+    // 1. If explicitly set to false -> skip (infinite)
+    // 2. If undefined AND is MAIN_GUILD -> use default (10B)
+    // 3. If undefined AND NOT MAIN_GUILD -> skip (infinite)
+    
+    if (maxBal === false) continue;
+    if (maxBal === undefined) {
+      if (guildId === process.env.MAIN_GUILD_ID) {
+        maxBal = defaultData.maxBalance;
+      } else {
+        continue; 
+      }
+    }
+
+    const token = getEconomyToken(client, guildId);
+    if (!token) continue;
+
+    try {
+      // Get top 100 users
+      const res = await axios.get(`https://unbelievaboat.com/api/v1/guilds/${guildId}/leaderboard?limit=100`, {
+        headers: { 'Authorization': token }
+      });
+
+      for (const user of res.data.users) {
+        const cash = parseFloat(user.cash) || 0;
+        const bank = parseFloat(user.bank) || 0;
+        const total = cash + bank;
+
+        if (total > maxBal) {
+          const excess = total - maxBal;
+          console.log(`[MaxBalance] Redacting ${excess.toLocaleString()} from user ${user.user_id} in guild ${guildId}`);
+          
+          // Redact from Cash first, then Bank
+          let redactCash = Math.min(cash, excess);
+          let redactBank = Math.max(0, excess - redactCash);
+
+          await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${user.user_id}`, {
+            cash: -redactCash,
+            bank: -redactBank,
+            reason: "Max balance limit exceeded (Auto-redact)"
+          }, {
+            headers: { 'Authorization': token }
+          });
+        }
+      }
+    } catch (err) {
+      if (err.response?.status !== 404) {
+        console.error(`[MaxBalance Error] Guild ${guildId}:`, err.message);
+      }
+    }
+  }
+};
+
+// Reasonable cooldown: Every 15 minutes to stay within API limits and Discord policy
+setInterval(checkMaxBalances, 15 * 60 * 1000);
 
 // --- LOGIN ---
 let token = process.env.DISCORD_TOKEN;

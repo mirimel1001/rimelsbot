@@ -22,15 +22,10 @@ module.exports = {
 
     // --- COOLDOWN CHECK ---
     try {
-      if (fs.existsSync('./default_game_settings.json')) {
-        const defaults = JSON.parse(fs.readFileSync('./default_game_settings.json', 'utf8'));
-        delay = defaults.delays?.highlow || null;
-      }
-      if (fs.existsSync('./server_game_settings.json')) {
-        const settings = JSON.parse(fs.readFileSync('./server_game_settings.json', 'utf8'));
-        const guildDelay = settings.guilds[message.guild.id]?.delays?.highlow;
-        if (guildDelay) delay = guildDelay;
-      }
+      const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../default_myserver.json'), 'utf8'));
+      const guildSettings = client.gameSettings.get(message.guild.id) || {};
+      
+      delay = guildSettings.delays?.highlow || defaultData.gameSettings?.delays?.highlow;
 
       if (delay) {
         cooldownKey = `${message.guild.id}-highlow-${message.author.id}`;
@@ -68,19 +63,16 @@ module.exports = {
       // --- REMINDER LOGIC ---
       if (cooldownKey && delay) {
         try {
-          const settingsPath = './server_game_settings.json';
-          if (fs.existsSync(settingsPath)) {
-            const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-            const isReminderOn = settings.guilds[message.guild.id]?.reminders?.[message.author.id]?.highlow;
-            
-            if (isReminderOn) {
-              setTimeout(() => {
-                message.reply({ 
-                  content: `🔔 <@${message.author.id}>, your **HighLow** cooldown has expired! You can play again now.`,
-                  allowedMentions: { repliedUser: true } 
-                }).catch(() => {});
-              }, delay);
-            }
+          const guildSettings = client.gameSettings.get(message.guild.id);
+          const isReminderOn = guildSettings?.reminders?.[message.author.id]?.highlow;
+          
+          if (isReminderOn) {
+            setTimeout(() => {
+              message.reply({ 
+                content: `🔔 <@${message.author.id}>, your **HighLow** cooldown has expired! You can play again now.`,
+                allowedMentions: { repliedUser: true } 
+              }).catch(() => {});
+            }, delay);
           }
         } catch (err) {
           console.error('Reminder Logic Error:', err.message);
@@ -91,22 +83,13 @@ module.exports = {
       // 4. Determine Win Rate based on Roles
       let winRate = 50;
       try {
-        const defaultPath = './default_winning_rates.json';
-        const serverPath = './server_winning_rates.json';
+        const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../default_myserver.json'), 'utf8'));
+        const guildSettings = client.gameSettings.get(message.guild.id) || {};
 
-        let globalDefaults = {};
-        if (fs.existsSync(defaultPath)) {
-          const winRatesData = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
-          globalDefaults = winRatesData.highlow || {};
-        }
+        const globalDefaults = defaultData.winningRates?.highlow || {};
+        const localSettings = guildSettings.winningRates?.highlow || {};
 
-        let guildSettings = {};
-        if (fs.existsSync(serverPath)) {
-          const winData = JSON.parse(fs.readFileSync(serverPath, 'utf8'));
-          guildSettings = winData.guilds[message.guild.id]?.highlow || {};
-        }
-
-        const activeChances = { ...globalDefaults, ...guildSettings };
+        const activeChances = { ...globalDefaults, ...localSettings };
 
         const memberRoles = message.member.roles.cache.map(r => r.id);
         const applicableRates = memberRoles

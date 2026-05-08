@@ -34,20 +34,20 @@ module.exports = {
     // Use the primary command name if found, otherwise use input
     const gameName = command ? command.name : inputGame;
 
-    const defaultPath = './default_winning_rates.json';
-    const serverPath = './server_winning_rates.json';
+    const defaultPath = './default_myserver.json';
+    const customPath = './custom_guilds.json';
 
     try {
       let globalDefaults = {};
       if (fs.existsSync(defaultPath)) {
         const defaultsData = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
-        globalDefaults = defaultsData[gameName] || {};
+        globalDefaults = defaultsData.winningRates?.[gameName] || {};
       }
 
       let guildSettings = {};
-      if (fs.existsSync(serverPath)) {
-        const serverData = JSON.parse(fs.readFileSync(serverPath, 'utf8'));
-        guildSettings = serverData.guilds[message.guild.id]?.[gameName] || {};
+      if (fs.existsSync(customPath)) {
+        const customData = JSON.parse(fs.readFileSync(customPath, 'utf8'));
+        guildSettings = customData.guilds?.[message.guild.id]?.winningRates?.[gameName] || {};
       }
 
       const mergedRates = { ...globalDefaults, ...guildSettings };

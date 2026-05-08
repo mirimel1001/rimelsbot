@@ -32,17 +32,17 @@ function getEconomyToken(client, guildId) {
  * @param {string} token 
  */
 function saveServerToken(client, guildId, token) {
-  const tokensPath = path.join(__dirname, '../server_unbtokens.json');
-  let data = { tokens: {} };
+  const customPath = path.join(__dirname, '../custom_guilds.json');
+  let data = { unbTokens: {}, guilds: {} };
   
-  if (fs.existsSync(tokensPath)) {
-    data = JSON.parse(fs.readFileSync(tokensPath, 'utf8'));
+  if (fs.existsSync(customPath)) {
+    data = JSON.parse(fs.readFileSync(customPath, 'utf8'));
   }
   
-  if (!data.tokens) data.tokens = {};
-  data.tokens[guildId] = token;
+  if (!data.unbTokens) data.unbTokens = {};
+  data.unbTokens[guildId] = token;
   
-  fs.writeFileSync(tokensPath, JSON.stringify(data, null, 2));
+  fs.writeFileSync(customPath, JSON.stringify(data, null, 2));
   
   // Update Cache
   client.unbTokens.set(guildId, token);
@@ -54,12 +54,12 @@ function saveServerToken(client, guildId, token) {
  * @param {string} guildId 
  */
 function removeServerToken(client, guildId) {
-  const tokensPath = path.join(__dirname, '../server_unbtokens.json');
-  if (fs.existsSync(tokensPath)) {
-    const data = JSON.parse(fs.readFileSync(tokensPath, 'utf8'));
-    if (data.tokens && data.tokens[guildId]) {
-      delete data.tokens[guildId];
-      fs.writeFileSync(tokensPath, JSON.stringify(data, null, 2));
+  const customPath = path.join(__dirname, '../custom_guilds.json');
+  if (fs.existsSync(customPath)) {
+    const data = JSON.parse(fs.readFileSync(customPath, 'utf8'));
+    if (data.unbTokens && data.unbTokens[guildId]) {
+      delete data.unbTokens[guildId];
+      fs.writeFileSync(customPath, JSON.stringify(data, null, 2));
       
       // Update Cache
       client.unbTokens.delete(guildId);

@@ -47,39 +47,41 @@ module.exports = {
       return message.reply("❌ Could not find that role. Make sure you mention it or provide a valid ID.");
     }
 
-    // 3. Load and Update server_winning_rates.json
+    // 3. Load and Update custom_guilds.json
+    const customPath = './custom_guilds.json';
     let data = { guilds: {} };
-    const filePath = './server_winning_rates.json';
 
     try {
-      if (fs.existsSync(filePath)) {
-        data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      if (fs.existsSync(customPath)) {
+        data = JSON.parse(fs.readFileSync(customPath, 'utf8'));
       }
     } catch (err) {
-      console.error('Error reading server_winning_rates.json:', err.message);
+      console.error('Error reading custom_guilds.json:', err.message);
       return message.reply('❌ Could not load winning rate settings.');
     }
 
     // Initialize structures
+    if (!data.guilds) data.guilds = {};
     if (!data.guilds[message.guild.id]) data.guilds[message.guild.id] = {};
-    if (!data.guilds[message.guild.id][gameName]) data.guilds[message.guild.id][gameName] = {};
+    if (!data.guilds[message.guild.id].winningRates) data.guilds[message.guild.id].winningRates = {};
+    if (!data.guilds[message.guild.id].winningRates[gameName]) data.guilds[message.guild.id].winningRates[gameName] = {};
 
     // Save
-    data.guilds[message.guild.id][gameName][role.id] = percentage;
+    data.guilds[message.guild.id].winningRates[gameName][role.id] = percentage;
 
     try {
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+      fs.writeFileSync(customPath, JSON.stringify(data, null, 2));
       
       // Update Cache
-      const currentSettings = client.gameSettings.get(message.guild.id) || {};
-      if (!currentSettings.winningRates) currentSettings.winningRates = {}; 
-      currentSettings.winningRates[gameName] = currentSettings.winningRates[gameName] || {};
-      currentSettings.winningRates[gameName][role.id] = percentage;
-      client.gameSettings.set(message.guild.id, currentSettings);
+      const currentCache = client.gameSettings.get(message.guild.id) || {};
+      if (!currentCache.winningRates) currentCache.winningRates = {}; 
+      if (!currentCache.winningRates[gameName]) currentCache.winningRates[gameName] = {};
+      currentCache.winningRates[gameName][role.id] = percentage;
+      client.gameSettings.set(message.guild.id, currentCache);
 
       return message.reply(`✅ Success! Winning rate for **${gameName}** (Role: ${role.name}) is now **${percentage}%**.`);
     } catch (err) {
-      console.error('Error writing server_winning_rates.json:', err.message);
+      console.error('Error writing custom_guilds.json:', err.message);
       return message.reply('❌ Could not save winning rate settings.');
     }
   }

@@ -30,16 +30,10 @@ module.exports = {
 
     try {
       // --- COOLDOWN CHECK ---
-      let delay = null;
-      if (fs.existsSync('./default_game_settings.json')) {
-        const defaults = JSON.parse(fs.readFileSync('./default_game_settings.json', 'utf8'));
-        delay = defaults.delays?.imageguess || null;
-      }
-      if (fs.existsSync('./server_game_settings.json')) {
-        const settings = JSON.parse(fs.readFileSync('./server_game_settings.json', 'utf8'));
-        const guildDelay = settings.guilds[message.guild.id]?.delays?.imageguess;
-        if (guildDelay) delay = guildDelay;
-      }
+      const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../default_myserver.json'), 'utf8'));
+      const guildSettings = client.gameSettings.get(message.guild.id) || {};
+      
+      let delay = guildSettings.delays?.imageguess || defaultData.gameSettings?.delays?.imageguess;
 
       if (delay) {
         cooldownKey = `${message.guild.id}-imageguess-${message.author.id}`;
@@ -172,18 +166,10 @@ module.exports = {
 
       // 4. Game Start
       if (cooldownKey) client.cooldowns.set(cooldownKey, currentNow);
-      let prize = Math.floor(Math.random() * (600 - 300 + 1)) + 300; 
-      try {
-        if (fs.existsSync('./server_prize_configs.json')) {
-          const prizeData = JSON.parse(fs.readFileSync('./server_prize_configs.json', 'utf8'));
-          const guildPrizes = prizeData.guilds[message.guild.id]?.imageguess;
-          if (guildPrizes) {
-            prize = Math.floor(Math.random() * (guildPrizes.max - guildPrizes.min + 1)) + guildPrizes.min;
-          }
-        }
-      } catch (err) {
-        console.error('Error loading prize range:', err.message);
-      }
+      
+      const guildSettings = client.gameSettings.get(message.guild.id) || {};
+      const prizeConfig = guildSettings.prizeConfigs?.imageguess || { min: 300, max: 600 };
+      let prize = Math.floor(Math.random() * (prizeConfig.max - prizeConfig.min + 1)) + prizeConfig.min;
 
       const levels = [50, 20, 1];
       let gameWon = false;

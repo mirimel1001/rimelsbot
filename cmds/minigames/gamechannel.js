@@ -18,25 +18,32 @@ module.exports = {
     }
 
     const input = args[0];
-    const filePath = './server_game_settings.json';
+    const customPath = './custom_guilds.json';
+    let data = { guilds: {} };
 
     // 2. Load settings
-    let settingsData = { guilds: {} };
     try {
-      if (fs.existsSync(filePath)) {
-        settingsData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      if (fs.existsSync(customPath)) {
+        data = JSON.parse(fs.readFileSync(customPath, 'utf8'));
       }
     } catch (err) {
-      console.error("Error reading server_game_settings.json:", err);
+      console.error("Error reading custom_guilds.json:", err);
     }
 
-    if (!settingsData.guilds[message.guild.id]) settingsData.guilds[message.guild.id] = {};
+    if (!data.guilds) data.guilds = {};
+    if (!data.guilds[message.guild.id]) data.guilds[message.guild.id] = {};
+    if (!data.guilds[message.guild.id].gameSettings) data.guilds[message.guild.id].gameSettings = {};
 
     // 3. Handle 'clear'
     if (input?.toLowerCase() === 'clear') {
-      delete settingsData.guilds[message.guild.id].gameChannel;
-      fs.writeFileSync(filePath, JSON.stringify(settingsData, null, 2));
-      client.gameSettings.set(message.guild.id, settingsData.guilds[message.guild.id]);
+      delete data.guilds[message.guild.id].gameSettings.gameChannel;
+      fs.writeFileSync(customPath, JSON.stringify(data, null, 2));
+      
+      // Update Cache
+      const currentCache = client.gameSettings.get(message.guild.id) || {};
+      delete currentCache.gameChannel;
+      client.gameSettings.set(message.guild.id, currentCache);
+
       return message.reply("✅ The dedicated game channel has been **cleared**. Minigames can now be played anywhere.");
     }
 
@@ -47,14 +54,19 @@ module.exports = {
       return message.reply(`❌ Please mention a valid text channel or provide a valid ID.\nUsage: \`${prefix}gamechannel [#channel | clear]\``);
     }
 
-    settingsData.guilds[message.guild.id].gameChannel = channel.id;
+    data.guilds[message.guild.id].gameSettings.gameChannel = channel.id;
 
     try {
-      fs.writeFileSync(filePath, JSON.stringify(settingsData, null, 2));
-      client.gameSettings.set(message.guild.id, settingsData.guilds[message.guild.id]);
+      fs.writeFileSync(customPath, JSON.stringify(data, null, 2));
+      
+      // Update Cache
+      const currentCache = client.gameSettings.get(message.guild.id) || {};
+      currentCache.gameChannel = channel.id;
+      client.gameSettings.set(message.guild.id, currentCache);
+
       return message.reply(`✅ Success! Minigames are now restricted to ${channel}.`);
     } catch (err) {
-      console.error("Error writing game_settings.json:", err);
+      console.error("Error writing custom_guilds.json:", err);
       return message.reply("❌ Failed to save the game channel setting.");
     }
   }

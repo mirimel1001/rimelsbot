@@ -31,30 +31,39 @@ module.exports = {
       return message.reply("❌ Invalid time format! Use `s` (seconds), `m` (minutes), `h` (hours), `d` (days), or `mo` (months).\nExample: `10s`, `5m`, `2h`.");
     }
 
-    // 4. Load and Update server_game_settings.json
-    let settingsData = { guilds: {} };
-    const filePath = './server_game_settings.json';
+    // 4. Load and Update custom_guilds.json
+    const customPath = './custom_guilds.json';
+    let data = { guilds: {} };
 
     try {
-      if (fs.existsSync(filePath)) {
-        settingsData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      if (fs.existsSync(customPath)) {
+        data = JSON.parse(fs.readFileSync(customPath, 'utf8'));
       }
     } catch (err) {
-      console.error("Error reading server_game_settings.json:", err);
+      console.error("Error reading custom_guilds.json:", err);
     }
 
     // Initialize structures
-    if (!settingsData.guilds[message.guild.id]) settingsData.guilds[message.guild.id] = {};
-    if (!settingsData.guilds[message.guild.id].delays) settingsData.guilds[message.guild.id].delays = {};
+    if (!data.guilds) data.guilds = {};
+    if (!data.guilds[message.guild.id]) data.guilds[message.guild.id] = {};
+    if (!data.guilds[message.guild.id].gameSettings) data.guilds[message.guild.id].gameSettings = {};
+    if (!data.guilds[message.guild.id].gameSettings.delays) data.guilds[message.guild.id].gameSettings.delays = {};
     
     // Save
-    settingsData.guilds[message.guild.id].delays[gameName] = durationMs;
+    data.guilds[message.guild.id].gameSettings.delays[gameName] = durationMs;
 
     try {
-      fs.writeFileSync(filePath, JSON.stringify(settingsData, null, 2));
+      fs.writeFileSync(customPath, JSON.stringify(data, null, 2));
+      
+      // Update Cache
+      const currentCache = client.gameSettings.get(message.guild.id) || {};
+      if (!currentCache.delays) currentCache.delays = {};
+      currentCache.delays[gameName] = durationMs;
+      client.gameSettings.set(message.guild.id, currentCache);
+
       return message.reply(`✅ Success! The cooldown for **${gameName}** is now set to **${timeInput}**.`);
     } catch (err) {
-      console.error("Error writing game_settings.json:", err);
+      console.error("Error writing custom_guilds.json:", err);
       return message.reply("❌ Failed to save the delay settings.");
     }
   }

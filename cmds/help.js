@@ -112,7 +112,8 @@ module.exports = {
       'General': '🛡️',
       'Games': '🎮',
       'Game Settings': '⚙️',
-      'Economy': '💰'
+      'Economy': '💰',
+      'Administrative': '🛠️'
     };
 
     const menuOptions = categoryNames.map(cat => ({

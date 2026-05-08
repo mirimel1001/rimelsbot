@@ -29,16 +29,10 @@ module.exports = {
     let cooldownKey = `${message.guild.id}-bet-${message.author.id}`;
     let currentNow = Date.now();
     try {
-      let delay = 30000; // Default 30s
-      if (fs.existsSync('./default_game_settings.json')) {
-        const defaults = JSON.parse(fs.readFileSync('./default_game_settings.json', 'utf8'));
-        if (defaults.delays?.bet) delay = defaults.delays.bet;
-      }
-      if (fs.existsSync('./server_game_settings.json')) {
-        const settings = JSON.parse(fs.readFileSync('./server_game_settings.json', 'utf8'));
-        const guildDelay = settings.guilds[message.guild.id]?.delays?.bet;
-        if (guildDelay) delay = guildDelay;
-      }
+      const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../default_myserver.json'), 'utf8'));
+      const guildSettings = client.gameSettings.get(message.guild.id) || {};
+      
+      let delay = guildSettings.delays?.bet || defaultData.gameSettings?.delays?.bet || 30000;
 
       const lastPlay = client.cooldowns.get(cooldownKey);
       if (lastPlay && currentNow < lastPlay + delay) {

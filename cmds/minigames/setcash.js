@@ -39,36 +39,38 @@ module.exports = {
       return message.reply("❌ Invalid numbers. Ensure Min and Max are positive and Max is greater than or equal to Min.");
     }
 
-    // 3. Load and Update server_prize_configs.json
-    let prizeData = { guilds: {} };
-    const filePath = './server_prize_configs.json';
+    // 3. Load and Update custom_guilds.json
+    const customPath = './custom_guilds.json';
+    let data = { guilds: {} };
 
     try {
-      if (fs.existsSync(filePath)) {
-        prizeData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      if (fs.existsSync(customPath)) {
+        data = JSON.parse(fs.readFileSync(customPath, 'utf8'));
       }
     } catch (err) {
-      console.error("Error reading server_prize_configs.json:", err);
+      console.error("Error reading custom_guilds.json:", err);
     }
 
     // Initialize structures
-    if (!prizeData.guilds[message.guild.id]) prizeData.guilds[message.guild.id] = {};
+    if (!data.guilds) data.guilds = {};
+    if (!data.guilds[message.guild.id]) data.guilds[message.guild.id] = {};
+    if (!data.guilds[message.guild.id].prizeConfigs) data.guilds[message.guild.id].prizeConfigs = {};
     
     // Save
-    prizeData.guilds[message.guild.id][gameName] = { min, max };
+    data.guilds[message.guild.id].prizeConfigs[gameName] = { min, max };
 
     try {
-      fs.writeFileSync(filePath, JSON.stringify(prizeData, null, 2));
+      fs.writeFileSync(customPath, JSON.stringify(data, null, 2));
       
-      // Update Cache: Note that prize ranges are stored as part of the guild's settings in memory
-      const currentSettings = client.gameSettings.get(message.guild.id) || {};
-      if (!currentSettings.prizes) currentSettings.prizes = {};
-      currentSettings.prizes[gameName] = { min, max };
-      client.gameSettings.set(message.guild.id, currentSettings);
+      // Update Cache
+      const currentCache = client.gameSettings.get(message.guild.id) || {};
+      if (!currentCache.prizeConfigs) currentCache.prizeConfigs = {};
+      currentCache.prizeConfigs[gameName] = { min, max };
+      client.gameSettings.set(message.guild.id, currentCache);
 
       return message.reply(`✅ Success! The cash reward for **${gameName}** in this server is now set to a range of **💰 ${min} - ${max} Cash**.`);
     } catch (err) {
-      console.error("Error writing prize_configs.json:", err);
+      console.error("Error writing custom_guilds.json:", err);
       return message.reply("❌ Failed to save the prize settings.");
     }
   }

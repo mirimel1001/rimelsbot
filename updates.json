@@ -143,5 +143,18 @@
       "Text Alignment: Updated deposit and withdraw responses to match UnbelievaBoat's exact phrasing for a seamless experience.",
       "Unified Palette: Synced the leaderboard color with the rest of the economy suite for a more cohesive design."
     ]
+  },
+  {
+    "version": "2.1.2",
+    "date": "2026-05-08",
+    "title": "The Centralized Economy & Monitoring Update",
+    "items": [
+      "Architecture Consolidation: Merged fragmented server configuration files into a centralized system for better performance and easier management.",
+      "Max Balance Monitor: Implemented an automated background audit system that enforces server-specific currency caps via the UnbelievaBoat API.",
+      "Dynamic Enforcement: Members can now earn infinitely by default unless a limit is set, with a 10B default cap for the main server.",
+      "New Control Command: Added maxbalance (aliases: maxbal, mb) to allow server owners to configure or disable currency limits.",
+      "Auto-Migration: Added a smart initialization system that automatically transitions legacy data to the new structure on startup.",
+      "Optimized Performance: Refactored all game and administrative commands to utilize memory caches for faster response times."
+    ]
   }
 ]
