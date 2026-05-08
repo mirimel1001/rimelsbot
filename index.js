@@ -576,7 +576,7 @@ const checkMaxBalances = async () => {
   const customData = JSON.parse(fs.readFileSync(customPath, 'utf8'));
   const defaultData = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
   const axios = require('axios');
-  const { getEconomyToken, enforceMaxBalance } = require('./utils/economy.js');
+  const { getEconomyToken, enforceMaxBalance, formatNumber } = require('./utils/economy.js');
 
   // Iterate over all guilds the bot is currently in
   for (const [guildId, guild] of client.guilds.cache) {
