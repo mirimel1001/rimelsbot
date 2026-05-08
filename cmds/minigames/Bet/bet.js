@@ -2,7 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const { getEconomyToken, parseShorthand } = require('../../../utils/economy.js');
+const { getEconomyToken, parseShorthand, formatNumber } = require('../../../utils/economy.js');
 
 module.exports = {
   name: "bet",
@@ -96,7 +96,7 @@ module.exports = {
       const challengeEmbed = new EmbedBuilder()
         .setColor('#5865F2')
         .setTitle('🤝 Bet Challenge!')
-        .setDescription(`<@${message.author.id}> has challenged <@${target.id}> to a bet of **${amount}** cash!\n\nBoth players must have the amount to participate. The winner takes it all!`)
+        .setDescription(`<@${message.author.id}> has challenged <@${target.id}> to a bet of **${formatNumber(amount)}** cash!\n\nBoth players must have the amount to participate. The winner takes it all!`)
         .setFooter({ text: `${target.user.username}, do you accept? (60s to respond)` });
 
       const row = new ActionRowBuilder().addComponents(
@@ -149,7 +149,7 @@ module.exports = {
             const resultEmbed = new EmbedBuilder()
               .setColor('#F1C40F')
               .setTitle('🎲 Bet Result!')
-              .setDescription(`The dice have rolled...\n\n🏆 **Winner:** <@${winner.id}>\n💀 **Loser:** <@${loser.id}>\n\n**${amount}** cash has been transferred!`)
+              .setDescription(`The dice have rolled...\n\n🏆 **Winner:** <@${winner.id}>\n💀 **Loser:** <@${loser.id}>\n\n**${formatNumber(amount)}** cash has been transferred!`)
               .setTimestamp();
 
             await i.editReply({ content: '🎉 The bet is settled!', embeds: [resultEmbed], components: [] });

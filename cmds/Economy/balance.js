@@ -1,6 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const axios = require('axios');
-const { getEconomyToken } = require('../../utils/economy.js');
+const { getEconomyToken, formatNumber } = require('../../utils/economy.js');
 
 module.exports = {
   name: "balance",
@@ -46,9 +46,9 @@ module.exports = {
       embed.setDescription(description);
       
       embed.addFields(
-        { name: '💵 Cash', value: `\`${cash.toLocaleString()}\``, inline: true },
-        { name: '🏦 Bank', value: `\`${bank.toLocaleString()}\``, inline: true },
-        { name: '📊 Total', value: `\`${total.toLocaleString()}\``, inline: true }
+        { name: '💵 Cash', value: `\`${formatNumber(cash)}\``, inline: true },
+        { name: '🏦 Bank', value: `\`${formatNumber(bank)}\``, inline: true },
+        { name: '📊 Total', value: `\`${formatNumber(total)}\``, inline: true }
       );
 
       message.reply({ embeds: [embed] });

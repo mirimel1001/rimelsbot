@@ -3,7 +3,7 @@ const { Jimp } = require('jimp');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const { getEconomyToken } = require('../../../utils/economy.js');
+const { getEconomyToken, formatNumber } = require('../../../utils/economy.js');
 
 module.exports = {
   name: "imageguess",
@@ -200,7 +200,7 @@ module.exports = {
       const mainEmbed = new EmbedBuilder()
         .setColor('#F1C40F')
         .setTitle('🎨 ImageGuess: Guess the Photo!')
-        .setDescription(`Be the first to type the correct word in chat.\nPrize: **💰 ${prize} Cash**`)
+        .setDescription(`Be the first to type the correct word in chat.\nPrize: **💰 ${formatNumber(prize)} Cash**`)
         .setFooter({ text: 'Game starts in 3 seconds...' });
 
       const gameMsg = await message.channel.send({ embeds: [mainEmbed] });
@@ -226,7 +226,7 @@ module.exports = {
               .setColor('#2ECC71')
               .setTitle('🎉 WE HAVE A WINNER!')
               .setDescription(`Congratulations **${m.author.username}**! You guessed **${secretWord.toUpperCase()}** correctly.`)
-              .addFields({ name: 'Reward', value: `💰 ${prize} Cash added to your balance!` })
+              .addFields({ name: 'Reward', value: `💰 ${formatNumber(prize)} Cash added to your balance!` })
               .setImage('attachment://final.png');
 
             const finalImage = await Jimp.read(imageSource);

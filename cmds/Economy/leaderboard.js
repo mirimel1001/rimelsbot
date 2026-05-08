@@ -1,6 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const axios = require('axios');
-const { getEconomyToken } = require('../../utils/economy.js');
+const { getEconomyToken, formatNumber } = require('../../utils/economy.js');
 
 module.exports = {
   name: "leaderboard",
@@ -72,7 +72,7 @@ module.exports = {
       let description = "";
       users.forEach((userData, index) => {
         const rank = (p - 1) * limit + index + 1;
-        const amount = (userData[sort] || 0).toLocaleString();
+        const amount = formatNumber(userData[sort] || 0);
         
         // UnbelievaBoat style formatting
         description += `**${rank}.** <@${userData.user_id}> • 💰 \`${amount}\`\n`;

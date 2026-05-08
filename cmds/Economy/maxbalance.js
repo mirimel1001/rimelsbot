@@ -1,7 +1,7 @@
 const { PermissionsBitField, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const { parseShorthand } = require('../../utils/economy.js');
+const { parseShorthand, formatNumber } = require('../../utils/economy.js');
 
 module.exports = {
   name: "maxbalance",
@@ -29,14 +29,14 @@ module.exports = {
       if (currentLimit === undefined) {
         if (message.guild.id === process.env.MAIN_GUILD_ID) {
           const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../default_myserver.json'), 'utf8'));
-          currentLimit = defaultData.maxBalance;
+          currentLimit = formatNumber(defaultData.maxBalance);
         } else {
           currentLimit = "Infinite (Not set)";
         }
       } else if (currentLimit === false) {
         currentLimit = "Infinite (Disabled)";
       } else {
-        currentLimit = currentLimit.toLocaleString();
+        currentLimit = formatNumber(currentLimit);
       }
 
       return message.reply(`💰 **Current Max Balance:** \`${currentLimit}\``);

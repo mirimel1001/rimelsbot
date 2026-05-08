@@ -1,6 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const axios = require('axios');
-const { getEconomyToken, parseShorthand } = require('../../utils/economy.js');
+const { getEconomyToken, parseShorthand, formatNumber } = require('../../utils/economy.js');
 
 module.exports = {
   name: "give-money",
@@ -93,7 +93,7 @@ module.exports = {
       // 7. Success Message
       const successEmbed = new EmbedBuilder()
         .setColor('#2ECC71')
-        .setDescription(`✅ <@${target.id}> has received your **TK${amount.toLocaleString()}**`);
+        .setDescription(`✅ <@${target.id}> has received your **TK${formatNumber(amount)}**`);
 
       message.reply({ embeds: [successEmbed] });
 

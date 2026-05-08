@@ -499,10 +499,10 @@ async function endGame(channel, game, winners) {
   
   const winEmbed = new EmbedBuilder().setColor('#2ECC71')
     .setTitle(`🎉 ${winners.toUpperCase()} WIN!`)
-    .setDescription(`**Total prize pool from Host:** 💰 ${game.prize}\n**Net prize after 20% cut:** 💰 ${netPrize}`)
-    .addFields({ name: 'Winners', value: winnerList.map(w => `• ${w.name} (+${payout})`).join('\n') || 'None' });
+    .setDescription(`**Total prize pool from Host:** 💰 ${formatNumber(game.prize)}\n**Net prize after 20% cut:** 💰 ${formatNumber(netPrize)}`)
+    .addFields({ name: 'Winners', value: winnerList.map(w => `• ${w.name} (+${formatNumber(payout)})`).join('\n') || 'None' });
   channel.send({ embeds: [winEmbed] });
-  const { getEconomyToken } = require('../../../utils/economy.js');
+  const { getEconomyToken, formatNumber } = require('../../../utils/economy.js');
   for (const w of winnerList) {
     const entry = Array.from(game.players.entries()).find(([id, p]) => p.name === w.name);
     if (entry) {

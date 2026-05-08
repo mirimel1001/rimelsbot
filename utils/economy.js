@@ -83,7 +83,7 @@ async function enforceMaxBalance(client, guildId, userId) {
         headers: { 'Authorization': token }
       });
 
-      console.log(`[MaxBalance] Reactive Redaction: Redacted ${excess.toLocaleString()} from ${userId} in ${guildId}`);
+      console.log(`[MaxBalance] Reactive Redaction: Redacted ${formatNumber(excess)} from ${userId} in ${guildId}`);
       return { redacted: excess, userId };
     }
   } catch (err) {
@@ -160,10 +160,23 @@ function parseShorthand(str) {
   return Math.floor(value * (multipliers[suffix] || 1));
 }
 
+/**
+ * Formats a number with commas for better readability.
+ * @param {number|string} val 
+ * @returns {string}
+ */
+function formatNumber(val) {
+  if (val === null || val === undefined || val === false) return "0";
+  const num = parseFloat(val);
+  if (isNaN(num)) return val.toString();
+  return num.toLocaleString('en-US');
+}
+
 module.exports = {
   getEconomyToken,
   saveServerToken,
   removeServerToken,
   parseShorthand,
-  enforceMaxBalance
+  enforceMaxBalance,
+  formatNumber
 };

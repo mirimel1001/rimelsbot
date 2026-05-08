@@ -584,7 +584,7 @@ const checkMaxBalances = async () => {
     let maxBal = guildData.maxBalance;
     
     // Debug info
-    console.log(`[MaxBalance Debug] Checking guild: ${guild.name} (${guildId}) | Config MaxBal: ${maxBal} | Main Guild Env: ${process.env.MAIN_GUILD_ID}`);
+    console.log(`[MaxBalance Debug] Checking guild: ${guild.name} (${guildId}) | Config MaxBal: ${formatNumber(maxBal)} | Main Guild Env: ${process.env.MAIN_GUILD_ID}`);
 
     if (maxBal === false) continue;
     if (maxBal === undefined) {
@@ -609,7 +609,7 @@ const checkMaxBalances = async () => {
       });
 
       const topUserIds = lbRes.data.users?.map(u => u.id || u.user_id).filter(id => id) || [];
-      console.log(`[MaxBalance] Found ${topUserIds.length} potential users to audit in ${guild.name}. Limit: ${maxBal.toLocaleString()}`);
+      console.log(`[MaxBalance] Found ${topUserIds.length} potential users to audit in ${guild.name}. Limit: ${formatNumber(maxBal)}`);
 
       // 2. Audit each user individually for 100% accuracy
       for (const userId of topUserIds) {

@@ -1,6 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const axios = require('axios');
-const { getEconomyToken, parseShorthand } = require('../../utils/economy.js');
+const { getEconomyToken, parseShorthand, formatNumber } = require('../../utils/economy.js');
 
 module.exports = {
   name: "deposit",
@@ -55,7 +55,7 @@ module.exports = {
 
       const successEmbed = new EmbedBuilder()
         .setColor('#2ECC71')
-        .setDescription(`✅ <@${message.author.id}>, you have deposited **TK${amount.toLocaleString()}** into your bank account!`);
+        .setDescription(`✅ <@${message.author.id}>, you have deposited **TK${formatNumber(amount)}** into your bank account!`);
 
       message.reply({ embeds: [successEmbed] });
     } catch (err) {

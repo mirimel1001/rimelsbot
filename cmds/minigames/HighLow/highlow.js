@@ -2,7 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const { getEconomyToken, parseShorthand } = require('../../../utils/economy.js');
+const { getEconomyToken, parseShorthand, formatNumber } = require('../../../utils/economy.js');
 
 module.exports = {
   name: "highlow",
@@ -127,7 +127,7 @@ module.exports = {
         .setColor('#5865F2')
         .setTitle('🎲 High or Lower?')
         .setDescription(`I rolled: **${firstRoll}**\n\nWill the next be **Higher** or **Lower**?\n*(Your win chance: **${winRate}%**)*`)
-        .addFields({ name: 'Your Bet', value: `💰 ${amount} Cash`, inline: true })
+        .addFields({ name: 'Your Bet', value: `💰 ${formatNumber(amount)} Cash`, inline: true })
         .setFooter({ text: 'You have 30 seconds to choose!' });
 
       const row = new ActionRowBuilder().addComponents(
@@ -200,9 +200,9 @@ module.exports = {
             });
 
             if (isActualWin) {
-              resultEmbed.addFields({ name: 'Winnings', value: `+${amount} Cash Added!`, inline: true });
+              resultEmbed.addFields({ name: 'Winnings', value: `+${formatNumber(amount)} Cash Added!`, inline: true });
             } else {
-              resultEmbed.addFields({ name: 'Losses', value: `-${amount} Cash Removed.`, inline: true });
+              resultEmbed.addFields({ name: 'Losses', value: `-${formatNumber(amount)} Cash Removed.`, inline: true });
             }
             const { enforceMaxBalance } = require('../../../utils/economy.js');
             await enforceMaxBalance(client, message.guild.id, message.author.id);
