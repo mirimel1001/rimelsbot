@@ -599,37 +599,47 @@ const checkMaxBalances = async () => {
     }
 
     try {
-      // Get top 100 users
-      const res = await axios.get(`https://unbelievaboat.com/api/v1/guilds/${guildId}/leaderboard?limit=100`, {
+      // 1. Get Top 100 User IDs from leaderboard
+      const lbRes = await axios.get(`https://unbelievaboat.com/api/v1/guilds/${guildId}/leaderboard?limit=100`, {
         headers: { 'Authorization': token }
       });
 
-      for (const user of res.data.users) {
-        const cash = parseFloat(user.cash) || 0;
-        const bank = parseFloat(user.bank) || 0;
-        const total = cash + bank;
+      const topUserIds = lbRes.data.users?.map(u => u.id || u.user_id).filter(id => id) || [];
+      console.log(`[MaxBalance] Found ${topUserIds.length} potential users to audit in ${guild.name}. Limit: ${maxBal.toLocaleString()}`);
 
-        if (total > maxBal) {
-          const excess = total - maxBal;
-          
-          // Redact from Cash first, then Bank
-          let redactCash = Math.min(cash, excess);
-          let redactBank = Math.max(0, excess - redactCash);
+      // 2. Audit each user individually for 100% accuracy
+      for (const userId of topUserIds) {
+        try {
+          const userRes = await axios.get(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${userId}`, {
+            headers: { 'Authorization': token }
+          });
 
-          console.log(`[MaxBalance] Redacting from user ${user.user_id}: Cash -${redactCash}, Bank -${redactBank}`);
+          const cash = parseFloat(userRes.data.cash) || 0;
+          const bank = parseFloat(userRes.data.bank) || 0;
+          const total = cash + bank;
 
-          try {
-            const patchRes = await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${user.user_id}`, {
+          if (total > maxBal) {
+            const excess = total - maxBal;
+            console.log(`[MaxBalance] Redacting from user ${userId}: Total ${total.toLocaleString()} is over ${maxBal.toLocaleString()}`);
+
+            // Redact from Cash first, then Bank
+            let redactCash = Math.min(cash, excess);
+            let redactBank = Math.max(0, excess - redactCash);
+
+            await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${userId}`, {
               cash: -redactCash,
               bank: -redactBank,
               reason: "Max balance limit exceeded (Auto-redact)"
             }, {
               headers: { 'Authorization': token }
             });
-            console.log(`[MaxBalance] Success! New Total: ${patchRes.data.total.toLocaleString()}`);
-          } catch (patchErr) {
-            console.error(`[MaxBalance Error] Patch failed for user ${user.user_id}:`, patchErr.response?.data || patchErr.message);
+            console.log(`[MaxBalance] Success! Redacted ${excess.toLocaleString()} from ${userId}`);
           }
+          
+          // Small sleep to prevent aggressive rate-limiting
+          await new Promise(r => setTimeout(r, 500));
+        } catch (userErr) {
+          // Skip if user not found or other minor issues
         }
       }
     } catch (err) {
