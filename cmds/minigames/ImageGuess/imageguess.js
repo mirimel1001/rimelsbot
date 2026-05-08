@@ -1,6 +1,7 @@
 const { EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const { Jimp } = require('jimp');
 const fs = require('fs');
+const path = require('path');
 const axios = require('axios');
 const { getEconomyToken } = require('../../../utils/economy.js');
 
@@ -24,6 +25,29 @@ module.exports = {
     }
 
     client.imageGuessGames.add(message.channel.id);
+
+    // --- MAX BALANCE CHECK ---
+    try {
+      const ubRes = await axios.get(`https://unbelievaboat.com/api/v1/guilds/${message.guild.id}/users/${message.author.id}`, {
+        headers: { 'Authorization': token }
+      });
+      const totalBalance = (ubRes.data.cash || 0) + (ubRes.data.bank || 0);
+
+      const guildSettings = client.gameSettings.get(message.guild.id) || {};
+      let maxBal = guildSettings.maxBalance;
+      if (maxBal === undefined && message.guild.id === process.env.MAIN_GUILD_ID) {
+        const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../default_myserver.json'), 'utf8'));
+        maxBal = defaultData.maxBalance;
+      }
+
+      if (maxBal !== undefined && maxBal !== false && totalBalance >= maxBal) {
+        client.imageGuessGames.delete(message.channel.id);
+        return message.reply(`❌ **Limit Exceeded!** Your total balance is **${totalBalance.toLocaleString()}**, which is at or above the server limit of **${maxBal.toLocaleString()}**. You cannot start a game until your balance is reduced.`);
+      }
+    } catch (e) {
+      console.error('ImageGuess Balance Check Error:', e.message);
+    }
+    // -------------------------
 
     let cooldownKey = null;
     let currentNow = Date.now();
@@ -167,7 +191,6 @@ module.exports = {
       // 4. Game Start
       if (cooldownKey) client.cooldowns.set(cooldownKey, currentNow);
       
-      const guildSettings = client.gameSettings.get(message.guild.id) || {};
       const prizeConfig = guildSettings.prizeConfigs?.imageguess || { min: 300, max: 600 };
       let prize = Math.floor(Math.random() * (prizeConfig.max - prizeConfig.min + 1)) + prizeConfig.min;
 

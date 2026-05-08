@@ -2,6 +2,34 @@ const fs = require('fs');
 const path = require('path');
 require('events').EventEmitter.defaultMaxListeners = 20;
 
+// --- FILE LOGGER ---
+const logFile = path.join(__dirname, 'bot_logs.txt');
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+const writeToFile = (msg) => {
+  const timestamp = new Date().toISOString();
+  fs.appendFileSync(logFile, `[${timestamp}] ${msg}\n`);
+};
+
+console.log = (...args) => {
+  const msg = args.join(' ');
+  originalLog(...args);
+  writeToFile(`INFO: ${msg}`);
+};
+console.error = (...args) => {
+  const msg = args.join(' ');
+  originalError(...args);
+  writeToFile(`ERROR: ${msg}`);
+};
+console.warn = (...args) => {
+  const msg = args.join(' ');
+  originalWarn(...args);
+  writeToFile(`WARN: ${msg}`);
+};
+// -------------------
+
 // --- AUTO-INITIALIZATION (SELF-HEALING) ---
 // --- AUTO-INITIALIZATION (SELF-HEALING & MIGRATION) ---
 const initFiles = () => {
@@ -314,6 +342,9 @@ loadCommands(path.join(__dirname, 'cmds'));
 client.once(Events.ClientReady, () => {
   console.log(`Logged in as ${client.user.tag}!`);
   console.log('Bot is flying 🚀');
+  
+  // Start the Max Balance monitor immediately on startup
+  checkMaxBalances();
 
   let i = 0;
   setInterval(() => {
@@ -533,6 +564,8 @@ client.on('messageCreate', async (message) => {
 
 // --- MAX BALANCE MONITOR ---
 const checkMaxBalances = async () => {
+  if (!client.isReady()) return;
+
   const customPath = path.join(__dirname, 'custom_guilds.json');
   const defaultPath = path.join(__dirname, 'default_myserver.json');
   if (!fs.existsSync(customPath) || !fs.existsSync(defaultPath)) return;
@@ -542,14 +575,14 @@ const checkMaxBalances = async () => {
   const axios = require('axios');
   const { getEconomyToken } = require('./utils/economy.js');
 
-  for (const [guildId, guildData] of Object.entries(customData.guilds)) {
+  // Iterate over all guilds the bot is currently in
+  for (const [guildId, guild] of client.guilds.cache) {
+    const guildData = customData.guilds[guildId] || {};
     let maxBal = guildData.maxBalance;
     
-    // Logic:
-    // 1. If explicitly set to false -> skip (infinite)
-    // 2. If undefined AND is MAIN_GUILD -> use default (10B)
-    // 3. If undefined AND NOT MAIN_GUILD -> skip (infinite)
-    
+    // Debug info
+    console.log(`[MaxBalance Debug] Checking guild: ${guild.name} (${guildId}) | Config MaxBal: ${maxBal} | Main Guild Env: ${process.env.MAIN_GUILD_ID}`);
+
     if (maxBal === false) continue;
     if (maxBal === undefined) {
       if (guildId === process.env.MAIN_GUILD_ID) {
@@ -560,7 +593,10 @@ const checkMaxBalances = async () => {
     }
 
     const token = getEconomyToken(client, guildId);
-    if (!token) continue;
+    if (!token) {
+      console.warn(`[MaxBalance] No token found for guild ${guild.name} (${guildId}). Skipping.`);
+      continue;
+    }
 
     try {
       // Get top 100 users
@@ -575,24 +611,30 @@ const checkMaxBalances = async () => {
 
         if (total > maxBal) {
           const excess = total - maxBal;
-          console.log(`[MaxBalance] Redacting ${excess.toLocaleString()} from user ${user.user_id} in guild ${guildId}`);
           
           // Redact from Cash first, then Bank
           let redactCash = Math.min(cash, excess);
           let redactBank = Math.max(0, excess - redactCash);
 
-          await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${user.user_id}`, {
-            cash: -redactCash,
-            bank: -redactBank,
-            reason: "Max balance limit exceeded (Auto-redact)"
-          }, {
-            headers: { 'Authorization': token }
-          });
+          console.log(`[MaxBalance] Redacting from user ${user.user_id}: Cash -${redactCash}, Bank -${redactBank}`);
+
+          try {
+            const patchRes = await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${user.user_id}`, {
+              cash: -redactCash,
+              bank: -redactBank,
+              reason: "Max balance limit exceeded (Auto-redact)"
+            }, {
+              headers: { 'Authorization': token }
+            });
+            console.log(`[MaxBalance] Success! New Total: ${patchRes.data.total.toLocaleString()}`);
+          } catch (patchErr) {
+            console.error(`[MaxBalance Error] Patch failed for user ${user.user_id}:`, patchErr.response?.data || patchErr.message);
+          }
         }
       }
     } catch (err) {
       if (err.response?.status !== 404) {
-        console.error(`[MaxBalance Error] Guild ${guildId}:`, err.message);
+        console.error(`[MaxBalance Error] Guild ${guild.name} (${guildId}):`, err.message);
       }
     }
   }

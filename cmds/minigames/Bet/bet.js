@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
+const path = require('path');
 const { getEconomyToken, parseShorthand } = require('../../../utils/economy.js');
 
 module.exports = {
@@ -55,7 +56,26 @@ module.exports = {
         headers: { 'Authorization': token }
       }).catch(() => null);
 
-      if (!initiatorUB || initiatorUB.data.cash < amount) {
+      if (!initiatorUB) {
+        return message.reply("❌ Could not fetch your balance. Please try again later.");
+      }
+
+      const totalBalance = (initiatorUB.data.cash || 0) + (initiatorUB.data.bank || 0);
+
+      // --- MAX BALANCE CHECK ---
+      const guildSettings = client.gameSettings.get(message.guild.id) || {};
+      let maxBal = guildSettings.maxBalance;
+      if (maxBal === undefined && message.guild.id === process.env.MAIN_GUILD_ID) {
+        const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../default_myserver.json'), 'utf8'));
+        maxBal = defaultData.maxBalance;
+      }
+
+      if (maxBal !== undefined && maxBal !== false && totalBalance >= maxBal) {
+        return message.reply(`❌ **Limit Exceeded!** Your total balance is **${totalBalance.toLocaleString()}**, which is at or above the server limit of **${maxBal.toLocaleString()}**. You cannot place bets until your balance is reduced.`);
+      }
+      // -------------------------
+
+      if (initiatorUB.data.cash < amount) {
         return message.reply(`❌ You don't have enough cash! You need \`${amount}\` cash.`);
       }
 

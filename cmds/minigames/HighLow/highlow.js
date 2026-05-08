@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const axios = require('axios');
 const fs = require('fs');
+const path = require('path');
 const { getEconomyToken, parseShorthand } = require('../../../utils/economy.js');
 
 module.exports = {
@@ -52,6 +53,22 @@ module.exports = {
         headers: { 'Authorization': token }
       });
       const currentCash = ubResponse.data.cash;
+      const currentBank = ubResponse.data.bank;
+      const totalBalance = currentCash + currentBank;
+
+      // --- MAX BALANCE CHECK ---
+      const guildSettings = client.gameSettings.get(message.guild.id) || {};
+      let maxBal = guildSettings.maxBalance;
+
+      if (maxBal === undefined && message.guild.id === process.env.MAIN_GUILD_ID) {
+        const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../default_myserver.json'), 'utf8'));
+        maxBal = defaultData.maxBalance;
+      }
+
+      if (maxBal !== undefined && maxBal !== false && totalBalance >= maxBal) {
+        return message.reply(`❌ **Limit Exceeded!** Your total balance is **${totalBalance.toLocaleString()}**, which is at or above the server limit of **${maxBal.toLocaleString()}**. You cannot play until your balance is reduced.`);
+      }
+      // -------------------------
 
       if (currentCash < amount) {
         return message.reply(`❌ You don't have enough cash! You currently have \`${currentCash}\` cash.`);
