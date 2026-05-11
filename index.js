@@ -250,6 +250,7 @@ client.commands = new Collection();
 client.aliases = new Collection();
 client.cooldowns = new Collection();
 client.werewolfGames = new Map();
+client.nameGuesserGames = new Map();
 
 // Setup Cache Collections
 client.prefixes = new Collection();
@@ -503,6 +504,18 @@ client.on('messageCreate', async (message) => {
           const werewolfCmd = require('./cmds/minigames/Werewolf/werewolf.js');
           const fakeArgs = ['unvote'];
           return werewolfCmd.run(client, message, fakeArgs, prefix, getConfig());
+        }
+      }
+
+      // Standalone NameGuesser support
+      if (msgLower.startsWith('ng ')) {
+        const game = Array.from(client.nameGuesserGames.values()).find(g =>
+          g.host === message.author.id || g.players.has(message.author.id)
+        );
+        if (game) {
+          const args = message.content.slice(3).trim().split(/ +/);
+          const nameGuesserCmd = require('./cmds/minigames/NameGuesser/nameguesser.js');
+          return nameGuesserCmd.run(client, message, args, 'ng', getConfig());
         }
       }
 

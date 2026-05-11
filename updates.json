@@ -168,5 +168,18 @@
       "Stability Fix: Resolved 'MaxListenersExceeded' warnings by increasing internal EventEmitter limits to accommodate large-scale server audits.",
       "Synchronized Deployment: Updated all core files and backup zips to ensure latest optimizations are included in future server migrations."
     ]
+  },
+  {
+    "version": "2.1.4",
+    "date": "2026-05-12",
+    "title": "The Social Identity & Architecture Update",
+    "items": [
+      "New Game: Launched 'Name Guesser' (rng), a host-driven social identity game with a 'Who Am I?' mechanic.",
+      "Advanced Engine: Implemented a robust multi-phase state machine for image collection, titling, and turn-based questioning.",
+      "Cross-DM Interaction: Added seamless voting and guessing logic that bridges private DMs and server channels.",
+      "Host Authority: Empowered hosts with 'Trump' decision power for voting and manual guess validation to account for typos.",
+      "Ranked Payouts: Integrated dynamic prize splitting for multiple winners with automated UnbelievaBoat settlement.",
+      "Architecture Overhaul: Completely updated documentation and optimized DM command routing for modularity."
+    ]
   }
 ]
