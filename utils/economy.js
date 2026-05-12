@@ -172,11 +172,71 @@ function formatNumber(val) {
   return num.toLocaleString('en-US');
 }
 
+/**
+ * Checks total wealth and deducts funds from cash/bank as needed.
+ * @param {object} client 
+ * @param {string} guildId 
+ * @param {string} userId 
+ * @param {number} amount 
+ * @param {string} reason 
+ * @returns {Promise<object>} Result object with success status.
+ */
+async function deductFunds(client, guildId, userId, amount, reason = "NameGuesser Prize Pool") {
+  const token = getEconomyToken(client, guildId);
+  if (!token) throw new Error("No economy token found.");
+
+  const res = await axios.get(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${userId}`, {
+    headers: { 'Authorization': token }
+  });
+
+  const cash = parseFloat(res.data.cash) || 0;
+  const bank = parseFloat(res.data.bank) || 0;
+  const total = cash + bank;
+
+  if (total < amount) return { success: false, error: `Insufficient total wealth. You have **${formatNumber(total)}** but need **${formatNumber(amount)}**.` };
+
+  const deductCash = Math.min(cash, amount);
+  const deductBank = amount - deductCash;
+
+  await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${userId}`, {
+    cash: -deductCash,
+    bank: -deductBank,
+    reason: reason
+  }, {
+    headers: { 'Authorization': token }
+  });
+
+  return { success: true, deductCash, deductBank };
+}
+
+/**
+ * Refunds funds to the user's cash balance.
+ * @param {object} client 
+ * @param {string} guildId 
+ * @param {string} userId 
+ * @param {number} amount 
+ * @param {string} reason 
+ */
+async function refundFunds(client, guildId, userId, amount, reason = "NameGuesser Refund") {
+  if (amount <= 0) return;
+  const token = getEconomyToken(client, guildId);
+  if (!token) throw new Error("No economy token found.");
+  
+  await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${userId}`, {
+    cash: amount,
+    reason: reason
+  }, {
+    headers: { 'Authorization': token }
+  });
+}
+
 module.exports = {
   getEconomyToken,
   saveServerToken,
   removeServerToken,
   parseShorthand,
   enforceMaxBalance,
-  formatNumber
+  formatNumber,
+  deductFunds,
+  refundFunds
 };

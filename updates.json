@@ -181,5 +181,20 @@
       "Ranked Payouts: Integrated dynamic prize splitting for multiple winners with automated UnbelievaBoat settlement.",
       "Architecture Overhaul: Completely updated documentation and optimized DM command routing for modularity."
     ]
+  },
+  {
+    "version": "2.1.5",
+    "date": "2026-05-12",
+    "title": "The NameGuesser UI/UX Overhaul",
+    "items": [
+      "Single-Message UI: Consolidated the entire game state into a single, persistent 'Game Log' dashboard.",
+      "Anti-Spam Architecture: Replaced separate prompts and notifications with a unified, auto-updating embed system.",
+      "Dynamic Dashboard: Implemented a 'Delete and Resend' strategy to keep the game at the bottom of the chat without cluttering history.",
+      "Self-Cleaning DMs: Added turn notifications in DMs that automatically delete themselves after a player takes action.",
+      "Sequential Setup: Launched a streamlined 'Bulk Upload & Name' flow for faster game preparation.",
+      "Impactful Revelations: Added a revelation system that displays a winner's identity and image in both the channel and DMs.",
+      "Fair Play Enforcement: Implemented a 3-question limit for 'Yes' answers and mandatory turn passing for incorrect guesses.",
+      "Reliability Fallbacks: Added dynamic manual command instructions to all embed footers as a backup for button failures."
+    ]
   }
 ]

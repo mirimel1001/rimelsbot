@@ -17,7 +17,11 @@ console.log = (...args) => {
   const msg = args.join(' ');
   writeToFile(`INFO: ${msg}`);
   // Only print to console if it's NOT a repetitive debug/background message
-  if (!msg.includes('[MaxBalance Debug]') && !msg.includes('[Cache]') && !msg.includes('[Loader]')) {
+  const isDebug = msg.toLowerCase().includes('maxbalance') || 
+                  msg.toLowerCase().includes('[cache]') || 
+                  msg.toLowerCase().includes('[loader]');
+  
+  if (!isDebug) {
     originalLog(...args);
   }
 };
@@ -28,8 +32,11 @@ console.error = (...args) => {
 };
 console.warn = (...args) => {
   const msg = args.join(' ');
-  originalWarn(...args);
   writeToFile(`WARN: ${msg}`);
+  // Only print to console if it's NOT a repetitive debug/background message
+  if (!msg.toLowerCase().includes('maxbalance')) {
+    originalWarn(...args);
+  }
 };
 // -------------------
 
@@ -402,6 +409,16 @@ client.on('messageCreate', async (message) => {
           p.ready = true;
           return message.reply("✅ **Ready!** You have voted to skip this phase.");
         }
+
+        // NameGuesser ready support
+        const ngGame = Array.from(client.nameGuesserGames.values()).find(g =>
+          g.players.has(message.author.id) && g.status === 'RUNNING' && g.activePlayerId !== message.author.id
+        );
+        if (ngGame) {
+          const p = ngGame.players.get(message.author.id);
+          p.ready = true;
+          return message.reply("✅ **Ready!** You have voted to skip this phase.");
+        }
       }
 
       // Standalone wsay support for Werewolves
@@ -491,6 +508,17 @@ client.on('messageCreate', async (message) => {
           const fakeArgs = ['vote', ...targetInput.split(' ')];
           return werewolfCmd.run(client, message, fakeArgs, prefix, getConfig());
         }
+
+        // NameGuesser vote support
+        const ngGame = Array.from(client.nameGuesserGames.values()).find(g =>
+          g.status === 'RUNNING' && g.players.has(message.author.id) && g.activePlayerId !== message.author.id
+        );
+        if (ngGame) {
+          const targetInput = message.content.split(' ').slice(1).join(' ').trim();
+          const nameGuesserCmd = require('./cmds/minigames/NameGuesser/nameguesser.js');
+          const fakeArgs = ['vote', ...targetInput.split(' ')];
+          return nameGuesserCmd.run(client, message, fakeArgs, 'ng', getConfig());
+        }
       }
 
       // Standalone unvote support
@@ -507,16 +535,50 @@ client.on('messageCreate', async (message) => {
         }
       }
 
-      // Standalone NameGuesser support
-      if (msgLower.startsWith('ng ')) {
+      // Standalone guess support for NameGuesser
+      if (msgLower.startsWith('g ') || msgLower.startsWith('guess ')) {
+        const game = Array.from(client.nameGuesserGames.values()).find(g =>
+          g.status === 'RUNNING' && g.players.has(message.author.id)
+        );
+        if (game) {
+          const targetInput = message.content.split(' ').slice(1).join(' ').trim();
+          const nameGuesserCmd = require('./cmds/minigames/NameGuesser/nameguesser.js');
+          const fakeArgs = ['guess', ...targetInput.split(' ')];
+          return nameGuesserCmd.run(client, message, fakeArgs, 'ng', getConfig());
+        }
+      }
+
+      // Standalone host commands for NameGuesser
+      const standaloneHostCmds = ['launch', 'cancel', 'edit', 'add'];
+      if (standaloneHostCmds.includes(msgLower)) {
+        const game = Array.from(client.nameGuesserGames.values()).find(g => g.host === message.author.id);
+        if (game) {
+          const nameGuesserCmd = require('./cmds/minigames/NameGuesser/nameguesser.js');
+          return nameGuesserCmd.run(client, message, [msgLower], 'ng', getConfig());
+        }
+      }
+
+      // Standalone NameGuesser support (e.g. "ng launch" or "ng join")
+      const ngMatch = message.content.match(/^ng(?:\s+(.*)|$)/i);
+      
+      if (ngMatch) {
         const game = Array.from(client.nameGuesserGames.values()).find(g =>
           g.host === message.author.id || g.players.has(message.author.id)
         );
         if (game) {
-          const args = message.content.slice(3).trim().split(/ +/);
+          const args = ngMatch[1] ? ngMatch[1].trim().split(/ +/) : [];
           const nameGuesserCmd = require('./cmds/minigames/NameGuesser/nameguesser.js');
           return nameGuesserCmd.run(client, message, args, 'ng', getConfig());
         }
+      }
+
+      // Standalone question support for NameGuesser (if it's their turn)
+      const ngQuestionGame = Array.from(client.nameGuesserGames.values()).find(g =>
+        g.status === 'RUNNING' && g.activePlayerId === message.author.id && !g.currentQuestion
+      );
+      if (ngQuestionGame) {
+        const engine = require('./cmds/minigames/NameGuesser/engine.js');
+        return engine.processQuestion(client, ngQuestionGame, message.content);
       }
 
       return; // Ignore non-command, non-game DMs

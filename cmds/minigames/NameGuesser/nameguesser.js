@@ -35,10 +35,16 @@ module.exports = {
         players: new Map(), // userId -> { id, name, assignedImageIdx, wins: 0, ranked: null }
         winners: [],
         turnIdx: 0,
+        currentRound: 1,
+        consecutiveYesCount: 0,
+        activePlayerId: null,
         currentQuestion: null,
         votes: new Map(),
         discussionMode: 'CHAT', // CHAT or VC
-        setupMsgId: null
+        setupMsgId: null,
+        history: [],
+        dmLogMsgIds: new Map(), // userId -> [msgId1, msgId2, ...]
+        channelLogMsgIds: []    // [msgId1, msgId2, ...]
       };
 
       client.nameGuesserGames.set(message.channel.id, newGame);
@@ -86,19 +92,46 @@ module.exports = {
         return engine.startGame(client, game);
       }
 
-      if (subCommand === 'cancel') {
-        if (message.author.id !== game.host) return message.reply("❌ Only the Host can cancel the game!");
-        
-        if (game.prize > 0) {
-          const token = getEconomyToken(client, game.guildId);
-          await axios.patch(`https://unbelievaboat.com/api/v1/guilds/${game.guildId}/users/${game.host}`, { cash: game.prize }, {
-            headers: { 'Authorization': token }
-          }).catch(err => console.error('Refund failed:', err.message));
-        }
+    }
 
-        client.nameGuesserGames.delete(game.channelId);
-        return message.reply("⭕ Game cancelled and funds returned (if any).");
+    // --- 3. GLOBAL COMMANDS ---
+    if (subCommand === 'cancel') {
+      if (message.author.id !== game.host) return message.reply("❌ Only the Host can cancel the game!");
+      
+      const { refundFunds } = require('../../../utils/economy.js');
+      if (game.prize > 0) {
+        await refundFunds(client, game.guildId, game.host, game.prize).catch(err => console.error('Refund failed:', err.message));
       }
+
+      client.nameGuesserGames.delete(game.channelId);
+      return message.reply("⭕ Session cancelled and funds returned (if any).");
+    }
+
+    if (subCommand === 'launch') {
+      if (message.author.id !== game.host) return message.reply("❌ Only the Host can launch the lobby!");
+      if (game.status === 'LOBBY') return message.reply("⚠️ Lobby is already launched.");
+      const engine = require('./engine.js');
+      message.reply("🚀 **Lobby launched!**");
+      return engine.launchLobby(client, game);
+    }
+
+    if (subCommand === 'edit') {
+      if (message.author.id !== game.host) return message.reply("❌ Host only.");
+      const { refundFunds } = require('../../../utils/economy.js');
+      if (game.prize > 0) {
+        await refundFunds(client, game.guildId, game.host, game.prize).catch(err => console.error('Refund failed:', err.message));
+        game.prize = 0;
+      }
+      const engine = require('./engine.js');
+      message.reply("🔄 **Resetting prize pool...** Check your DMs.");
+      return engine.promptPrize(client, game);
+    }
+
+    if (subCommand === 'add') {
+      if (message.author.id !== game.host) return message.reply("❌ Host only.");
+      const engine = require('./engine.js');
+      message.reply("🖼️ **Ready to add more images in DMs.**");
+      return engine.startSetup(client, null, game);
     }
 
     // --- 3. IN-GAME COMMANDS ---
@@ -147,7 +180,94 @@ function registerNGListener(client) {
 
     if (i.customId === 'ng_vote_yes') return engine.handleVote(client, i, g, 'yes');
     if (i.customId === 'ng_vote_no') return engine.handleVote(client, i, g, 'no');
+
+    if (i.customId === 'ng_cancel_setup') {
+      if (i.user.id !== g.host) return i.reply({ content: 'Only the host can cancel the session.', flags: [MessageFlags.Ephemeral] });
+      
+      const { refundFunds } = require('../../../utils/economy.js');
+      if (g.prize > 0) {
+        await refundFunds(client, g.guildId, g.host, g.prize).catch(err => console.error('Refund failed:', err.message));
+      }
+
+      client.nameGuesserGames.delete(g.channelId);
+      return i.update({ content: '⭕ **Session cancelled.** Any funds have been returned.', embeds: [], components: [] });
+    }
+
+    if (i.customId === 'ng_launch_lobby') {
+      if (i.user.id !== g.host) return i.reply({ content: 'Host only.', flags: [MessageFlags.Ephemeral] });
+      i.update({ content: `🚀 **Lobby launched!** Check the game channel: <#${g.channelId}>`, embeds: [], components: [] });
+      return engine.launchLobby(client, g);
+    }
+
+    if (i.customId === 'ng_edit_prize') {
+      if (i.user.id !== g.host) return i.reply({ content: 'Host only.', flags: [MessageFlags.Ephemeral] });
+      
+      const { refundFunds } = require('../../../utils/economy.js');
+      if (g.prize > 0) {
+        await refundFunds(client, g.guildId, g.host, g.prize).catch(err => console.error('Refund failed:', err.message));
+        g.prize = 0;
+      }
+      
+      if (i.guild) {
+        i.reply({ content: '📥 Check your DMs to set the new prize.', flags: [MessageFlags.Ephemeral] });
+      } else {
+        i.update({ content: '🔄 Resetting prize pool...', embeds: [], components: [] });
+      }
+      return engine.promptPrize(client, g);
+    }
+
+    if (i.customId === 'ng_edit_names') {
+      if (i.user.id !== g.host) return i.reply({ content: 'Host only.', flags: [MessageFlags.Ephemeral] });
+      
+      const { StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
+      const select = new StringSelectMenuBuilder()
+        .setCustomId('ng_select_edit_image')
+        .setPlaceholder('Select an image to rename')
+        .addOptions(g.images.map((img, idx) => 
+          new StringSelectMenuOptionBuilder().setLabel(`Image #${idx + 1}`).setDescription(img.name).setValue(idx.toString())
+        ));
+
+      return i.reply({ content: 'Select which identity you want to rename:', components: [new ActionRowBuilder().addComponents(select)], flags: [MessageFlags.Ephemeral] });
+    }
+
+    if (i.customId === 'ng_select_edit_image') {
+      const index = parseInt(i.values[0]);
+      await i.update({ content: '🔄 Opening edit prompt in DMs...', components: [] });
+      return engine.promptEditName(client, g, index);
+    }
     
+    if (i.customId.startsWith('ng_validate_')) {
+      if (i.user.id !== g.host) return i.reply({ content: 'Host only.', flags: [MessageFlags.Ephemeral] });
+      return engine.handleValidation(client, i, g);
+    }
+    
+    if (i.customId === 'ng_ask') {
+      if (i.user.id !== g.activePlayerId) return i.reply({ content: "It's not your turn!", flags: [MessageFlags.Ephemeral] });
+      
+      const modal = {
+        title: 'Ask a Question',
+        customId: 'ng_ask_modal',
+        components: [
+          {
+            type: 1,
+            components: [
+              {
+                type: 4,
+                customId: 'question_text',
+                label: 'Your Yes/No Question',
+                style: 1,
+                placeholder: 'e.g. Am I a human?',
+                min_length: 3,
+                max_length: 200,
+                required: true
+              }
+            ]
+          }
+        ]
+      }
+      return i.showModal(modal);
+    }
+
     if (i.customId === 'ng_guess') {
       const modal = {
         title: 'Guess Your Identity',
@@ -166,44 +286,28 @@ function registerNGListener(client) {
           }]
         }]
       };
-      // Use raw interaction show modal because discord.js v14 ModalBuilder is easier but let's use what's available
       return i.showModal(modal);
-    }
-
-    if (i.customId.startsWith('ng_validate_win_')) {
-      const playerId = i.customId.replace('ng_validate_win_', '');
-      const player = g.players.get(playerId);
-      i.update({ content: `✅ You validated **${player.name}** as a winner.`, components: [] });
-      return engine.markWinner(client, g, player);
-    }
-    
-    if (i.customId.startsWith('ng_validate_fail_')) {
-      const playerId = i.customId.replace('ng_validate_fail_', '');
-      const player = g.players.get(playerId);
-      i.update({ content: `❌ You rejected **${player.name}**'s guess.`, components: [] });
-      const channel = await client.channels.fetch(g.channelId);
-      channel.send(`⚖️ **Host rejected the guess from ${player.name}.** Keep trying!`);
-      g.turnIdx++;
-      return engine.startTurn(client, g);
     }
 
     if (i.customId === 'ng_toggle_mode') {
       if (i.user.id !== g.host) return i.reply({ content: 'Host only.', flags: [MessageFlags.Ephemeral] });
       g.discussionMode = g.discussionMode === 'VC' ? 'CHAT' : 'VC';
       i.reply({ content: `⚙️ Mode toggled to **${g.discussionMode}**`, flags: [MessageFlags.Ephemeral] });
-      const channel = await client.channels.fetch(g.channelId);
-      const turnMsg = await channel.messages.fetch(g.currentTurnMsgId).catch(() => null);
-      if (turnMsg) {
-        const embed = new EmbedBuilder(turnMsg.embeds[0].data);
-        const fieldIdx = embed.data.fields.findIndex(f => f.name === 'Discussion Mode');
-        if (fieldIdx !== -1) embed.data.fields[fieldIdx].value = g.discussionMode === 'VC' ? '🎙️ Voice Channel' : '💬 Chat Channel';
-        await turnMsg.edit({ embeds: [embed] }).catch(() => {});
-      }
+      return engine.updateLog(client, g);
     }
   });
 
   client.on('interactionCreate', async (i) => {
     if (!i.isModalSubmit()) return;
+    if (i.customId === 'ng_ask_modal') {
+      const g = client.nameGuesserGames.get(i.channel?.id) || Array.from(client.nameGuesserGames.values()).find(x => x.activePlayerId === i.user.id);
+      if (!g) return;
+      const question = i.fields.getTextInputValue('question_text');
+      await i.reply({ content: '📤 Question submitted!', flags: [MessageFlags.Ephemeral] });
+      const engine = require('./engine.js');
+      return engine.processQuestion(client, g, question);
+    }
+
     if (i.customId === 'ng_guess_modal') {
       const g = Array.from(client.nameGuesserGames.values()).find(game => game.players.has(i.user.id));
       if (!g) return;
