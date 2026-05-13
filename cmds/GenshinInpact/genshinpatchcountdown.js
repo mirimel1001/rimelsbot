@@ -70,7 +70,6 @@ module.exports = {
         // Add second image as a separate embed linked to the first
         if (images.length > 1) {
           const secondEmbed = new EmbedBuilder()
-            .setURL(url)
             .setDescription('\u200b') // Invisible character forces vertical stack
             .setImage(images[1])
             .setColor('#00ffcc');
