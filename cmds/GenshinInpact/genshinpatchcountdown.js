@@ -50,17 +50,14 @@ module.exports = {
         return loadingMsg.edit({ content: null, embeds: [releasedEmbed] });
       }
 
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-      const countdownStr = `\`${days}\` Days \`${hours}\` Hours \`${minutes}\` Minutes \`${seconds}\` Seconds`;
+      const unixTimestamp = Math.floor(releaseDate.getTime() / 1000);
+      const countdownStr = `<t:${unixTimestamp}:R>`;
+      const absoluteTimeStr = `<t:${unixTimestamp}:F>`;
       
       const mainEmbed = new EmbedBuilder()
         .setTitle(title)
         .setURL(url)
-        .setDescription(`**${subtitle}**\n\n**Countdown:**\n${countdownStr}\n\n**Release Date:** \`${releaseDate.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}\``)
+        .setDescription(`**${subtitle}**\n\n**Countdown:**\n${countdownStr}\n\n**Release Date:**\n${absoluteTimeStr}`)
         .setColor('#00ffcc')
         .setFooter({ text: "Data from genshin-countdown.gengamer.in", iconURL: client.user.displayAvatarURL() })
         .setTimestamp();
@@ -74,7 +71,9 @@ module.exports = {
         if (images.length > 1) {
           const secondEmbed = new EmbedBuilder()
             .setURL(url)
-            .setImage(images[1]);
+            .setDescription('\u200b') // Invisible character forces vertical stack
+            .setImage(images[1])
+            .setColor('#00ffcc');
           embeds.push(secondEmbed);
         }
       }
