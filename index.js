@@ -45,8 +45,14 @@ const dmHandler = require('./utils/dmHandler');
 // --- DATABASE CONNECTION ---
 if (process.env.MONGO_URI) {
   mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('[Database] Connected to MongoDB Atlas!'))
-    .catch(err => console.error('[Database] Connection Error:', err.message));
+    .catch(err => console.error('[Database] Initial Connection Error:', err.message));
+
+  const db = mongoose.connection;
+  db.on('error', err => console.error('[Database] Runtime Error:', err));
+  db.once('open', () => console.log('[Database] Connected to MongoDB Atlas!'));
+  db.on('disconnected', () => console.warn('[Database] Disconnected. Reconnecting...'));
+} else {
+  console.warn('[Database] MONGO_URI not found in .env. Persistence disabled.');
 }
 
 // Global Config Fallback
@@ -75,12 +81,12 @@ client.arCooldowns = new Map();
 // --- ACTIVITY ROLE (AR) SYSTEM ---
 
 const verifyActivity = async (member, channel) => {
-  if (!member || member.user.bot || !member.guild) return;
+  if (!member || !member.user || member.user.bot || !member.guild || !channel) return;
 
   const guildConfigs = client.arConfigs.get(member.guild.id);
   if (!guildConfigs || guildConfigs.length === 0) return;
 
-  // 1. Check Cooldown (5 minutes) to prevent API spam
+  // 1. Check Cooldown (5 minutes)
   const cooldownKey = `${member.guild.id}-${member.id}`;
   const lastCheck = client.arCooldowns.get(cooldownKey);
   const now = Date.now();
@@ -88,31 +94,65 @@ const verifyActivity = async (member, channel) => {
   if (lastCheck && now - lastCheck < 5 * 60 * 1000) return;
 
   try {
-    // 2. Fetch 100 messages (The Discord Max)
-    const messages = await channel.messages.fetch({ limit: 100 });
-    const fourteenDaysAgo = now - (14 * 24 * 60 * 60 * 1000);
+    // 2. Verify Channel Permissions
+    if (!channel.isTextBased() || !channel.permissionsFor(client.user)?.has('ReadMessageHistory')) return;
 
-    // 3. Count user's messages in the last 14 days from this batch
+    // 3. Fetch messages
+    const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+    if (!messages) return;
+
+    const fourteenDaysAgo = now - (14 * 24 * 60 * 60 * 1000);
     const userMessages = messages.filter(m => 
       m.author.id === member.id && 
       m.createdTimestamp > fourteenDaysAgo
     );
     const count = userMessages.size;
 
-    // 4. Update Cooldown
     client.arCooldowns.set(cooldownKey, now);
 
-    // 5. Evaluate each AR config for this server
     for (const config of guildConfigs) {
-      if (member.roles.cache.has(config.roleId)) continue; // Already has it
+      if (!config.roleId || member.roles.cache.has(config.roleId)) continue;
 
-      if (count >= (config.threshold || 5)) {
-        await member.roles.add(config.roleId).catch(err => console.error(`[AR Error] Failed to add role ${config.roleId}:`, err));
-        
-        // Log the success
-        if (channel.guild.id === process.env.MAIN_GUILD_ID?.trim()) {
-           console.log(`[AR] Granted "${config.name}" to ${member.user.tag} (${count} msgs)`);
-        }
+      if (count >= (config.req_msgs || 5)) {
+        await member.roles.add(config.roleId)
+          .then(async () => {
+            // Success Logs
+            if (config.logChannel) {
+              const logChan = config.logChannel === 'same' ? channel : member.guild.channels.cache.get(config.logChannel);
+              if (logChan && logChan.permissionsFor(client.user)?.has('SendMessages')) {
+                // Support placeholders: {user}, {role}, {name}
+                let msg = config.customMessage || "Congrats you just got {name} role {role}!";
+                msg = msg.replace(/{user}/g, member.toString())
+                         .replace(/{role}/g, `<@&${config.roleId}>`)
+                         .replace(/{name}/g, config.name);
+                
+                const logMsg = await logChan.send(msg).catch(() => null);
+                if (logMsg && config.deleteLog) {
+                  setTimeout(() => logMsg.delete().catch(() => null), (config.deleteTime || 60) * 1000);
+                }
+              }
+            }
+
+            if (config.adminLogChannel) {
+              const adminChan = member.guild.channels.cache.get(config.adminLogChannel);
+              if (adminChan && adminChan.permissionsFor(client.user)?.has('SendMessages')) {
+                const logContent = `${member.id} | ${member} - ${config.name} - <@&${config.roleId}>`;
+                const embed = new EmbedBuilder()
+                  .setTitle('🛡️ Activity Role Issued')
+                  .setColor('#5865F2')
+                  .setDescription(logContent)
+                  .setTimestamp();
+                adminChan.send({ embeds: [embed] }).catch(() => null);
+              }
+            }
+          })
+          .catch(err => {
+            if (err.code === 50013) {
+              console.warn(`[AR Error] Missing Permissions to add role ${config.roleId} in ${member.guild.name}`);
+            } else {
+              console.error(`[AR Error] Role addition failed:`, err.message);
+            }
+          });
       }
     }
   } catch (err) {
@@ -128,7 +168,15 @@ const loadCaches = async () => {
     guilds.forEach(g => {
       if (g.prefix) client.prefixes.set(g.guildId, g.prefix);
       if (g.gameSettings) client.gameSettings.set(g.guildId, g.gameSettings);
-      if (g.activityRoles) client.arConfigs.set(g.guildId, g.activityRoles);
+      if (g.activityRoles) {
+        // Migration: Copy threshold to req_msgs if needed
+        g.activityRoles.forEach(ar => {
+          if (ar.req_msgs === undefined && ar.toObject().threshold !== undefined) {
+            ar.req_msgs = ar.toObject().threshold;
+          }
+        });
+        client.arConfigs.set(g.guildId, g.activityRoles);
+      }
     });
     tokens.forEach(t => client.unbTokens.set(t.guildId, t.token));
     console.log(`[Cache] Synchronized ${guilds.length} guilds and ${tokens.length} custom tokens.`);

@@ -223,5 +223,19 @@
       "DM Logic Refactor: Isolated all prefix-less game interactions into a dedicated dmHandler.js for maximum stability.",
       "Full Game Sync: Refactored HighLow, Bet, and ImageGuess to use Cloud-native settings and win rates."
     ]
+  },
+  {
+    "version": "2.1.8",
+    "date": "2026-05-16",
+    "title": "The Interactive Dashboard & Modular Requirement Update",
+    "items": [
+      "Interactive Dashboard: Launched a button-based edit menu (r ar edit) with real-time feedback and Modal-driven configuration.",
+      "Modular Architecture: Refactored the core system to support multiple requirement types, starting with 'Requirement Messages' (req msgs).",
+      "Intelligent Logging: Implemented 'Current Channel' (same) logging logic that celebrates role grants in the user's active channel.",
+      "Chat-Based Selectors: Replaced technical IDs with a user-friendly chat collector for log channel selection, supporting mentions and links.",
+      "Terminology Purge: Completely removed legacy 'Threshold' branding across the entire codebase, UI, and documentation.",
+      "Auto-Cleanup: Implemented self-deleting prompts and responses for a zero-clutter administrative experience.",
+      "Performance Tuning: Optimized internal verification logic and upgraded interaction responses to the latest Discord.js standards."
+    ]
   }
 ]
