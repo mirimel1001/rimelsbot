@@ -16,30 +16,30 @@ module.exports = {
 
     // Resolve game name from aliases/names in client commands
     const command = client.commands.get(inputGame) || 
-                    client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(inputGame));
+                    client.commands.find(cmd => cmd.name.toLowerCase() === inputGame || (cmd.aliases && cmd.aliases.includes(inputGame)));
 
     if (!command || command.category !== "Games") {
-      // Fallback: Check folders if command lookup fails or isn't a game
       const minigamesDir = './cmds/minigames/';
       const folders = fs.readdirSync(minigamesDir, { withFileTypes: true })
         .filter(dirent => dirent.isDirectory())
-        .map(dirent => dirent.name.toLowerCase().replace(/ /g, ''));
+        .map(dirent => dirent.name.toLowerCase());
 
       if (!folders.includes(inputGame)) {
-        const gameList = folders.map(f => `\`${f}\``).join(', ');
-        return message.reply(`❌ Please provide a valid minigame name or alias.\nAvailable games: ${gameList}`);
+        return message.reply(`❌ Please provide a valid minigame name (e.g., \`highlow\`, \`bet\`, \`imageguess\`).`);
       }
     }
 
-    // Use the primary command name if found, otherwise use input
-    const gameName = command ? command.name : inputGame;
+    const gameName = command ? command.name.toLowerCase() : inputGame;
 
     try {
-      const mainGuildId = process.env.MAIN_GUILD_ID?.trim();
-      const mainSettings = client.gameSettings.get(mainGuildId) || {};
-      const globalDefaults = mainSettings.winningRates?.[gameName] || {};
-
+      // Clean up the Main Guild ID (remove any quotes or spaces)
+      const mainGuildId = process.env.MAIN_GUILD_ID?.trim().replace(/^["'](.+)["']$/, '$1');
+      
+      // Get settings for the Current Guild and the Main Guild
       const guildSettings = client.gameSettings.get(message.guild.id) || {};
+      const mainSettings = client.gameSettings.get(mainGuildId) || {};
+
+      const globalDefaults = mainSettings.winningRates?.[gameName] || {};
       const localSettings = guildSettings.winningRates?.[gameName] || {};
 
       const mergedRates = { ...globalDefaults, ...localSettings };
