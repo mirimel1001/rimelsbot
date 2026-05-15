@@ -47,41 +47,26 @@ module.exports = {
       return message.reply("❌ Could not find that role. Make sure you mention it or provide a valid ID.");
     }
 
-    // 3. Load and Update custom_guilds.json
-    const customPath = './custom_guilds.json';
-    let data = { guilds: {} };
-
+    // 3. Update Database
     try {
-      if (fs.existsSync(customPath)) {
-        data = JSON.parse(fs.readFileSync(customPath, 'utf8'));
-      }
-    } catch (err) {
-      console.error('Error reading custom_guilds.json:', err.message);
-      return message.reply('❌ Could not load winning rate settings.');
-    }
-
-    // Initialize structures
-    if (!data.guilds) data.guilds = {};
-    if (!data.guilds[message.guild.id]) data.guilds[message.guild.id] = {};
-    if (!data.guilds[message.guild.id].winningRates) data.guilds[message.guild.id].winningRates = {};
-    if (!data.guilds[message.guild.id].winningRates[gameName]) data.guilds[message.guild.id].winningRates[gameName] = {};
-
-    // Save
-    data.guilds[message.guild.id].winningRates[gameName][role.id] = percentage;
-
-    try {
-      fs.writeFileSync(customPath, JSON.stringify(data, null, 2));
-      
-      // Update Cache
+      const Guild = require('../../models/Guild');
       const currentCache = client.gameSettings.get(message.guild.id) || {};
+      
       if (!currentCache.winningRates) currentCache.winningRates = {}; 
       if (!currentCache.winningRates[gameName]) currentCache.winningRates[gameName] = {};
+      
       currentCache.winningRates[gameName][role.id] = percentage;
-      client.gameSettings.set(message.guild.id, currentCache);
 
+      await Guild.findOneAndUpdate(
+        { guildId: message.guild.id },
+        { gameSettings: currentCache },
+        { upsert: true }
+      );
+      
+      client.gameSettings.set(message.guild.id, currentCache);
       return message.reply(`✅ Success! Winning rate for **${gameName}** (Role: ${role.name}) is now **${percentage}%**.`);
     } catch (err) {
-      console.error('Error writing custom_guilds.json:', err.message);
+      console.error('Error updating Database:', err.message);
       return message.reply('❌ Could not save winning rate settings.');
     }
   }

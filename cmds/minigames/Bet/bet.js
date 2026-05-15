@@ -30,10 +30,11 @@ module.exports = {
     let cooldownKey = `${message.guild.id}-bet-${message.author.id}`;
     let currentNow = Date.now();
     try {
-      const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../default_myserver.json'), 'utf8'));
       const guildSettings = client.gameSettings.get(message.guild.id) || {};
+      const mainGuildId = process.env.MAIN_GUILD_ID?.trim();
+      const mainSettings = client.gameSettings.get(mainGuildId) || {};
       
-      let delay = guildSettings.delays?.bet || defaultData.gameSettings?.delays?.bet || 30000;
+      let delay = guildSettings.delays?.bet || mainSettings.delays?.bet || 30000;
 
       const lastPlay = client.cooldowns.get(cooldownKey);
       if (lastPlay && currentNow < lastPlay + delay) {
@@ -64,11 +65,11 @@ module.exports = {
 
       // --- MAX BALANCE CHECK ---
       const guildSettings = client.gameSettings.get(message.guild.id) || {};
+      const mainGuildId = process.env.MAIN_GUILD_ID?.trim();
+      const mainSettings = client.gameSettings.get(mainGuildId) || {};
+      
       let maxBal = guildSettings.maxBalance;
-      if (maxBal === undefined && message.guild.id === process.env.MAIN_GUILD_ID) {
-        const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../default_myserver.json'), 'utf8'));
-        maxBal = defaultData.maxBalance;
-      }
+      if (maxBal === undefined) maxBal = mainSettings.maxBalance;
 
       if (maxBal !== undefined && maxBal !== false && totalBalance >= maxBal) {
         return message.reply(`❌ **Limit Exceeded!** Your total balance is **${totalBalance.toLocaleString()}**, which is at or above the server limit of **${maxBal.toLocaleString()}**. You cannot place bets until your balance is reduced.`);

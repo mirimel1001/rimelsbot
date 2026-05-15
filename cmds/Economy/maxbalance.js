@@ -1,6 +1,4 @@
 const { PermissionsBitField, EmbedBuilder } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
 const { parseShorthand, formatNumber } = require('../../utils/economy.js');
 
 module.exports = {
@@ -19,17 +17,19 @@ module.exports = {
       return message.reply("❌ Only the **Server Owner** can configure the Max Balance limit.");
     }
 
+    const Guild = require('../../models/Guild');
     const input = args[0]?.toLowerCase();
+    
     if (!input) {
-      // Show current limit
-      const customData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../custom_guilds.json'), 'utf8'));
-      const guildData = customData.guilds[message.guild.id] || {};
-      let currentLimit = guildData.maxBalance;
+      // Show current limit from Cache
+      const settings = client.gameSettings.get(message.guild.id) || {};
+      let currentLimit = settings.maxBalance;
 
       if (currentLimit === undefined) {
-        if (message.guild.id === process.env.MAIN_GUILD_ID) {
-          const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../default_myserver.json'), 'utf8'));
-          currentLimit = formatNumber(defaultData.maxBalance);
+        const mainGuildId = process.env.MAIN_GUILD_ID?.trim().replace(/^["'](.+)["']$/, '$1');
+        if (message.guild.id === mainGuildId) {
+          // Defaults should already be in the Cloud/Cache after migration
+          currentLimit = "Not configured in Cloud";
         } else {
           currentLimit = "Infinite (Not set)";
         }
@@ -42,19 +42,17 @@ module.exports = {
       return message.reply(`💰 **Current Max Balance:** \`${currentLimit}\``);
     }
 
-    const customPath = path.join(__dirname, '../../custom_guilds.json');
-    let customData = JSON.parse(fs.readFileSync(customPath, 'utf8'));
-    if (!customData.guilds[message.guild.id]) customData.guilds[message.guild.id] = {};
-
     if (input === 'false' || input === 'off' || input === 'none') {
-      customData.guilds[message.guild.id].maxBalance = false;
-      fs.writeFileSync(customPath, JSON.stringify(customData, null, 2));
-      
-      // Update Cache
       const settings = client.gameSettings.get(message.guild.id) || {};
       settings.maxBalance = false;
+      
+      await Guild.findOneAndUpdate(
+        { guildId: message.guild.id },
+        { gameSettings: settings },
+        { upsert: true }
+      );
+      
       client.gameSettings.set(message.guild.id, settings);
-
       return message.reply("✅ **Max Balance limit has been disabled.** Members can now earn infinitely.");
     }
 
@@ -63,19 +61,22 @@ module.exports = {
       return message.reply("❌ Invalid amount! Please provide a positive number or shorthand (e.g., `10b`, `500k`).");
     }
 
-    customData.guilds[message.guild.id].maxBalance = amount;
-    fs.writeFileSync(customPath, JSON.stringify(customData, null, 2));
-
-    // Update Cache
     const settings = client.gameSettings.get(message.guild.id) || {};
     settings.maxBalance = amount;
+
+    await Guild.findOneAndUpdate(
+      { guildId: message.guild.id },
+      { gameSettings: settings },
+      { upsert: true }
+    );
+
     client.gameSettings.set(message.guild.id, settings);
 
     const embed = new EmbedBuilder()
       .setColor('#2ECC71')
       .setTitle('⚖️ Max Balance Set')
       .setDescription(`The total currency limit for this server is now set to **${amount.toLocaleString()}**.\n\n` +
-                      "Any amount above this limit will be automatically redacted every 15 minutes.")
+                      "Any amount above this limit will be automatically redacted periodically.")
       .setFooter({ text: 'This action helps maintain economy stability.' });
 
     return message.reply({ embeds: [embed] });

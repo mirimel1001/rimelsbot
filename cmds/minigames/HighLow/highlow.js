@@ -23,10 +23,11 @@ module.exports = {
 
     // --- COOLDOWN CHECK ---
     try {
-      const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../default_myserver.json'), 'utf8'));
       const guildSettings = client.gameSettings.get(message.guild.id) || {};
+      const mainGuildId = process.env.MAIN_GUILD_ID?.trim();
+      const mainSettings = client.gameSettings.get(mainGuildId) || {};
       
-      delay = guildSettings.delays?.highlow || defaultData.gameSettings?.delays?.highlow;
+      delay = guildSettings.delays?.highlow || mainSettings.delays?.highlow;
 
       if (delay) {
         cooldownKey = `${message.guild.id}-highlow-${message.author.id}`;
@@ -58,12 +59,11 @@ module.exports = {
 
       // --- MAX BALANCE CHECK ---
       const guildSettings = client.gameSettings.get(message.guild.id) || {};
+      const mainGuildId = process.env.MAIN_GUILD_ID?.trim();
+      const mainSettings = client.gameSettings.get(mainGuildId) || {};
+      
       let maxBal = guildSettings.maxBalance;
-
-      if (maxBal === undefined && message.guild.id === process.env.MAIN_GUILD_ID) {
-        const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../default_myserver.json'), 'utf8'));
-        maxBal = defaultData.maxBalance;
-      }
+      if (maxBal === undefined) maxBal = mainSettings.maxBalance;
 
       if (maxBal !== undefined && maxBal !== false && totalBalance >= maxBal) {
         return message.reply(`❌ **Limit Exceeded!** Your total balance is **${totalBalance.toLocaleString()}**, which is at or above the server limit of **${maxBal.toLocaleString()}**. You cannot play until your balance is reduced.`);
@@ -100,10 +100,11 @@ module.exports = {
       // 4. Determine Win Rate based on Roles
       let winRate = 50;
       try {
-        const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../default_myserver.json'), 'utf8'));
         const guildSettings = client.gameSettings.get(message.guild.id) || {};
+        const mainGuildId = process.env.MAIN_GUILD_ID?.trim();
+        const mainSettings = client.gameSettings.get(mainGuildId) || {};
 
-        const globalDefaults = defaultData.winningRates?.highlow || {};
+        const globalDefaults = mainSettings.winningRates?.highlow || {};
         const localSettings = guildSettings.winningRates?.highlow || {};
 
         const activeChances = { ...globalDefaults, ...localSettings };

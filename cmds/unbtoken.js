@@ -105,7 +105,7 @@ module.exports = {
             }
             // -----------------------
 
-            saveServerToken(client, i.guildId, newToken);
+            await saveServerToken(client, i.guildId, newToken);
             await submitted.editReply({ content: '✅ **Success!** This server will now use your custom UnbelievaBoat token for all economy actions.' });
             
             // Update the main message to reflect the change
@@ -116,7 +116,7 @@ module.exports = {
       }
 
       if (i.customId === 'unb_remove') {
-        removeServerToken(client, i.guildId);
+        await removeServerToken(client, i.guildId);
         await i.reply({ content: '🗑️ **Token Removed.** Reverted to the global default economy token.', flags: [MessageFlags.Ephemeral] });
         
         const resetEmbed = EmbedBuilder.from(embed).setDescription("🔄 **Reset complete.** This server is now using the global fallback token.");

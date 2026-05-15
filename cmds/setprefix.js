@@ -23,24 +23,17 @@ module.exports = {
     }
 
     try {
-      const customPath = './custom_guilds.json';
-      let data = { guilds: {} };
-      
-      if (fs.existsSync(customPath)) {
-        data = JSON.parse(fs.readFileSync(customPath, 'utf8'));
-      }
-      
-      if (!data.guilds) data.guilds = {};
-      if (!data.guilds[message.guild.id]) data.guilds[message.guild.id] = {};
-      
-      data.guilds[message.guild.id].prefix = newPrefix;
-      
-      fs.writeFileSync(customPath, JSON.stringify(data, null, 2));
-      client.prefixes.set(message.guild.id, newPrefix);
+      const Guild = require('../models/Guild');
+      await Guild.findOneAndUpdate(
+        { guildId: message.guild.id },
+        { prefix: newPrefix },
+        { upsert: true }
+      );
 
+      client.prefixes.set(message.guild.id, newPrefix);
       return message.reply(`✅ Prefix updated! The new prefix for this server is \`${newPrefix}\``);
     } catch (err) {
-      console.error('Error updating custom_guilds.json:', err.message);
+      console.error('Error updating Database:', err.message);
       return message.reply(`❌ Failed to save the new prefix.`);
     }
   }

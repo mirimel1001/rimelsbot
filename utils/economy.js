@@ -28,32 +28,20 @@ function getEconomyToken(client, guildId) {
 
 /**
  * Audits a specific user's balance and redacts excess if they exceed the max balance limit.
- * @param {object} client - Discord Client
- * @param {string} guildId - Guild ID
- * @param {string} userId - User ID
- * @returns {Promise<object|null>} Result of redaction or null
  */
 async function enforceMaxBalance(client, guildId, userId) {
   const token = getEconomyToken(client, guildId);
   if (!token) return null;
 
   try {
-    // 1. Load Configs
-    const customPath = path.join(__dirname, '../custom_guilds.json');
-    const defaultPath = path.join(__dirname, '../default_myserver.json');
-    if (!fs.existsSync(customPath) || !fs.existsSync(defaultPath)) return null;
-
-    const customData = JSON.parse(fs.readFileSync(customPath, 'utf8'));
-    const defaultData = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
-
-    const guildData = customData.guilds[guildId] || {};
-    let maxBal = guildData.maxBalance;
+    const settings = client.gameSettings.get(guildId) || {};
+    let maxBal = settings.maxBalance;
 
     if (maxBal === false) return null;
     if (maxBal === undefined) {
       const mainGuildId = process.env.MAIN_GUILD_ID?.trim().replace(/^["'](.+)["']$/, '$1');
       if (guildId === mainGuildId) {
-        maxBal = defaultData.maxBalance;
+        // Logic already handled by client.gameSettings.get(guildId) above
       } else {
         return null; 
       }
@@ -70,8 +58,6 @@ async function enforceMaxBalance(client, guildId, userId) {
 
     if (total > maxBal) {
       const excess = total - maxBal;
-      
-      // Redact from Cash first, then Bank
       let redactCash = Math.min(cash, excess);
       let redactBank = Math.max(0, excess - redactCash);
 
@@ -96,44 +82,20 @@ async function enforceMaxBalance(client, guildId, userId) {
 
 /**
  * Saves a server-specific UnbelievaBoat token.
- * @param {object} client 
- * @param {string} guildId 
- * @param {string} token 
  */
-function saveServerToken(client, guildId, token) {
-  const customPath = path.join(__dirname, '../custom_guilds.json');
-  let data = { unbTokens: {}, guilds: {} };
-  
-  if (fs.existsSync(customPath)) {
-    data = JSON.parse(fs.readFileSync(customPath, 'utf8'));
-  }
-  
-  if (!data.unbTokens) data.unbTokens = {};
-  data.unbTokens[guildId] = token;
-  
-  fs.writeFileSync(customPath, JSON.stringify(data, null, 2));
-  
-  // Update Cache
+async function saveServerToken(client, guildId, token) {
+  const Token = require('../models/Token');
+  await Token.findOneAndUpdate({ guildId }, { token: token }, { upsert: true });
   client.unbTokens.set(guildId, token);
 }
 
 /**
  * Removes a server-specific UnbelievaBoat token.
- * @param {object} client
- * @param {string} guildId 
  */
-function removeServerToken(client, guildId) {
-  const customPath = path.join(__dirname, '../custom_guilds.json');
-  if (fs.existsSync(customPath)) {
-    const data = JSON.parse(fs.readFileSync(customPath, 'utf8'));
-    if (data.unbTokens && data.unbTokens[guildId]) {
-      delete data.unbTokens[guildId];
-      fs.writeFileSync(customPath, JSON.stringify(data, null, 2));
-      
-      // Update Cache
-      client.unbTokens.delete(guildId);
-    }
-  }
+async function removeServerToken(client, guildId) {
+  const Token = require('../models/Token');
+  await Token.findOneAndDelete({ guildId });
+  client.unbTokens.delete(guildId);
 }
 
 /**

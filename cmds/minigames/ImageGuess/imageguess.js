@@ -34,11 +34,11 @@ module.exports = {
       const totalBalance = (ubRes.data.cash || 0) + (ubRes.data.bank || 0);
 
       const guildSettings = client.gameSettings.get(message.guild.id) || {};
+      const mainGuildId = process.env.MAIN_GUILD_ID?.trim();
+      const mainSettings = client.gameSettings.get(mainGuildId) || {};
+
       let maxBal = guildSettings.maxBalance;
-      if (maxBal === undefined && message.guild.id === process.env.MAIN_GUILD_ID) {
-        const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../default_myserver.json'), 'utf8'));
-        maxBal = defaultData.maxBalance;
-      }
+      if (maxBal === undefined) maxBal = mainSettings.maxBalance;
 
       if (maxBal !== undefined && maxBal !== false && totalBalance >= maxBal) {
         client.imageGuessGames.delete(message.channel.id);
@@ -54,10 +54,11 @@ module.exports = {
 
     try {
       // --- COOLDOWN CHECK ---
-      const defaultData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../default_myserver.json'), 'utf8'));
       const guildSettings = client.gameSettings.get(message.guild.id) || {};
+      const mainGuildId = process.env.MAIN_GUILD_ID?.trim();
+      const mainSettings = client.gameSettings.get(mainGuildId) || {};
       
-      let delay = guildSettings.delays?.imageguess || defaultData.gameSettings?.delays?.imageguess;
+      let delay = guildSettings.delays?.imageguess || mainSettings.delays?.imageguess;
 
       if (delay) {
         cooldownKey = `${message.guild.id}-imageguess-${message.author.id}`;

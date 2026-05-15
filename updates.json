@@ -209,5 +209,19 @@
       "Admin Control Suite: Added comprehensive commands (ar setup, list, del, setcount, setrole) for real-time requirement management.",
       "Arcane Integration: Automated role issuance triggered by both message activity and Arcane Bot level-up events."
     ]
+  },
+  {
+    "version": "2.1.7",
+    "date": "2026-05-16",
+    "title": "The Cloud-Native Revolution Update",
+    "items": [
+      "Database Migration: Migrated all server configurations (prefixes, games, roles) from local JSON to MongoDB Atlas.",
+      "Dedicated Token Vault: Isolated UnbelievaBoat API tokens into a secure, dedicated collection for enhanced security.",
+      "Zero-Disk Architecture: Successfully removed all local storage files (custom_guilds.json, ar_configs.json, default_myserver.json).",
+      "Automatic Migration Engine: Implemented a one-time startup logic to seamlessly move legacy server data to the Cloud.",
+      "Performance Optimization: Developed a high-speed memory cache synchronized with MongoDB for sub-millisecond latency.",
+      "DM Logic Refactor: Isolated all prefix-less game interactions into a dedicated dmHandler.js for maximum stability.",
+      "Full Game Sync: Refactored HighLow, Bet, and ImageGuess to use Cloud-native settings and win rates."
+    ]
   }
 ]

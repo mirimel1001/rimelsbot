@@ -1,6 +1,4 @@
 const { EmbedBuilder, PermissionsBitField } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
 
 module.exports = {
   name: "activityrole",
@@ -20,22 +18,16 @@ module.exports = {
     // Load current configs
     let configs = client.arConfigs.get(guildId) || [];
 
-    const saveConfigs = (gid, currentConfigs) => {
-      const mainGuildId = process.env.MAIN_GUILD_ID?.trim().replace(/^["'](.+)["']$/, '$1');
+    const saveConfigs = async (gid, currentConfigs) => {
+      const Guild = require('../../models/Guild');
       
-      if (gid === mainGuildId) {
-        const defaultPath = path.join(__dirname, '../../default_myserver.json');
-        if (fs.existsSync(defaultPath)) {
-          const data = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
-          data.activityRoles = currentConfigs;
-          fs.writeFileSync(defaultPath, JSON.stringify(data, null, 2));
-        }
-      } else {
-        const arConfigPath = path.join(__dirname, '../../ar_configs.json');
-        client.arConfigs.set(gid, currentConfigs);
-        const allData = Object.fromEntries(client.arConfigs);
-        fs.writeFileSync(arConfigPath, JSON.stringify(allData, null, 2));
-      }
+      // Always sync to MongoDB as the source of truth
+      await Guild.findOneAndUpdate(
+        { guildId: gid },
+        { activityRoles: currentConfigs },
+        { upsert: true }
+      );
+      client.arConfigs.set(gid, currentConfigs);
     };
 
     if (subCommand === 'setup' || subCommand === 'set') {
@@ -55,7 +47,7 @@ module.exports = {
 
       configs.push(newConfig);
       client.arConfigs.set(guildId, configs);
-      saveConfigs(guildId, configs);
+      await saveConfigs(guildId, configs);
 
       return message.reply(`✅ **Activity Role Created!**\n**ID:** \`${newConfig.id}\`\n**Role:** ${role}\n**Requirement:** 5 messages in 14 days.`);
     }
@@ -95,7 +87,7 @@ module.exports = {
 
       config.threshold = count;
       client.arConfigs.set(guildId, configs);
-      saveConfigs(guildId, configs);
+      await saveConfigs(guildId, configs);
 
       return message.reply(`✅ Updated! **${config.name}** now requires **${count}** messages.`);
     }

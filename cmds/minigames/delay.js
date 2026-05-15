@@ -1,5 +1,4 @@
 const { PermissionsBitField } = require('discord.js');
-const fs = require('fs');
 
 module.exports = {
   name: "delay",
@@ -31,39 +30,24 @@ module.exports = {
       return message.reply("❌ Invalid time format! Use `s` (seconds), `m` (minutes), `h` (hours), `d` (days), or `mo` (months).\nExample: `10s`, `5m`, `2h`.");
     }
 
-    // 4. Load and Update custom_guilds.json
-    const customPath = './custom_guilds.json';
-    let data = { guilds: {} };
-
+    // 4. Update Database
     try {
-      if (fs.existsSync(customPath)) {
-        data = JSON.parse(fs.readFileSync(customPath, 'utf8'));
-      }
-    } catch (err) {
-      console.error("Error reading custom_guilds.json:", err);
-    }
-
-    // Initialize structures
-    if (!data.guilds) data.guilds = {};
-    if (!data.guilds[message.guild.id]) data.guilds[message.guild.id] = {};
-    if (!data.guilds[message.guild.id].gameSettings) data.guilds[message.guild.id].gameSettings = {};
-    if (!data.guilds[message.guild.id].gameSettings.delays) data.guilds[message.guild.id].gameSettings.delays = {};
-    
-    // Save
-    data.guilds[message.guild.id].gameSettings.delays[gameName] = durationMs;
-
-    try {
-      fs.writeFileSync(customPath, JSON.stringify(data, null, 2));
-      
-      // Update Cache
+      const Guild = require('../../models/Guild');
       const currentCache = client.gameSettings.get(message.guild.id) || {};
+      
       if (!currentCache.delays) currentCache.delays = {};
       currentCache.delays[gameName] = durationMs;
-      client.gameSettings.set(message.guild.id, currentCache);
 
+      await Guild.findOneAndUpdate(
+        { guildId: message.guild.id },
+        { gameSettings: currentCache },
+        { upsert: true }
+      );
+      
+      client.gameSettings.set(message.guild.id, currentCache);
       return message.reply(`✅ Success! The cooldown for **${gameName}** is now set to **${timeInput}**.`);
     } catch (err) {
-      console.error("Error writing custom_guilds.json:", err);
+      console.error("Error updating Database:", err);
       return message.reply("❌ Failed to save the delay settings.");
     }
   }
