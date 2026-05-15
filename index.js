@@ -72,31 +72,52 @@ client.unbTokens = new Collection();
 client.arConfigs = new Map();
 client.arCooldowns = new Map();
 
-// --- ACTIVITY ROLE LOGIC ---
-const ARCANE_LEVEL_1_ROLE_ID = '123456789012345678';
+// --- ACTIVITY ROLE (AR) SYSTEM ---
+
 const verifyActivity = async (member, channel) => {
-  if (!member || member.user.bot || !channel) return;
+  if (!member || member.user.bot || !member.guild) return;
+
+  const guildConfigs = client.arConfigs.get(member.guild.id);
+  if (!guildConfigs || guildConfigs.length === 0) return;
+
+  // 1. Check Cooldown (5 minutes) to prevent API spam
   const cooldownKey = `${member.guild.id}-${member.id}`;
   const lastCheck = client.arCooldowns.get(cooldownKey);
-  if (lastCheck && Date.now() - lastCheck < 5 * 60 * 1000) return;
+  const now = Date.now();
 
-  const configs = client.arConfigs.get(member.guild.id) || [];
-  const eligibleRoles = configs.filter(conf => !member.roles.cache.has(conf.roleId) && member.roles.cache.has(ARCANE_LEVEL_1_ROLE_ID));
-  if (eligibleRoles.length === 0) return;
+  if (lastCheck && now - lastCheck < 5 * 60 * 1000) return;
 
   try {
-    client.arCooldowns.set(cooldownKey, Date.now());
+    // 2. Fetch 100 messages (The Discord Max)
     const messages = await channel.messages.fetch({ limit: 100 });
-    const fourteenDaysAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
-    const userCount = messages.filter(m => m.author.id === member.id && m.createdAt.getTime() > fourteenDaysAgo).size;
+    const fourteenDaysAgo = now - (14 * 24 * 60 * 60 * 1000);
 
-    for (const conf of eligibleRoles) {
-      if (userCount >= (conf.threshold || 5)) {
-        await member.roles.add(conf.roleId).catch(() => null);
-        console.log(`[AR] Granted "${conf.name}" to ${member.user.tag} (Count: ${userCount})`);
+    // 3. Count user's messages in the last 14 days from this batch
+    const userMessages = messages.filter(m => 
+      m.author.id === member.id && 
+      m.createdTimestamp > fourteenDaysAgo
+    );
+    const count = userMessages.size;
+
+    // 4. Update Cooldown
+    client.arCooldowns.set(cooldownKey, now);
+
+    // 5. Evaluate each AR config for this server
+    for (const config of guildConfigs) {
+      if (member.roles.cache.has(config.roleId)) continue; // Already has it
+
+      if (count >= (config.threshold || 5)) {
+        await member.roles.add(config.roleId).catch(err => console.error(`[AR Error] Failed to add role ${config.roleId}:`, err));
+        
+        // Log the success
+        if (channel.guild.id === process.env.MAIN_GUILD_ID?.trim()) {
+           console.log(`[AR] Granted "${config.name}" to ${member.user.tag} (${count} msgs)`);
+        }
       }
     }
-  } catch (err) { console.error('[AR Error]', err.message); }
+  } catch (err) {
+    console.error('[AR Error] Activity verification failed:', err);
+  }
 };
 
 // --- CACHE SYNCHRONIZATION ---
