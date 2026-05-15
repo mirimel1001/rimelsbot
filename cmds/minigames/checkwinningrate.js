@@ -14,22 +14,27 @@ module.exports = {
       return message.reply(`❌ Usage: \`${prefix}checkwinningrate [game name]\``);
     }
 
-    // Resolve game name from aliases/names in client commands
+    // 1. Try to find the command by name or alias
     const command = client.commands.get(inputGame) || 
-                    client.commands.find(cmd => cmd.name.toLowerCase() === inputGame || (cmd.aliases && cmd.aliases.includes(inputGame)));
+                    client.commands.find(cmd => (cmd.aliases && cmd.aliases.includes(inputGame)));
 
-    if (!command || command.category !== "Games") {
+    // 2. Determine the internal game name
+    let gameName = "";
+    if (command && (command.category?.toLowerCase().includes('game') || command.isMinigame)) {
+      gameName = command.name.toLowerCase();
+    } else {
+      // Fallback: Check if the input matches a minigame folder name
       const minigamesDir = './cmds/minigames/';
       const folders = fs.readdirSync(minigamesDir, { withFileTypes: true })
         .filter(dirent => dirent.isDirectory())
         .map(dirent => dirent.name.toLowerCase());
 
-      if (!folders.includes(inputGame)) {
+      if (folders.includes(inputGame)) {
+        gameName = inputGame;
+      } else {
         return message.reply(`❌ Please provide a valid minigame name (e.g., \`highlow\`, \`bet\`, \`imageguess\`).`);
       }
     }
-
-    const gameName = command ? command.name.toLowerCase() : inputGame;
 
     try {
       // Clean up the Main Guild ID (remove any quotes or spaces)
