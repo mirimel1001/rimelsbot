@@ -252,6 +252,61 @@ const client = new Client({
   }
 });
 
+// --- ACTIVITY ROLE (AR) SYSTEM ---
+const ARCANE_LEVEL_1_ROLE_ID = '123456789012345678'; // Master Key
+
+const verifyActivity = async (member, channel) => {
+  if (!member || member.user.bot || !channel) return;
+
+  // 1. Check Cooldown
+  const cooldownKey = `${member.guild.id}-${member.id}`;
+  const lastCheck = client.arCooldowns.get(cooldownKey);
+  if (lastCheck && Date.now() - lastCheck < 5 * 60 * 1000) return;
+
+  // 2. Get Configs for this Guild
+  const configs = client.arConfigs.get(member.guild.id) || [];
+  if (configs.length === 0) return;
+
+  // 3. Filter roles the user needs
+  const eligibleRoles = configs.filter(conf => 
+    !member.roles.cache.has(conf.roleId) && 
+    member.roles.cache.has(ARCANE_LEVEL_1_ROLE_ID)
+  );
+  if (eligibleRoles.length === 0) return;
+
+  try {
+    // 4. Set cooldown early to prevent overlapping fetches
+    client.arCooldowns.set(cooldownKey, Date.now());
+
+    // 5. FETCH 100 MESSAGES (One heavy request)
+    const messages = await channel.messages.fetch({ limit: 100 });
+    const fourteenDaysAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
+
+    // 6. Filter user's recent messages
+    const userMessages = messages.filter(m => 
+      m.author.id === member.id && 
+      m.createdAt.getTime() > fourteenDaysAgo
+    );
+
+    const userCount = userMessages.size;
+
+    // 7. Check all roles against the count
+    for (const conf of eligibleRoles) {
+      if (userCount >= (conf.threshold || 5)) {
+        try {
+          await member.roles.add(conf.roleId);
+          console.log(`[AR] Granted "${conf.name}" to ${member.user.tag} (Count: ${userCount})`);
+        } catch (e) {
+          console.error(`[AR Error] Failed to grant ${conf.name}:`, e.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[AR Error] History fetch failed:', err.message);
+  }
+};
+// ---------------------------------
+
 // Setup Collections
 client.commands = new Collection();
 client.aliases = new Collection();
@@ -263,6 +318,41 @@ client.nameGuesserGames = new Map();
 client.prefixes = new Collection();
 client.gameSettings = new Collection();
 client.unbTokens = new Collection();
+client.arConfigs = new Map(); // Activity Role configurations
+client.arCooldowns = new Map(); // Memory-only cooldowns to prevent API spam
+
+// --- AR CONFIG STORAGE ---
+const arConfigPath = path.join(__dirname, 'ar_configs.json');
+const loadArConfigs = () => {
+  // 1. Load from general config
+  if (fs.existsSync(arConfigPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(arConfigPath, 'utf8'));
+      for (const [guildId, configs] of Object.entries(data)) {
+        client.arConfigs.set(guildId, configs);
+      }
+    } catch (e) { console.error('[AR] Failed to load AR configurations'); }
+  }
+
+  // 2. Load from Main Server specific config (default_myserver.json)
+  const defaultPath = path.join(__dirname, 'default_myserver.json');
+  const mainGuildId = process.env.MAIN_GUILD_ID?.trim().replace(/^["'](.+)["']$/, '$1');
+  
+  if (mainGuildId && fs.existsSync(defaultPath)) {
+    try {
+      const defaultData = JSON.parse(fs.readFileSync(defaultPath, 'utf8'));
+      if (defaultData.activityRoles) {
+        client.arConfigs.set(mainGuildId, defaultData.activityRoles);
+      }
+    } catch (e) { console.error('[AR] Failed to load activity roles from default_myserver.json'); }
+  }
+};
+const saveArConfigs = () => {
+  const data = Object.fromEntries(client.arConfigs);
+  fs.writeFileSync(arConfigPath, JSON.stringify(data, null, 2));
+};
+loadArConfigs();
+// ------------------------
 
 // Populate Caches
 // Populate Caches
@@ -390,6 +480,12 @@ client.once(Events.ClientReady, () => {
 
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
+
+  // --- ACTIVITY ROLE (AR) SYSTEM ---
+  if (message.guild) {
+    verifyActivity(message.member, message.channel);
+  }
+  // ---------------------------------
 
   // Handle DMs
   if (!message.guild) {
@@ -639,6 +735,18 @@ client.on('messageCreate', async (message) => {
     message.reply('❌ There was an error trying to execute that command!');
   }
 });
+
+// --- ROLE CHANGE LISTENER (For Arcane Level-Ups) ---
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+  const roleAdded = newMember.roles.cache.find(role => !oldMember.roles.cache.has(role.id));
+  
+  if (roleAdded && roleAdded.id === ARCANE_LEVEL_1_ROLE_ID) {
+    console.log(`[AR] Detected Arcane Level-Up for ${newMember.user.tag}.`);
+    // Note: Since we don't store data, we wait for their next message to verify.
+    // However, we can do an initial scan of the general channel if you'd like.
+  }
+});
+// --------------------------------------------------
 
 // --- MAX BALANCE MONITOR ---
 const checkMaxBalances = async () => {

@@ -196,5 +196,18 @@
       "Fair Play Enforcement: Implemented a 3-question limit for 'Yes' answers and mandatory turn passing for incorrect guesses.",
       "Reliability Fallbacks: Added dynamic manual command instructions to all embed footers as a backup for button failures."
     ]
+  },
+  {
+    "version": "2.1.6",
+    "date": "2026-05-16",
+    "title": "The Activity Verification & Role Automation Update",
+    "items": [
+      "New Feature: Launched Activity Role Events (AR) allowing admins to set custom message requirements for roles.",
+      "Stateless Architecture: Implemented a high-performance verification engine that uses API history fetching instead of disk storage.",
+      "Optimized Audits: Integrated a 5-minute per-user cooldown and 100-message batching to prevent Discord API rate limits.",
+      "Dual-Storage Logic: Main server configurations are now saved directly to default_myserver.json, while others use a dedicated ar_configs.json.",
+      "Admin Control Suite: Added comprehensive commands (ar setup, list, del, setcount, setrole) for real-time requirement management.",
+      "Arcane Integration: Automated role issuance triggered by both message activity and Arcane Bot level-up events."
+    ]
   }
 ]
