@@ -41,6 +41,11 @@ module.exports = {
         return message.reply(`❌ Usage: \`${prefix}ar setup @role Activity Name\``);
       }
 
+      const mainGuildId = process.env.MAIN_GUILD_ID?.trim().replace(/^["'](.+)["']$/, '$1');
+      if (guildId !== mainGuildId && configs.length >= 7) {
+        return message.reply('❌ This server has reached the limit of **7** activity role rules. Remove an existing rule to create a new one.');
+      }
+
       const newConfig = {
         id: Date.now().toString().slice(-6),
         roleId: role.id,
