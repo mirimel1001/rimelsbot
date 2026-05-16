@@ -110,6 +110,7 @@ const verifyActivity = async (member, channel) => {
 
     client.arCooldowns.set(cooldownKey, now);
 
+    let needsSave = false;
     for (const config of guildConfigs) {
       if (!config.roleId || member.roles.cache.has(config.roleId)) continue;
 
@@ -119,22 +120,28 @@ const verifyActivity = async (member, channel) => {
             // Success Logs
             if (config.logChannel) {
               const logChan = config.logChannel === 'same' ? channel : member.guild.channels.cache.get(config.logChannel);
+              
               if (logChan && logChan.permissionsFor(client.user)?.has('SendMessages')) {
                 // Support placeholders: {user}, {role}, {name}
                 let msg = config.customMessage || "Congrats you just got {name} role {role}!";
-                msg = msg.replace(/{user}/g, member.toString())
-                         .replace(/{role}/g, `<@&${config.roleId}>`)
-                         .replace(/{name}/g, config.name);
+                msg = msg.replace(/{user}|{User Mention}/g, member.toString())
+                         .replace(/{role}|{Role}/g, `<@&${config.roleId}>`)
+                         .replace(/{name}|{Activity Name}/g, config.name);
                 
                 const logMsg = await logChan.send(msg).catch(() => null);
                 if (logMsg && config.deleteLog) {
                   setTimeout(() => logMsg.delete().catch(() => null), (config.deleteTime || 60) * 1000);
                 }
+              } else if (config.logChannel !== 'same') {
+                // Channel deleted or bot lacks perms - auto reset
+                config.logChannel = null;
+                needsSave = true;
               }
             }
 
             if (config.adminLogChannel) {
-              const adminChan = member.guild.channels.cache.get(config.adminLogChannel);
+              const adminChan = config.adminLogChannel === 'same' ? channel : member.guild.channels.cache.get(config.adminLogChannel);
+              
               if (adminChan && adminChan.permissionsFor(client.user)?.has('SendMessages')) {
                 const logContent = `${member.id} | ${member} - ${config.name} - <@&${config.roleId}>`;
                 const embed = new EmbedBuilder()
@@ -143,6 +150,10 @@ const verifyActivity = async (member, channel) => {
                   .setDescription(logContent)
                   .setTimestamp();
                 adminChan.send({ embeds: [embed] }).catch(() => null);
+              } else if (config.adminLogChannel !== 'same') {
+                // Channel deleted or bot lacks perms - auto reset
+                config.adminLogChannel = null;
+                needsSave = true;
               }
             }
           })
@@ -154,6 +165,10 @@ const verifyActivity = async (member, channel) => {
             }
           });
       }
+    }
+
+    if (needsSave) {
+      await Guild.findOneAndUpdate({ guildId: member.guild.id }, { activityRoles: guildConfigs }).catch(e => console.error('[AR DB Error]', e));
     }
   } catch (err) {
     console.error('[AR Error] Activity verification failed:', err);

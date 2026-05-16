@@ -6,7 +6,7 @@ module.exports = {
   aliases: ["ar"],
   category: "Activity Role Event",
   adminOnly: true,
-  description: "Manage activity roles. (Rolling 14-day window)\n🔹 **Sub-commands:**\n• `setup` / `set`: Create new rule\n• `list`: Show server rules\n• `del` / `delete`: Remove rule\n• `edit`: Open dashboard\n🔹 **Edit Options & Aliases:**\n• `req msgs` / `msgs`: Msg count\n• `lc` / `logchannel`: Public log\n• `alc` / `adminlogchannel`: Admin log\n• `dl` / `deletelog`: Auto-delete\n• `dt` / `deletetime`: Timer (s)\n• `msg` / `message`: Custom msg",
+  description: "Manage activity roles. (Rolling 14-day window)\n🔹 **Sub-commands:**\n• `setup` / `set`: Create new rule\n• `list`: Show server rules\n• `del` / `delete`: Remove rule\n• `edit`: Open dashboard\n🔹 **Edit Options & Aliases:**\n• `req` / `msgs`: Msg count\n• `lc` / `logchannel`: Public log\n• `alc` / `adminlogchannel`: Admin log\n• `dl` / `deletelog`: Auto-delete\n• `dt` / `deletetime`: Timer (s)\n• `msg` / `message`: Custom msg",
   usage: "ar [sub-command] [ID/Name]",
   run: async (client, message, args, prefix, config) => {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
@@ -101,13 +101,28 @@ module.exports = {
         const nextArg = args[2]?.toLowerCase();
 
         if (isReq && nextArg === 'msgs') {
-            // Handle "req msgs [count] [ID]"
             value = args[3];
             const targetId = args.slice(4).join(' ') || args[3];
             ar = configs.find(c => c.id === targetId || c.name.toLowerCase() === targetId?.toLowerCase());
+        } else if ((option === 'msg' || option === 'message') && args.length === 3) {
+            // Handle "ar edit msg [ID]" -> Open modal via button
+            const targetId = args[2];
+            ar = configs.find(c => c.id === targetId || c.name.toLowerCase() === targetId.toLowerCase());
+            if (ar) {
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`ar_edit_msg_${ar.id}`)
+                        .setLabel(`Edit Message for ${ar.name}`)
+                        .setStyle(ButtonStyle.Success)
+                );
+                return message.reply({ 
+                    content: `📝 Click the button below to edit the custom message for **${ar.name}**.`, 
+                    components: [row] 
+                });
+            }
         } else {
             value = args[2];
-            const targetId = args.slice(3).join(' ') || args[1];
+            const targetId = args.slice(3).join(' ') || args[2];
             ar = configs.find(c => c.id === targetId || c.name.toLowerCase() === targetId?.toLowerCase());
         }
       } else {
@@ -132,7 +147,7 @@ module.exports = {
               { name: '📢 Public Log', value: data.logChannel === 'same' ? '`Current Channel`' : (data.logChannel ? `<#${data.logChannel}>` : 'Disabled'), inline: true },
               { name: '🛡️ Admin Log', value: data.adminLogChannel === 'same' ? '`Current Channel`' : (data.adminLogChannel ? `<#${data.adminLogChannel}>` : 'Disabled'), inline: true },
               { name: '⏱️ Deletion', value: data.deleteLog ? `Yes (${data.deleteTime}s)` : 'No', inline: true },
-              { name: '📝 Custom Message', value: `${data.customMessage || 'Congrats you just got {name} role {role}!'}\n\n**Commands**\n\`\`\`${prefix}ar del ${data.id}\`\`\`\n\`\`\`${prefix}ar edit msgs [count] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit lc [#channel] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit alc [#channel] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit dl [true/false] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit dt [seconds] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit msg [text] ${data.id}\`\`\`` }
+              { name: '📝 Custom Message', value: `${data.customMessage || 'Congrats you just got {name} role {role}!'}\n\n**Commands**\n\`\`\`${prefix}ar del ${data.id}\`\`\`\n\`\`\`${prefix}ar edit req [count] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit lc [#channel] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit alc [#channel] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit dl [true/false] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit dt [seconds] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit msg ${data.id}\`\`\`` }
             );
         };
 
@@ -239,7 +254,7 @@ module.exports = {
             } else if (i.customId.startsWith('ar_edit_threshold_')) {
               fieldId = 'msgs'; label = 'Message Requirement'; placeholder = '5'; currentVal = targetAr.req_msgs.toString();
             } else if (i.customId.startsWith('ar_edit_msg_')) {
-              fieldId = 'msg'; label = 'Custom Message'; placeholder = 'Use {user}, {role}, {name}'; currentVal = targetAr.customMessage || '';
+              fieldId = 'msg'; label = 'Custom Message'; placeholder = 'Use {Activity Name}, {User Mention}, {Role}'; currentVal = targetAr.customMessage || '';
             }
 
             const input = new TextInputBuilder()
@@ -326,8 +341,8 @@ module.exports = {
         { name: `📜 list`, value: `\`${prefix}ar list\`` },
         { name: `🗑️ del`, value: `\`${prefix}ar del [ID/Name]\`` },
         { name: `✏️ edit`, value: `\`${prefix}ar edit [ID/Name]\` (Opens Menu)` },
-        { name: `🚀 Quick Edit`, value: `\`${prefix}ar edit [option] [value] [ID/Name]\`\n**Options:** msgs, lc, alc, dl, dt, msg` },
-        { name: `📝 Placeholders`, value: `{user}, {role}, {name}` }
+        { name: `🚀 Quick Edit`, value: `\`${prefix}ar edit [option] [value] [ID/Name]\`\n**Options:** req, lc, alc, dl, dt, msg` },
+        { name: `📝 Placeholders`, value: `{Activity Name}, {User Mention}, {Role}` }
       );
 
     return message.reply({ embeds: [helpEmbed] });
