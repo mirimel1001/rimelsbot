@@ -127,7 +127,7 @@ module.exports = {
               { name: '📢 Public Log', value: data.logChannel === 'same' ? '`Current Channel`' : (data.logChannel ? `<#${data.logChannel}>` : 'Disabled'), inline: true },
               { name: '🛡️ Admin Log', value: data.adminLogChannel === 'same' ? '`Current Channel`' : (data.adminLogChannel ? `<#${data.adminLogChannel}>` : 'Disabled'), inline: true },
               { name: '⏱️ Deletion', value: data.deleteLog ? `Yes (${data.deleteTime}s)` : 'No', inline: true },
-              { name: '📝 Custom Message', value: `${data.customMessage || 'Congrats you just got {name} role {role}!'}\n\n**Commands**\n\`\`\`${prefix}ar del ${data.id}\`\`\`\n\`\`\`msgs, lc, alc, dl, dt, msg\`\`\`` }
+              { name: '📝 Custom Message', value: `${data.customMessage || 'Congrats you just got {name} role {role}!'}\n\n**Commands**\n\`\`\`${prefix}ar del ${data.id}\`\`\`\n\`\`\`msgs\`\`\`\n\`\`\`lc\`\`\`\n\`\`\`alc\`\`\`\n\`\`\`dl\`\`\`\n\`\`\`dt\`\`\`\n\`\`\`msg\`\`\`` }
             );
         };
 
