@@ -55,11 +55,21 @@ module.exports = {
 
       pageItems.forEach((item, pageIdx) => {
         const itemNumber = start + pageIdx + 1;
-        const tempTag = item.isTemporary ? `⏳ Temp (${formatDuration(item.durationMs)})` : '♾️ Permanent';
+        
+        let priceTag = `💰 ${formatNumber(item.price)}`;
+        let tempTag = '♾️ Permanent';
+
+        if (item.priceMode === 'RENT') {
+          priceTag = `💰 ${formatNumber(item.price)} / day`;
+          tempTag = `🔑 Rentable (Dynamic)`;
+        } else if (item.isTemporary) {
+          tempTag = `⏳ Temp (${formatDuration(item.durationMs)})`;
+        }
+
         const stockTag = item.stock === 0 ? '❌ **OUT OF STOCK**' : (item.stock === -1 ? '∞' : `${item.stock} left`);
         const saleTag = item.saleExpiresAt ? ` | 🍂 Sale ends: <t:${Math.floor(item.saleExpiresAt.getTime() / 1000)}:R>` : '';
 
-        const desc = `**Price:** 💰 ${formatNumber(item.price)}\n**Details:** ${item.description}\n**Type:** ${tempTag} | **Stock:** ${stockTag}${saleTag}`;
+        const desc = `**Price:** ${priceTag}\n**Details:** ${item.description}\n**Type:** ${tempTag} | **Stock:** ${stockTag}${saleTag}`;
         
         embed.addFields({
           name: `🛍️ [${itemNumber}] ${item.name}`,

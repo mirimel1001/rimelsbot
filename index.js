@@ -327,7 +327,7 @@ const checkExpiredRoles = async () => {
     console.error('[Expiration Worker Error]', err);
   }
 };
-setInterval(checkExpiredRoles, 5 * 60 * 1000);
+setInterval(checkExpiredRoles, 3 * 60 * 60 * 1000);
 setInterval(checkMaxBalances, 3 * 60 * 60 * 1000);
 
 // --- EVENT HANDLERS ---

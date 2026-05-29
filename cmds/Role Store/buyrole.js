@@ -67,6 +67,21 @@ module.exports = {
 
       const item = activeStore[index - 1];
 
+      // Check pricing mode and calculate price/duration
+      let totalPrice = item.price;
+      let durationMs = item.durationMs;
+      let rentDays = 0;
+
+      if (item.priceMode === 'RENT') {
+        const rentDaysInput = args[1];
+        rentDays = parseInt(rentDaysInput);
+        if (isNaN(rentDays) || rentDays <= 0) {
+          return message.reply(`❌ **Rent Period Required:** **${item.name}** is a rentable role (💰 ${formatNumber(item.price)}/day).\nSpecify the number of days you wish to rent it for!\n*Usage: \`${prefix}br ${index} [days]\` (e.g. \`${prefix}br ${index} 7\` to rent for 7 days)*`);
+        }
+        totalPrice = item.price * rentDays;
+        durationMs = 24 * 60 * 60 * 1000 * rentDays;
+      }
+
       // Check stock
       if (item.stock === 0) {
         return message.reply("❌ This role is currently out of stock!");
@@ -92,8 +107,8 @@ module.exports = {
           client,
           message.guild.id,
           message.author.id,
-          item.price,
-          `Role Store Purchase: ${item.name}`
+          totalPrice,
+          `Role Store Purchase: ${item.name} ${item.priceMode === 'RENT' ? `(${rentDays}d)` : ''}`
         );
 
         if (!deduction.success) {
@@ -108,8 +123,8 @@ module.exports = {
         userInv.roles.push({
           roleId: item.roleId,
           name: item.name,
-          isTemporary: item.isTemporary,
-          durationMs: item.durationMs,
+          isTemporary: item.isTemporary || item.priceMode === 'RENT',
+          durationMs: durationMs,
           purchasedAt: new Date(),
           isUsed: false,
           assignedTo: null
@@ -126,13 +141,17 @@ module.exports = {
           }
         }
 
+        const durationText = item.priceMode === 'RENT' 
+          ? `Rented for **${rentDays} days**` 
+          : (item.isTemporary ? `Temporary (${formatDuration(item.durationMs)})` : 'Permanent');
+
         const successEmbed = new EmbedBuilder()
           .setColor('#43B581')
           .setTitle('🛍️ Role Store Purchase Successful!')
-          .setDescription(`You successfully purchased **${item.name}** for **💰 ${formatNumber(item.price)}**!`)
+          .setDescription(`You successfully purchased **${item.name}** ${item.priceMode === 'RENT' ? `for **${rentDays} days**` : ''} for a total of **💰 ${formatNumber(totalPrice)}**!`)
           .addFields(
             { name: '📦 Delivery', value: `The item has been added to your inventory. Type \`${prefix}ri\` to view it.`, inline: false },
-            { name: '🏷️ Activation', value: `Use \`${prefix}ur ${item.name}\` to equip it on yourself, or \`${prefix}ur @member ${item.name}\` to gift/equip it to a friend!`, inline: false }
+            { name: '🏷️ Activation', value: `Use \`${prefix}ur ${item.name}\` to equip it on yourself, or \`${prefix}ur @member ${item.name}\` to gift/equip it to a friend!\n*(Role duration: **${durationText}**)*`, inline: false }
           )
           .setTimestamp();
 
@@ -167,10 +186,9 @@ module.exports = {
       if (input === 'add') {
         const roleMention = args[1];
         const priceInput = args[2];
-        const descInput = args.slice(3).join(' ');
 
         if (!roleMention || !priceInput) {
-          return message.reply(`❌ **Usage:** \`${prefix}br add [@role/RoleID] [price] [optional description]\``);
+          return message.reply(`❌ **Usage:** \`${prefix}br add [@role/RoleID] [price] [fixed/rent] [duration/0] [optional description]\``);
         }
 
         const roleId = roleMention.replace(/[<@&>]/g, '');
@@ -185,15 +203,44 @@ module.exports = {
           return message.reply("⚠️ This role is already listed in the storefront!");
         }
 
+        let mode = 'FIXED';
+        let durationMs = 0;
+        let isTemporary = false;
+        let descInput = args.slice(3).join(' ');
+
+        // Check if pricing mode is specified
+        const potentialMode = args[3]?.toUpperCase();
+        if (potentialMode === 'FIXED' || potentialMode === 'RENT') {
+          mode = potentialMode;
+          const tempInput = args[4];
+          if (mode === 'RENT') {
+            isTemporary = true;
+            durationMs = 24 * 60 * 60 * 1000; // 1 day base unit
+            descInput = args.slice(5).join(' ');
+          } else {
+            if (tempInput && tempInput !== '0') {
+              durationMs = parseDuration(tempInput);
+              if (durationMs > 0) {
+                isTemporary = true;
+              }
+            }
+            descInput = args.slice(5).join(' ');
+          }
+        }
+
         guildData.roleStore.push({
           roleId: role.id,
           name: role.name,
           price: price,
-          description: descInput || "No description provided."
+          priceMode: mode,
+          description: descInput || "No description provided.",
+          isTemporary: isTemporary,
+          durationMs: durationMs
         });
 
         await guildData.save();
-        return message.reply(`✅ Listed **${role.name}** in the storefront for **💰 ${formatNumber(price)}**!`);
+        const modeText = mode === 'RENT' ? 'as a Rentable role (price per day)' : (isTemporary ? `as a Temporary role (${formatDuration(durationMs)})` : 'as a Permanent role');
+        return message.reply(`✅ Listed **${role.name}** in the storefront for **💰 ${formatNumber(price)}** ${modeText}!`);
       }
 
       // --- BR REMOVE ---
@@ -461,10 +508,17 @@ function registerBRListener(client) {
 
       const priceInput = new TextInputBuilder()
         .setCustomId('rs_price')
-        .setLabel('Store Price (Coins) *')
+        .setLabel('Store Price (Coins or Coins/Day) *')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('e.g. 5000')
         .setRequired(true);
+
+      const modeInput = new TextInputBuilder()
+        .setCustomId('rs_mode')
+        .setLabel('Pricing Mode (fixed / rent)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Enter "fixed" or "rent" (defaults to fixed)')
+        .setRequired(false);
 
       const descInput = new TextInputBuilder()
         .setCustomId('rs_desc')
@@ -482,6 +536,7 @@ function registerBRListener(client) {
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(priceInput),
+        new ActionRowBuilder().addComponents(modeInput),
         new ActionRowBuilder().addComponents(descInput),
         new ActionRowBuilder().addComponents(durationInput)
       );
@@ -493,6 +548,7 @@ function registerBRListener(client) {
     if (i.isModalSubmit() && i.customId.startsWith('rs_add_details_')) {
       const roleId = i.customId.split('_')[3];
       const priceVal = parseInt(i.fields.getTextInputValue('rs_price').trim());
+      const modeVal = i.fields.getTextInputValue('rs_mode').trim().toUpperCase() || 'FIXED';
       const descVal = i.fields.getTextInputValue('rs_desc').trim();
       const durationVal = i.fields.getTextInputValue('rs_duration').trim().toLowerCase() || '0';
 
@@ -505,15 +561,24 @@ function registerBRListener(client) {
         return i.reply({ content: "❌ Price must be a valid positive number.", flags: [MessageFlags.Ephemeral] });
       }
 
+      if (modeVal !== 'FIXED' && modeVal !== 'RENT') {
+        return i.reply({ content: "❌ **Invalid Pricing Mode!** Please enter either `fixed` or `rent`.", flags: [MessageFlags.Ephemeral] });
+      }
+
       let isTemporary = false;
       let durationMs = 0;
 
-      if (durationVal !== '0' && durationVal !== '') {
-        durationMs = parseDuration(durationVal);
-        if (durationMs <= 0) {
-          return i.reply({ content: "❌ **Invalid Duration Format!** Please specify a duration like `7d` (days), `24h` (hours), or `30m` (minutes), or enter `0` for permanent.", flags: [MessageFlags.Ephemeral] });
-        }
+      if (modeVal === 'RENT') {
         isTemporary = true;
+        durationMs = 24 * 60 * 60 * 1000; // 1 day base unit
+      } else {
+        if (durationVal !== '0' && durationVal !== '') {
+          durationMs = parseDuration(durationVal);
+          if (durationMs <= 0) {
+            return i.reply({ content: "❌ **Invalid Duration Format!** Please specify a duration like `7d` (days), `24h` (hours), or `30m` (minutes), or enter `0` for permanent.", flags: [MessageFlags.Ephemeral] });
+          }
+          isTemporary = true;
+        }
       }
 
       const freshGuild = await Guild.findOne({ guildId: i.guild.id }) || new Guild({ guildId: i.guild.id });
@@ -525,13 +590,16 @@ function registerBRListener(client) {
         roleId: role.id,
         name: role.name,
         price: priceVal,
+        priceMode: modeVal,
         description: descVal || "No description provided.",
         isTemporary: isTemporary,
         durationMs: durationMs
       });
 
       await freshGuild.save();
-      const durationText = isTemporary ? `⏳ **Temporary (${formatDuration(durationMs)})**` : '♾️ **Permanent**';
+      const durationText = modeVal === 'RENT' 
+        ? '🔑 **Rentable (Daily)**' 
+        : (isTemporary ? `⏳ **Temporary (${formatDuration(durationMs)})**` : '♾️ **Permanent**');
       return i.reply({ content: `✅ Successfully listed **${role.name}** in the storefront for **💰 ${priceVal.toLocaleString()}**!\n* **Type:** ${durationText}\n\n*Please re-open the setup dashboard to refresh the active listings table.*`, flags: [MessageFlags.Ephemeral] });
     }
   });

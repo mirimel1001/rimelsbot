@@ -20,6 +20,7 @@ const GuildSchema = new mongoose.Schema({
     roleId: { type: String, required: true },
     name: { type: String, required: true },
     price: { type: Number, required: true },
+    priceMode: { type: String, default: 'FIXED' },     // FIXED or RENT
     description: { type: String, default: "" },
     isTemporary: { type: Boolean, default: false },
     durationMs: { type: Number, default: 0 },          // Duration of temporary role in milliseconds
