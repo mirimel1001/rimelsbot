@@ -475,7 +475,7 @@ function registerBRListener(client) {
 
       const durationInput = new TextInputBuilder()
         .setCustomId('rs_duration')
-        .setLabel('Temporary Duration (e.g. 7d, 24h / 0 for perm)')
+        .setLabel('Temp Duration (e.g. 7d, 24h / 0 for perm)')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('Enter 0 for permanent, or e.g., 7d, 24h, 30m')
         .setRequired(false);
