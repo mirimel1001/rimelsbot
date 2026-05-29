@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, PermissionsBitField, ComponentType, MessageFlags } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, PermissionsBitField, ComponentType, MessageFlags, RoleSelectMenuBuilder } = require('discord.js');
 const Guild = require('../../models/Guild');
 const Inventory = require('../../models/Inventory');
 const axios = require('axios');
@@ -38,6 +38,7 @@ module.exports = {
   description: "Purchase a role from the storefront or manage store listings (Admins).",
   usage: "br [number] / br setup / br add [@role] [price]",
   run: async (client, message, args, prefix, config) => {
+    registerBRListener(client);
     const input = args[0]?.toLowerCase();
 
     if (input === 'list') {
@@ -370,81 +371,14 @@ async function startInteractiveSetup(client, message, guildData) {
       return i.update({ content: '✅ Setup dashboard closed.', embeds: [], components: [] });
     }
 
-    // ADD ROLE DIALOGUE (Modal based)
+    // ADD ROLE DIALOGUE (Role Select Menu)
     if (i.customId === 'rs_add') {
-      const modal = new ModalBuilder()
-        .setCustomId('rs_add_modal')
-        .setTitle('Add Role to Storefront');
+      const roleSelect = new RoleSelectMenuBuilder()
+        .setCustomId('rs_add_role_select')
+        .setPlaceholder('Select a role to add to the storefront...');
 
-      const roleInput = new TextInputBuilder()
-        .setCustomId('rs_role_id')
-        .setLabel('Role ID or exact Role Name')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Enter Role ID...')
-        .setRequired(true);
-
-      const priceInput = new TextInputBuilder()
-        .setCustomId('rs_price')
-        .setLabel('Store Price (Coins)')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g. 5000')
-        .setRequired(true);
-
-      const descInput = new TextInputBuilder()
-        .setCustomId('rs_desc')
-        .setLabel('Store Description')
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('Details about the role perks...')
-        .setRequired(false);
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(roleInput),
-        new ActionRowBuilder().addComponents(priceInput),
-        new ActionRowBuilder().addComponents(descInput)
-      );
-
-      await i.showModal(modal);
-
-      try {
-        const submitted = await i.awaitModalSubmit({
-          time: 60000,
-          filter: mi => mi.customId === 'rs_add_modal' && mi.user.id === i.user.id,
-        });
-
-        if (submitted) {
-          const roleVal = submitted.fields.getTextInputValue('rs_role_id').trim();
-          const priceVal = parseInt(submitted.fields.getTextInputValue('rs_price').trim());
-          const descVal = submitted.fields.getTextInputValue('rs_desc').trim();
-
-          const role = await message.guild.roles.fetch(roleVal).catch(() => null) ||
-                       message.guild.roles.cache.find(r => r.name.toLowerCase() === roleVal.toLowerCase());
-
-          if (!role) {
-            return submitted.reply({ content: "❌ Role not found. Please provide a valid Role ID or exact name.", flags: [MessageFlags.Ephemeral] });
-          }
-
-          if (isNaN(priceVal) || priceVal < 0) {
-            return submitted.reply({ content: "❌ Price must be a positive number.", flags: [MessageFlags.Ephemeral] });
-          }
-
-          const freshGuild = await Guild.findOne({ guildId: message.guild.id }) || new Guild({ guildId: message.guild.id });
-          if (freshGuild.roleStore.some(item => item.roleId === role.id)) {
-            return submitted.reply({ content: "⚠️ This role is already listed in the store!", flags: [MessageFlags.Ephemeral] });
-          }
-
-          freshGuild.roleStore.push({
-            roleId: role.id,
-            name: role.name,
-            price: priceVal,
-            description: descVal || "No description provided."
-          });
-
-          await freshGuild.save();
-          await submitted.update({ embeds: [generateEmbed(freshGuild)] });
-        }
-      } catch (err) {
-        // Timeout
-      }
+      const selectRow = new ActionRowBuilder().addComponents(roleSelect);
+      await i.reply({ content: '🔍 **Choose a Role:** Select the role you wish to sell from the menu below:', components: [selectRow], flags: [MessageFlags.Ephemeral] });
     }
 
     // REMOVE ROLE DIALOGUE (Modal based)
@@ -499,3 +433,84 @@ async function startInteractiveSetup(client, message, guildData) {
     setupMsg.edit({ components: [] }).catch(() => {});
   });
 }
+
+function registerBRListener(client) {
+  if (client.brListenerRegistered) return;
+  client.brListenerRegistered = true;
+
+  client.on('interactionCreate', async (i) => {
+    if (!i.isRoleSelectMenu() && !i.isModalSubmit()) return;
+
+    // --- 1. Catch Role Select Menu Submission ---
+    if (i.isRoleSelectMenu() && i.customId === 'rs_add_role_select') {
+      const roleId = i.values[0];
+      const role = await i.guild.roles.fetch(roleId).catch(() => null);
+      if (!role) {
+        return i.reply({ content: "❌ Role not found on the server.", flags: [MessageFlags.Ephemeral] });
+      }
+
+      const guildData = await Guild.findOne({ guildId: i.guild.id }) || new Guild({ guildId: i.guild.id });
+      if (guildData.roleStore.some(item => item.roleId === role.id)) {
+        return i.reply({ content: "⚠️ This role is already listed in the storefront!", flags: [MessageFlags.Ephemeral] });
+      }
+
+      // Present Modal to obtain Price and Description
+      const modal = new ModalBuilder()
+        .setCustomId(`rs_add_details_${role.id}`)
+        .setTitle(`Store Details for ${role.name.slice(0, 20)}`);
+
+      const priceInput = new TextInputBuilder()
+        .setCustomId('rs_price')
+        .setLabel('Store Price (Coins) *')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('e.g. 5000')
+        .setRequired(true);
+
+      const descInput = new TextInputBuilder()
+        .setCustomId('rs_desc')
+        .setLabel('Store Description')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Enter description/perks of this role...')
+        .setRequired(false);
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(priceInput),
+        new ActionRowBuilder().addComponents(descInput)
+      );
+
+      await i.showModal(modal);
+    }
+
+    // --- 2. Catch Modal Submissions ---
+    if (i.isModalSubmit() && i.customId.startsWith('rs_add_details_')) {
+      const roleId = i.customId.split('_')[3];
+      const priceVal = parseInt(i.fields.getTextInputValue('rs_price').trim());
+      const descVal = i.fields.getTextInputValue('rs_desc').trim();
+
+      const role = await i.guild.roles.fetch(roleId).catch(() => null);
+      if (!role) {
+        return i.reply({ content: "❌ Role not found on the server.", flags: [MessageFlags.Ephemeral] });
+      }
+
+      if (isNaN(priceVal) || priceVal < 0) {
+        return i.reply({ content: "❌ Price must be a valid positive number.", flags: [MessageFlags.Ephemeral] });
+      }
+
+      const freshGuild = await Guild.findOne({ guildId: i.guild.id }) || new Guild({ guildId: i.guild.id });
+      if (freshGuild.roleStore.some(item => item.roleId === role.id)) {
+        return i.reply({ content: "⚠️ This role is already listed in the store!", flags: [MessageFlags.Ephemeral] });
+      }
+
+      freshGuild.roleStore.push({
+        roleId: role.id,
+        name: role.name,
+        price: priceVal,
+        description: descVal || "No description provided."
+      });
+
+      await freshGuild.save();
+      return i.reply({ content: `✅ Successfully listed **${role.name}** in the storefront for **💰 ${priceVal.toLocaleString()}**!\n*Please re-open the setup dashboard to refresh the active listings table.*`, flags: [MessageFlags.Ephemeral] });
+    }
+  });
+}
+
