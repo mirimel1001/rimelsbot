@@ -260,6 +260,7 @@ const checkExpiredRoles = async () => {
 
     for (const inv of inventories) {
       let needsSave = false;
+      const toRemoveIds = [];
 
       for (const item of inv.roles) {
         if (item.isTemporary && item.isUsed && item.expiresAt && item.expiresAt < now) {
@@ -281,10 +282,8 @@ const checkExpiredRoles = async () => {
               }
             }
 
-            // Database Updates
-            item.isUsed = false;
-            item.assignedTo = null;
-            item.expiresAt = null; // Reset timer so it is dormant again
+            // Mark for deletion from inventory array upon expiration
+            toRemoveIds.push(item._id);
             needsSave = true;
 
             // Send expiration DM with renewal option
@@ -293,7 +292,7 @@ const checkExpiredRoles = async () => {
               const dmEmbed = new EmbedBuilder()
                 .setColor('#ED4245')
                 .setTitle('⏳ Temporary Role Expired!')
-                .setDescription(`Your temporary role **${item.name}** in server **${guild.name}** has expired and has been unequipped.\nWould you like to purchase a renewal?`)
+                .setDescription(`Your temporary role **${item.name}** in server **${guild.name}** has expired.\nWould you like to purchase a renewal?`)
                 .setTimestamp();
 
               // Check storefront price in Guild schema
@@ -320,6 +319,9 @@ const checkExpiredRoles = async () => {
       }
 
       if (needsSave) {
+        for (const removeId of toRemoveIds) {
+          inv.roles.pull(removeId);
+        }
         await inv.save();
       }
     }

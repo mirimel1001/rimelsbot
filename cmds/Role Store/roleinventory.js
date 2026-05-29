@@ -22,57 +22,146 @@ module.exports = {
   run: async (client, message, args, prefix, config) => {
     if (!message.guild) return message.reply("❌ Inventories can only be viewed within a server.");
 
-    const inv = await Inventory.findOne({ guildId: message.guild.id, userId: message.author.id });
-    if (!inv || !inv.roles || inv.roles.length === 0) {
+    let inv = await Inventory.findOne({ guildId: message.guild.id, userId: message.author.id });
+
+    const firstArg = args[0]?.toLowerCase();
+    if (firstArg === 'discard' || firstArg === 'remove' || firstArg === 'delete') {
+      const indexInput = args[1];
+      if (!indexInput) {
+        return message.reply(`❌ **Usage:** \`${prefix}ri discard [inventory id/number]\``);
+      }
+
+      if (!inv || !inv.roles || inv.roles.length === 0) {
+        return message.reply("📭 Your inventory is empty.");
+      }
+
+      const index = parseInt(indexInput);
+      if (isNaN(index) || index < 1 || index > inv.roles.length) {
+        return message.reply(`❌ **Invalid Inventory Number:** Please specify a number between 1 and ${inv.roles.length}.`);
+      }
+
+      const item = inv.roles[index - 1];
+
+      // If the role is currently equipped, strip it from Discord first!
+      if (item.isUsed) {
+        const wearerId = item.assignedTo;
+        const wearerMember = await message.guild.members.fetch(wearerId).catch(() => null);
+        if (wearerMember) {
+          const discordRole = await message.guild.roles.fetch(item.roleId).catch(() => null);
+          if (discordRole) {
+            try {
+              await wearerMember.roles.remove(discordRole);
+            } catch (err) {
+              console.error('[Discard Discord Error]', err);
+            }
+          }
+        }
+      }
+
+      // Remove from inventory array
+      const discardedName = item.name;
+      inv.roles.splice(index - 1, 1);
+      await inv.save();
+
+      return message.reply(`🗑️ **Item Discarded:** Successfully removed **${discardedName}** (Item #${index}) from your inventory.`);
+    }
+
+    // Query active roles equipped on this user by other guild members
+    const activeGifted = await Inventory.find({
+      guildId: message.guild.id,
+      userId: { $ne: message.author.id },
+      "roles": { $elemMatch: { isUsed: true, assignedTo: message.author.id } }
+    });
+
+    const giftedRoles = [];
+    for (const otherInv of activeGifted) {
+      for (const r of otherInv.roles) {
+        if (r.isUsed && r.assignedTo === message.author.id) {
+          giftedRoles.push({
+            name: r.name,
+            giftedBy: otherInv.userId,
+            isTemporary: r.isTemporary,
+            expiresAt: r.expiresAt
+          });
+        }
+      }
+    }
+
+    const ownRolesCount = inv?.roles?.length || 0;
+    const hasOwnItems = ownRolesCount > 0;
+    const hasGiftedItems = giftedRoles.length > 0;
+
+    if (!hasOwnItems && !hasGiftedItems) {
       return message.reply(`📭 Your inventory is currently empty! Use \`${prefix}br list\` to browse available roles.`);
     }
 
     let pageIndex = 0;
-    const pageSize = 5;
-    const totalPages = Math.ceil(inv.roles.length / pageSize);
+    const pageSize = 10;
+    const totalPages = Math.max(1, Math.ceil(ownRolesCount / pageSize));
 
     const generateInventoryPage = (index) => {
       const start = index * pageSize;
-      const pageItems = inv.roles.slice(start, start + pageSize);
+      const pageItems = inv ? inv.roles.slice(start, start + pageSize) : [];
 
       const embed = new EmbedBuilder()
         .setColor('#5865F2')
         .setTitle(`📦 ${message.author.username}'s Role Inventory`)
-        .setDescription(`Manage your items here.\n* Use \`${prefix}ur [inventory id/number]\` to equip a role on yourself.*\n* Use \`${prefix}ur [inventory id/number] @member\` to gift and equip it on a friend.*\n* Use \`${prefix}ur unequip [inventory id/number]\` to return an active role to inventory.*\n\n*Total items: ${inv.roles.length}*`)
         .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
         .setTimestamp()
         .setFooter({ text: `Page ${index + 1} of ${totalPages}` });
+
+      let descriptionText = `Manage your items here.\n`;
+      if (ownRolesCount > 0) {
+        descriptionText += `* Use \`${prefix}ur [inventory id/number]\` to equip a role on yourself.*\n* Use \`${prefix}ur [inventory id/number] @member\` to gift and equip it on a friend.*\n* Use \`${prefix}ur unequip [inventory id/number]\` to return an active role to inventory.*\n* Use \`${prefix}ri discard [inventory id/number]\` to permanently delete an item.*\n\n*Total items: ${ownRolesCount}*\n────────────────────────────────────────\n\n`;
+      } else {
+        descriptionText += `*You do not currently own any items in your inventory. Use \`${prefix}br list\` to buy roles!*\n\n`;
+      }
 
       pageItems.forEach((item, pageIdx) => {
         const itemNumber = start + pageIdx + 1;
         const purchaseDate = new Date(item.purchasedAt).toLocaleDateString();
         
-        let details = `**Purchased on:** ${purchaseDate}\n`;
-        
+        let typeTag = "";
+        let statusTag = "";
+
         if (item.isTemporary) {
-          details += `**Type:** ⏳ Temporary (Duration: ${formatDuration(item.durationMs)})\n`;
+          typeTag = `⏳ Temp (${formatDuration(item.durationMs)})`;
           if (item.isUsed) {
             const timeRemaining = item.expiresAt ? Math.max(0, item.expiresAt.getTime() - Date.now()) : 0;
-            details += `**Status:** ✅ Equipped on ${item.assignedTo === message.author.id ? 'Self' : `<@${item.assignedTo}>`}\n`;
-            details += `**Time Remaining:** <t:${Math.floor(item.expiresAt.getTime() / 1000)}:R> (${formatDuration(timeRemaining)} remaining)\n`;
+            statusTag = `✅ Equipped on ${item.assignedTo === message.author.id ? 'Self' : `<@${item.assignedTo}>`} (<t:${Math.floor(item.expiresAt.getTime() / 1000)}:R> remaining)`;
           } else {
-            details += `**Status:** 💤 Dormant in Inventory (Timer starts on equip)\n`;
+            statusTag = `💤 Dormant in Inventory`;
           }
         } else {
-          details += `**Type:** ♾️ Permanent\n`;
+          typeTag = `♾️ Permanent`;
           if (item.isUsed) {
-            details += `**Status:** ✅ Equipped on ${item.assignedTo === message.author.id ? 'Self' : `<@${item.assignedTo}>`}\n`;
+            statusTag = `✅ Equipped on ${item.assignedTo === message.author.id ? 'Self' : `<@${item.assignedTo}>`}`;
           } else {
-            details += `**Status:** 📦 Unused in Inventory\n`;
+            statusTag = `📦 Unused in Inventory`;
           }
         }
 
-        embed.addFields({
-          name: `🏷️ [${itemNumber}] ${item.name}`,
-          value: details,
-          inline: false
-        });
+        descriptionText += `**[ ${itemNumber} ]  ${item.name}**\n`;
+        descriptionText += `*Type: ${typeTag}  |  Status: ${statusTag}  |  Bought: ${purchaseDate}*\n`;
+        if (pageIdx < pageItems.length - 1) {
+          descriptionText += `────────────────────────────────────────\n`;
+        } else {
+          descriptionText += `\n`;
+        }
       });
+
+      embed.setDescription(descriptionText);
+
+      if (giftedRoles.length > 0) {
+        let giftedText = "";
+        giftedRoles.forEach((gr, idx) => {
+          const tempText = gr.isTemporary 
+            ? `⏳ Temporary (Expires: <t:${Math.floor(gr.expiresAt.getTime() / 1000)}:R>)`
+            : '♾️ Permanent';
+          giftedText += `**${idx + 1}.** **${gr.name}** — Equipped by <@${gr.giftedBy}> [${tempText}]\n`;
+        });
+        embed.addFields({ name: '🎁 Active Roles Equipped on You by Others', value: giftedText });
+      }
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
