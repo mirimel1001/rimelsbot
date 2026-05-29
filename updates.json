@@ -237,5 +237,18 @@
       "Auto-Cleanup: Implemented self-deleting prompts and responses for a zero-clutter administrative experience.",
       "Performance Tuning: Optimized internal verification logic and upgraded interaction responses to the latest Discord.js standards."
     ]
+  },
+  {
+    "version": "2.1.9",
+    "date": "2026-05-29",
+    "title": "The Role Store & Inventory Automation Update",
+    "items": [
+      "New Feature: Launched a premium Role Store Utility letting admins sell server roles using the UnbelievaBoat economy.",
+      "Inventory Management: Added a database-backed inventory system (r ri) to track purchased roles, dormant durations, and active wearers.",
+      "Activation & Gifting: Designed a dynamic activation engine (r ur) allowing users to wear roles, gift/equip them on friends, or return them to inventory.",
+      "Interactive Dashboard: Implemented a button-and-modal driven configuration panel (r br setup) paired with manual CLI setup subcommands.",
+      "Subscription Automation: Integrated a background worker scanning every 5 minutes to automatically strip expired temporary roles.",
+      "One-Click DM Renewals: Programmed automated private DM warnings containing a one-click renewal button to instantly restart timers."
+    ]
   }
 ]

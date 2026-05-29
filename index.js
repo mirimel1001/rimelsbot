@@ -40,6 +40,7 @@ const { Client, GatewayIntentBits, Collection, ActivityType, Events, Partials } 
 const mongoose = require('mongoose');
 const Guild = require('./models/Guild');
 const Token = require('./models/Token');
+const Inventory = require('./models/Inventory');
 const dmHandler = require('./utils/dmHandler');
 
 // --- DATABASE CONNECTION ---
@@ -238,6 +239,95 @@ const checkMaxBalances = async () => {
     } catch (e) {}
   }
 };
+// --- TEMPORARY ROLE EXPIRATION WORKER ---
+const checkExpiredRoles = async () => {
+  if (!client.isReady()) return;
+  const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const { getEconomyToken, formatNumber } = require('./utils/economy.js');
+
+  try {
+    const now = new Date();
+    // Find all inventories with active temporary roles that have expired
+    const inventories = await Inventory.find({
+      "roles": {
+        $elemMatch: {
+          isTemporary: true,
+          isUsed: true,
+          expiresAt: { $lt: now }
+        }
+      }
+    });
+
+    for (const inv of inventories) {
+      let needsSave = false;
+
+      for (const item of inv.roles) {
+        if (item.isTemporary && item.isUsed && item.expiresAt && item.expiresAt < now) {
+          const guildId = inv.guildId;
+          const buyerId = inv.userId;
+          const wearerId = item.assignedTo;
+
+          // Strip role from wearer on Discord
+          const guild = client.guilds.cache.get(guildId);
+          if (guild) {
+            const member = await guild.members.fetch(wearerId).catch(() => null);
+            const role = await guild.roles.fetch(item.roleId).catch(() => null);
+
+            if (member && role) {
+              try {
+                await member.roles.remove(role);
+              } catch (err) {
+                console.error(`[Expiration Worker] Failed to remove role ${role.name} from ${member.user.username}:`, err.message);
+              }
+            }
+
+            // Database Updates
+            item.isUsed = false;
+            item.assignedTo = null;
+            item.expiresAt = null; // Reset timer so it is dormant again
+            needsSave = true;
+
+            // Send expiration DM with renewal option
+            const purchaser = await client.users.fetch(buyerId).catch(() => null);
+            if (purchaser) {
+              const dmEmbed = new EmbedBuilder()
+                .setColor('#ED4245')
+                .setTitle('⏳ Temporary Role Expired!')
+                .setDescription(`Your temporary role **${item.name}** in server **${guild.name}** has expired and has been unequipped.\nWould you like to purchase a renewal?`)
+                .setTimestamp();
+
+              // Check storefront price in Guild schema
+              const guildData = await Guild.findOne({ guildId });
+              const storeItem = guildData?.roleStore.find(si => si.roleId === item.roleId);
+              
+              if (storeItem) {
+                dmEmbed.addFields({ name: '💰 Renewal Cost', value: `💰 ${formatNumber(storeItem.price)}` });
+                
+                const renewRow = new ActionRowBuilder().addComponents(
+                  new ButtonBuilder()
+                    .setCustomId(`role_renew_${item.roleId}_${guildId}`)
+                    .setLabel('🔄 Renew Subscription')
+                    .setStyle(ButtonStyle.Success)
+                );
+
+                await purchaser.send({ embeds: [dmEmbed], components: [renewRow] }).catch(() => null);
+              } else {
+                await purchaser.send({ embeds: [dmEmbed] }).catch(() => null);
+              }
+            }
+          }
+        }
+      }
+
+      if (needsSave) {
+        await inv.save();
+      }
+    }
+  } catch (err) {
+    console.error('[Expiration Worker Error]', err);
+  }
+};
+setInterval(checkExpiredRoles, 5 * 60 * 1000);
 setInterval(checkMaxBalances, 3 * 60 * 60 * 1000);
 
 // --- EVENT HANDLERS ---
@@ -245,6 +335,7 @@ client.once(Events.ClientReady, async () => {
   console.log(`Logged in as ${client.user.tag}!`);
   await loadCaches();
   checkMaxBalances();
+  checkExpiredRoles();
   setInterval(() => {
     try {
       const servers = client.guilds.cache.size;
@@ -278,6 +369,114 @@ client.on('messageCreate', async (message) => {
   if (!command) return;
   try { await command.run(client, message, args, prefix, getConfig()); } 
   catch (e) { console.error(e); message.reply('❌ Command Error.'); }
+});
+
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (!interaction.isButton()) return;
+  if (interaction.customId.startsWith('role_renew_')) {
+    const { EmbedBuilder, MessageFlags } = require('discord.js');
+    const { getEconomyToken, deductFunds, formatNumber } = require('./utils/economy.js');
+
+    const [_, __, roleId, guildId] = interaction.customId.split('_');
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    try {
+      const token = getEconomyToken(client, guildId);
+      if (!token) {
+        return interaction.editReply({ content: "❌ Economy settings not found for this server. Renewals are currently unavailable." });
+      }
+
+      const guildData = await Guild.findOne({ guildId });
+      const storeItem = guildData?.roleStore.find(si => si.roleId === roleId);
+
+      if (!storeItem) {
+        return interaction.editReply({ content: "❌ This role is no longer listed in the server storefront." });
+      }
+
+      // Check stock
+      if (storeItem.stock === 0) {
+        return interaction.editReply({ content: "❌ This role is currently out of stock!" });
+      }
+
+      // Deduct balance
+      const deduction = await deductFunds(
+        client,
+        guildId,
+        interaction.user.id,
+        storeItem.price,
+        `Role Store Subscription Renewal: ${storeItem.name}`
+      );
+
+      if (!deduction.success) {
+        return interaction.editReply({ content: deduction.error });
+      }
+
+      // Load inventory and update
+      let inv = await Inventory.findOne({ guildId, userId: interaction.user.id });
+      if (!inv) {
+        inv = new Inventory({ guildId, userId: interaction.user.id, roles: [] });
+      }
+
+      let item = inv.roles.find(r => r.roleId === roleId);
+      if (!item) {
+        item = {
+          roleId: storeItem.roleId,
+          name: storeItem.name,
+          isTemporary: storeItem.isTemporary,
+          durationMs: storeItem.durationMs,
+          purchasedAt: new Date(),
+          isUsed: false,
+          assignedTo: null
+        };
+        inv.roles.push(item);
+        item = inv.roles[inv.roles.length - 1];
+      }
+
+      // Decrement stock if applicable
+      if (storeItem.stock > 0) {
+        const originalItem = guildData.roleStore.id(storeItem._id);
+        if (originalItem) {
+          originalItem.stock--;
+          await guildData.save();
+        }
+      }
+
+      // Reset timer and activate
+      item.isUsed = true;
+      item.assignedTo = interaction.user.id;
+      item.expiresAt = new Date(Date.now() + storeItem.durationMs);
+
+      await inv.save();
+
+      // Assign on Discord
+      const guild = client.guilds.cache.get(guildId);
+      if (guild) {
+        const member = await guild.members.fetch(interaction.user.id).catch(() => null);
+        const role = await guild.roles.fetch(roleId).catch(() => null);
+        if (member && role) {
+          await member.roles.add(role).catch(err => console.error('[DM Renew Role Add Error]', err.message));
+        }
+      }
+
+      const successEmbed = new EmbedBuilder()
+        .setColor('#43B581')
+        .setTitle('🔄 Subscription Renewed!')
+        .setDescription(`You successfully renewed the role **${storeItem.name}** for **💰 ${formatNumber(storeItem.price)}**!\nThe role has been equipped on yourself, and your new expiration timer is ticking.`)
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [successEmbed] });
+
+      // Disable the button in the original DM
+      try {
+        await interaction.message.edit({ components: [] });
+      } catch (e) {}
+
+    } catch (err) {
+      console.error('[Role Renewal Button Error]', err);
+      return interaction.editReply({ content: "❌ An error occurred while renewing your subscription." });
+    }
+  }
 });
 
 client.login(process.env.DISCORD_TOKEN);
