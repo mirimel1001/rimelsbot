@@ -173,7 +173,7 @@ module.exports = {
           .setTitle('🛍️ Role Store Purchase Successful!')
           .setDescription(`You successfully purchased **${item.name}** ${item.priceMode === 'RENT' ? `for **${formatDuration(durationMs)}**` : ''} for a total of **💰 ${formatNumber(totalPrice)}**!`)
           .addFields(
-            { name: '📦 Delivery', value: `The item has been added to your inventory. Type \`${prefix}ri\` to view it.`, inline: false },
+            { name: '📦 Delivery', value: `The item has been added to your inventory. Type \`${prefix}inv\` to view it.`, inline: false },
             { name: '🏷️ Activation', value: `Use \`${prefix}ur ${userInv.roles.length}\` to equip it on yourself, or \`${prefix}ur ${userInv.roles.length} @member\` to gift/equip it to a friend!\n*(Role duration: **${durationText}**)*`, inline: false }
           )
           .setTimestamp();
@@ -193,7 +193,7 @@ module.exports = {
 
     // If no arguments, guide the user
     if (!input) {
-      return message.reply(`🛍️ **Role Store**\n* Use \`${prefix}br list\` to view available roles.\n* Use \`${prefix}br [number]\` to buy.\n* Use \`${prefix}ri\` to view your inventory.`);
+      return message.reply(`🛍️ **Role Store**\n* Use \`${prefix}br list\` to view available roles.\n* Use \`${prefix}br [number]\` to buy.\n* Use \`${prefix}inv\` to view your inventory.`);
     }
 
     // Handle Admin Setup Action Commands
@@ -388,7 +388,7 @@ module.exports = {
       }
     }
 
-    return message.reply(`🛍️ **Role Store**\n* Use \`${prefix}br list\` to view available roles.\n* Use \`${prefix}br [number]\` to buy.\n* Use \`${prefix}ri\` to view inventory.`);
+    return message.reply(`🛍️ **Role Store**\n* Use \`${prefix}br list\` to view available roles.\n* Use \`${prefix}br [number]\` to buy.\n* Use \`${prefix}inv\` to view inventory.`);
   }
 };
 

@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, MessageFlags } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, MessageFlags, PermissionsBitField } = require('discord.js');
 const Inventory = require('../../models/Inventory');
 
 function formatDuration(ms) {
@@ -36,31 +36,97 @@ function formatPreciseDuration(ms) {
 
 module.exports = {
   name: "roleinventory",
-  aliases: ["i", "inv", "ri", "inventory", "myroles"],
+  aliases: ["i", "inv", "inventory"],
   description: "View your purchased role inventory, showing active wearers and timers.",
-  usage: "ri",
+  usage: "inv",
   run: async (client, message, args, prefix, config) => {
     if (!message.guild) return message.reply("❌ Inventories can only be viewed within a server.");
 
-    let inv = await Inventory.findOne({ guildId: message.guild.id, userId: message.author.id });
-
+    const isAdmin = message.member?.permissions.has(PermissionsBitField.Flags.Administrator);
     const firstArg = args[0]?.toLowerCase();
+
+    // --- ADMIN CLEAR / WIPE COMMAND ---
+    if (firstArg === 'clear' || firstArg === 'wipe') {
+      if (!isAdmin) {
+        return message.reply("❌ Only administrators can wipe/clear inventories.");
+      }
+
+      const userArg = args[1];
+      if (!userArg) {
+        return message.reply(`❌ **Usage:** \`${prefix}ri wipe [@user/UserID]\``);
+      }
+
+      const cleanId = userArg.replace(/[<@!>]/g, '');
+      const member = await message.guild.members.fetch(cleanId).catch(() => null);
+      if (!member) {
+        return message.reply("❌ Invalid user provided.");
+      }
+
+      let targetInv = await Inventory.findOne({ guildId: message.guild.id, userId: member.id });
+      if (!targetInv || !targetInv.roles || targetInv.roles.length === 0) {
+        return message.reply(`📭 ${member.user.username}'s inventory is already empty.`);
+      }
+
+      // Strip all equipped roles on Discord from this inventory
+      for (const item of targetInv.roles) {
+        if (item.isUsed) {
+          const wearerMember = await message.guild.members.fetch(item.assignedTo).catch(() => null);
+          if (wearerMember) {
+            const discordRole = await message.guild.roles.fetch(item.roleId).catch(() => null);
+            if (discordRole) {
+              try {
+                await wearerMember.roles.remove(discordRole);
+              } catch (err) {
+                console.error('[Wipe Discord Error]', err);
+              }
+            }
+          }
+        }
+      }
+
+      targetInv.roles = [];
+      await targetInv.save();
+
+      return message.reply(`🗑️ **Inventory Wiped:** Successfully cleared all items from **${member.user.username}**'s inventory.`);
+    }
+
+    // --- DELETE / DISCARD COMMAND ---
     if (firstArg === 'discard' || firstArg === 'remove' || firstArg === 'delete' || firstArg === 'del') {
-      const indexInput = args[1];
+      let targetUser = message.author;
+      let indexInput = args[1];
+
+      // Check if deleting someone else's item as admin
+      const possibleUserArg = args[1];
+      if (possibleUserArg) {
+        const cleanId = possibleUserArg.replace(/[<@!>]/g, '');
+        const member = await message.guild.members.fetch(cleanId).catch(() => null);
+        if (member) {
+          if (!isAdmin) {
+            return message.reply("❌ Only administrators can manage other users' inventories.");
+          }
+          targetUser = member.user;
+          indexInput = args[2];
+        }
+      }
+
       if (!indexInput) {
+        if (targetUser.id !== message.author.id) {
+          return message.reply(`❌ **Usage:** \`${prefix}ri del @user [inventory id/number]\``);
+        }
         return message.reply(`❌ **Usage:** \`${prefix}ri del [inventory id/number]\``);
       }
 
-      if (!inv || !inv.roles || inv.roles.length === 0) {
-        return message.reply("📭 Your inventory is empty.");
+      let targetInv = await Inventory.findOne({ guildId: message.guild.id, userId: targetUser.id });
+      if (!targetInv || !targetInv.roles || targetInv.roles.length === 0) {
+        return message.reply(`📭 ${targetUser.id === message.author.id ? 'Your' : `${targetUser.username}'s`} inventory is empty.`);
       }
 
       const index = parseInt(indexInput);
-      if (isNaN(index) || index < 1 || index > inv.roles.length) {
-        return message.reply(`❌ **Invalid Inventory Number:** Please specify a number between 1 and ${inv.roles.length}.`);
+      if (isNaN(index) || index < 1 || index > targetInv.roles.length) {
+        return message.reply(`❌ **Invalid Inventory Number:** Please specify a number between 1 and ${targetInv.roles.length}.`);
       }
 
-      const item = inv.roles[index - 1];
+      const item = targetInv.roles[index - 1];
 
       // If the role is currently equipped, strip it from Discord first!
       if (item.isUsed) {
@@ -80,23 +146,38 @@ module.exports = {
 
       // Remove from inventory array
       const discardedName = item.name;
-      inv.roles.splice(index - 1, 1);
-      await inv.save();
+      targetInv.roles.splice(index - 1, 1);
+      await targetInv.save();
 
-      return message.reply(`🗑️ **Item Discarded:** Successfully removed **${discardedName}** (Item #${index}) from your inventory.`);
+      return message.reply(`🗑️ **Item Discarded:** Successfully removed **${discardedName}** (Item #${index}) from ${targetUser.id === message.author.id ? 'your' : `${targetUser.username}'s`} inventory.`);
     }
+
+    // --- VIEW INVENTORY ---
+    let targetUser = message.author;
+    if (firstArg) {
+      const cleanId = firstArg.replace(/[<@!>]/g, '');
+      const member = await message.guild.members.fetch(cleanId).catch(() => null);
+      if (member) {
+        if (!isAdmin) {
+          return message.reply("❌ Only administrators can view other users' inventories.");
+        }
+        targetUser = member.user;
+      }
+    }
+
+    let inv = await Inventory.findOne({ guildId: message.guild.id, userId: targetUser.id });
 
     // Query active roles equipped on this user by other guild members
     const activeGifted = await Inventory.find({
       guildId: message.guild.id,
-      userId: { $ne: message.author.id },
-      "roles": { $elemMatch: { isUsed: true, assignedTo: message.author.id } }
+      userId: { $ne: targetUser.id },
+      "roles": { $elemMatch: { isUsed: true, assignedTo: targetUser.id } }
     });
 
     const giftedRoles = [];
     for (const otherInv of activeGifted) {
       for (const r of otherInv.roles) {
-        if (r.isUsed && r.assignedTo === message.author.id) {
+        if (r.isUsed && r.assignedTo === targetUser.id) {
           giftedRoles.push({
             name: r.name,
             giftedBy: otherInv.userId,
@@ -112,7 +193,11 @@ module.exports = {
     const hasGiftedItems = giftedRoles.length > 0;
 
     if (!hasOwnItems && !hasGiftedItems) {
-      return message.reply(`📭 Your inventory is currently empty! Use \`${prefix}br list\` to browse available roles.`);
+      if (targetUser.id === message.author.id) {
+        return message.reply(`📭 Your inventory is currently empty! Use \`${prefix}br list\` to browse available roles.`);
+      } else {
+        return message.reply(`📭 **${targetUser.username}**'s inventory is currently empty!`);
+      }
     }
 
     let pageIndex = 0;
@@ -125,8 +210,8 @@ module.exports = {
 
       const embed = new EmbedBuilder()
         .setColor('#5865F2')
-        .setTitle(`📦 ${message.author.username}'s Role Inventory`)
-        .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
+        .setTitle(`📦 ${targetUser.username}'s Role Inventory`)
+        .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
         .setTimestamp()
         .setFooter({ text: `Page ${index + 1} of ${totalPages}` });
 
@@ -162,14 +247,14 @@ module.exports = {
             typeTag = `⏳ Temp (${formatDuration(item.durationMs)})`;
             if (item.isUsed) {
               const timeRemaining = item.expiresAt ? Math.max(0, item.expiresAt.getTime() - Date.now()) : 0;
-              statusTag = `✅ Equipped on ${item.assignedTo === message.author.id ? 'Self' : `<@${item.assignedTo}>`} (<t:${Math.floor(item.expiresAt.getTime() / 1000)}:R> remaining | ${formatPreciseDuration(timeRemaining)})`;
+              statusTag = `✅ Equipped on ${item.assignedTo === targetUser.id ? 'Self' : `<@${item.assignedTo}>`} (<t:${Math.floor(item.expiresAt.getTime() / 1000)}:R> remaining | ${formatPreciseDuration(timeRemaining)})`;
             } else {
               statusTag = `💤 Dormant in Inventory`;
             }
           } else {
             typeTag = `♾️ Permanent`;
             if (item.isUsed) {
-              statusTag = `✅ Equipped on ${item.assignedTo === message.author.id ? 'Self' : `<@${item.assignedTo}>`}`;
+              statusTag = `✅ Equipped on ${item.assignedTo === targetUser.id ? 'Self' : `<@${item.assignedTo}>`}`;
             } else {
               statusTag = `📦 Unused in Inventory`;
             }
@@ -180,14 +265,18 @@ module.exports = {
           descriptionText += `────────────────────────────────────────\n`;
         });
       } else {
-        descriptionText += `*You do not currently own any items in your inventory. Use \`${prefix}br list\` to buy roles!*\n────────────────────────────────────────\n`;
+        descriptionText += `*This user does not currently own any items in their inventory.*\n────────────────────────────────────────\n`;
       }
 
       descriptionText += `**CMDS:**\n`;
       descriptionText += `- \`${prefix}userole [inv id/num]\` - Equip\n`;
       descriptionText += `- \`${prefix}ur [inv id/num] @MentionFriend\` - Gift a friend\n`;
       descriptionText += `- \`${prefix}ur unequip [inv id/num]\` - Unequip\n`;
-      descriptionText += `- \`${prefix}ri del [inv id/num]\`  - Delete\n`;
+      descriptionText += `- \`${prefix}inv del [inv id/num]\`  - Delete\n`;
+      if (isAdmin) {
+        descriptionText += `- \`${prefix}inv del @user [inv id/num]\` - Admin Delete\n`;
+        descriptionText += `- \`${prefix}inv wipe @user\` - Admin Wipe User Inventory\n`;
+      }
 
       embed.setDescription(descriptionText);
 
@@ -214,7 +303,7 @@ module.exports = {
 
     collector.on('collect', async (i) => {
       if (i.user.id !== message.author.id) {
-        return i.reply({ content: 'Only the user whose inventory this is can flip pages.', flags: [MessageFlags.Ephemeral] });
+        return i.reply({ content: 'Only the user who ran the command can flip pages.', flags: [MessageFlags.Ephemeral] });
       }
 
       if (i.customId === 'inv_prev') {

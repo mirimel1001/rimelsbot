@@ -38,6 +38,11 @@ module.exports = {
   run: async (client, message, args, prefix, config) => {
     if (!message.guild) return message.reply("❌ Shop listings can only be viewed in a server.");
 
+    const firstArg = args[0]?.toLowerCase();
+    if (['setup', 'add', 'remove', 'setdesc', 'setstock', 'settemp', 'setsale'].includes(firstArg)) {
+      return require('./buyrole.js').run(client, message, args, prefix, config);
+    }
+
     const guildData = await Guild.findOne({ guildId: message.guild.id });
     if (!guildData || !guildData.roleStore || guildData.roleStore.length === 0) {
       return message.reply("📭 The role store is currently empty. Check back later!");
