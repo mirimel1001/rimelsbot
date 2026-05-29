@@ -14,6 +14,26 @@ function formatDuration(ms) {
   return `${seconds}s`;
 }
 
+function formatPreciseDuration(ms) {
+  if (ms <= 0) return "0s";
+  let seconds = Math.floor(ms / 1000);
+  let minutes = Math.floor(seconds / 60);
+  let hours = Math.floor(minutes / 60);
+  let days = Math.floor(hours / 24);
+
+  seconds %= 60;
+  minutes %= 60;
+  hours %= 24;
+
+  const parts = [];
+  if (days > 0) parts.push(`${days} day${days !== 1 ? 's' : ''}`);
+  if (hours > 0) parts.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
+  if (minutes > 0) parts.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
+  if (seconds > 0) parts.push(`${seconds} second${seconds !== 1 ? 's' : ''}`);
+
+  return parts.join(' ');
+}
+
 module.exports = {
   name: "roleinventory",
   aliases: ["i", "inv", "ri", "inventory", "myroles"],
@@ -117,6 +137,26 @@ module.exports = {
         descriptionText += `*You do not currently own any items in your inventory. Use \`${prefix}br list\` to buy roles!*\n\n`;
       }
 
+      // 1. Render Gifted Items First (if any)
+      if (giftedRoles.length > 0) {
+        descriptionText += `**🎁 Active Roles Equipped on You by Others**\n`;
+        giftedRoles.forEach((gr, idx) => {
+          let tempText = '♾️ Permanent';
+          if (gr.isTemporary) {
+            const timeRemaining = gr.expiresAt ? Math.max(0, gr.expiresAt.getTime() - Date.now()) : 0;
+            tempText = `⏳ Temp (Expires: <t:${Math.floor(gr.expiresAt.getTime() / 1000)}:R> | ${formatPreciseDuration(timeRemaining)})`;
+          }
+          descriptionText += `**[ Gift #${idx + 1} ]  ${gr.name}**\n`;
+          descriptionText += `*Equipped by: <@${gr.giftedBy}>  |  Type: ${tempText}*\n`;
+          if (idx < giftedRoles.length - 1 || ownRolesCount > 0) {
+            descriptionText += `────────────────────────────────────────\n`;
+          } else {
+            descriptionText += `\n`;
+          }
+        });
+      }
+
+      // 2. Render Own Items
       pageItems.forEach((item, pageIdx) => {
         const itemNumber = start + pageIdx + 1;
         const purchaseDate = new Date(item.purchasedAt).toLocaleDateString();
@@ -128,7 +168,7 @@ module.exports = {
           typeTag = `⏳ Temp (${formatDuration(item.durationMs)})`;
           if (item.isUsed) {
             const timeRemaining = item.expiresAt ? Math.max(0, item.expiresAt.getTime() - Date.now()) : 0;
-            statusTag = `✅ Equipped on ${item.assignedTo === message.author.id ? 'Self' : `<@${item.assignedTo}>`} (<t:${Math.floor(item.expiresAt.getTime() / 1000)}:R> remaining)`;
+            statusTag = `✅ Equipped on ${item.assignedTo === message.author.id ? 'Self' : `<@${item.assignedTo}>`} (<t:${Math.floor(item.expiresAt.getTime() / 1000)}:R> remaining | ${formatPreciseDuration(timeRemaining)})`;
           } else {
             statusTag = `💤 Dormant in Inventory`;
           }
@@ -151,17 +191,6 @@ module.exports = {
       });
 
       embed.setDescription(descriptionText);
-
-      if (giftedRoles.length > 0) {
-        let giftedText = "";
-        giftedRoles.forEach((gr, idx) => {
-          const tempText = gr.isTemporary 
-            ? `⏳ Temporary (Expires: <t:${Math.floor(gr.expiresAt.getTime() / 1000)}:R>)`
-            : '♾️ Permanent';
-          giftedText += `**${idx + 1}.** **${gr.name}** — Equipped by <@${gr.giftedBy}> [${tempText}]\n`;
-        });
-        embed.addFields({ name: '🎁 Active Roles Equipped on You by Others', value: giftedText });
-      }
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
