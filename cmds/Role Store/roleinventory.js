@@ -128,11 +128,11 @@ module.exports = {
         .setTitle(`📦 ${message.author.username}'s Role Inventory`)
         .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
         .setTimestamp()
-        .setFooter({ text: `Page ${index + 1} of ${totalPages}` });
+        .setFooter({ text: `Page ${index + 1} of ${totalPages} | Commands: ${prefix}ur [index] [@member] / unequip [index] / ri discard [index]` });
 
-      let descriptionText = `Manage your items here.\n`;
+      let descriptionText = "";
       if (ownRolesCount > 0) {
-        descriptionText += `* Use \`${prefix}ur [inventory id/number]\` to equip a role on yourself.*\n* Use \`${prefix}ur [inventory id/number] @member\` to gift and equip it on a friend.*\n* Use \`${prefix}ur unequip [inventory id/number]\` to return an active role to inventory.*\n* Use \`${prefix}ri discard [inventory id/number]\` to permanently delete an item.*\n\n*Total items: ${ownRolesCount}*\n────────────────────────────────────────\n\n`;
+        descriptionText += `*Total owned items: ${ownRolesCount}*\n────────────────────────────────────────\n\n`;
       } else {
         descriptionText += `*You do not currently own any items in your inventory. Use \`${prefix}br list\` to buy roles!*\n\n`;
       }
