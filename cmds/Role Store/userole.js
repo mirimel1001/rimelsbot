@@ -18,19 +18,19 @@ module.exports = {
   name: "userole",
   aliases: ["ur", "equip", "unequip"],
   description: "Equip a role from inventory to yourself, equip it on a friend, or unequip it.",
-  usage: "ur [role name / list index] OR ur @friend [role] OR ur unequip [role]",
+  usage: "ur [inventory id/number] [empty for yourself / @friend] OR ur unequip [inventory id/number]",
   run: async (client, message, args, prefix, config) => {
     if (!message.guild) return message.reply("❌ Roles can only be equipped inside a server.");
 
-    const subcommand = args[0]?.toLowerCase();
+    const firstArg = args[0]?.toLowerCase();
 
     // -------------------------------------------------------------
     // --- 1. SUBCOMMAND: UNEQUIP A ROLE ---
     // -------------------------------------------------------------
-    if (subcommand === 'unequip' || subcommand === 'take' || subcommand === 'remove') {
-      const query = args.slice(1).join(' ');
-      if (!query) {
-        return message.reply(`❌ **Usage:** \`${prefix}ur unequip [role name / index]\``);
+    if (firstArg === 'unequip' || firstArg === 'take' || firstArg === 'remove') {
+      const indexInput = args[1];
+      if (!indexInput) {
+        return message.reply(`❌ **Usage:** \`${prefix}ur unequip [inventory id/number]\``);
       }
 
       const inv = await Inventory.findOne({ guildId: message.guild.id, userId: message.author.id });
@@ -38,19 +38,12 @@ module.exports = {
         return message.reply("📭 Your inventory is empty.");
       }
 
-      let item = null;
-      const index = parseInt(query);
-      if (!isNaN(index) && index >= 1 && index <= inv.roles.length) {
-        item = inv.roles[index - 1];
-      } else {
-        item = inv.roles.find(r => 
-          r.name.toLowerCase() === query.toLowerCase() || 
-          r.roleId === query ||
-          r.name.toLowerCase().includes(query.toLowerCase())
-        );
+      const index = parseInt(indexInput);
+      if (isNaN(index) || index < 1 || index > inv.roles.length) {
+        return message.reply(`❌ **Invalid Inventory Number:** Please specify a number between 1 and ${inv.roles.length}.`);
       }
 
-      if (!item) return message.reply("❌ Role not found in your inventory.");
+      const item = inv.roles[index - 1];
 
       if (!item.isUsed) {
         return message.reply("⚠️ This role is not currently equipped/active.");
@@ -94,24 +87,14 @@ module.exports = {
     // -------------------------------------------------------------
     // --- 2. MAIN COMMAND: EQUIP / GIFT TO MEMBER ---
     // -------------------------------------------------------------
-    let targetMember = message.member;
-    let queryArgs = args;
-
-    // Check if first arg is a member mention or ID
-    const memberMention = args[0];
-    if (memberMention) {
-      const match = memberMention.match(/^<@!?(\d+)>$/) || [null, memberMention];
-      const potentialMemberId = match[1];
-      const member = await message.guild.members.fetch(potentialMemberId).catch(() => null);
-      if (member) {
-        targetMember = member;
-        queryArgs = args.slice(1);
-      }
+    const indexInput = args[0];
+    if (!indexInput) {
+      return message.reply(`❌ **Usage:**\n* Equip: \`${prefix}ur [inventory id/number] [empty for yourself / @mention for friend]\`\n* Unequip: \`${prefix}ur unequip [inventory id/number]\``);
     }
 
-    const query = queryArgs.join(' ');
-    if (!query) {
-      return message.reply(`❌ **Usage:**\n* Equip on yourself: \`${prefix}ur [role / index]\`\n* Equip on a friend: \`${prefix}ur @friend [role / index]\`\n* Unequip a role: \`${prefix}ur unequip [role / index]\``);
+    const index = parseInt(indexInput);
+    if (isNaN(index)) {
+      return message.reply(`❌ **Invalid Inventory Number:** Please specify the inventory index number.\n* Usage: \`${prefix}ur [inventory id/number] [empty for yourself / @mention for friend]\``);
     }
 
     const inv = await Inventory.findOne({ guildId: message.guild.id, userId: message.author.id });
@@ -119,22 +102,14 @@ module.exports = {
       return message.reply(`📭 Your inventory is empty! Buy roles using \`${prefix}br list\`.`);
     }
 
-    let item = null;
-    const index = parseInt(query);
-    if (!isNaN(index) && index >= 1 && index <= inv.roles.length) {
-      item = inv.roles[index - 1];
-    } else {
-      item = inv.roles.find(r => 
-        r.name.toLowerCase() === query.toLowerCase() || 
-        r.roleId === query ||
-        r.name.toLowerCase().includes(query.toLowerCase())
-      );
+    if (index < 1 || index > inv.roles.length) {
+      return message.reply(`❌ **Invalid Inventory Number:** Please specify a number between 1 and ${inv.roles.length}.`);
     }
 
-    if (!item) return message.reply("❌ Role not found in your inventory.");
+    const item = inv.roles[index - 1];
 
     if (item.isUsed) {
-      return message.reply(`⚠️ This role is already equipped on ${item.assignedTo === message.author.id ? 'yourself' : `<@${item.assignedTo}>`}! Unequip it first with \`${prefix}ur unequip ${item.name}\`.`);
+      return message.reply(`⚠️ This role is already equipped on ${item.assignedTo === message.author.id ? 'yourself' : `<@${item.assignedTo}>`}! Unequip it first with \`${prefix}ur unequip ${index}\`.`);
     }
 
     // Check if role exists on Discord server
@@ -146,6 +121,18 @@ module.exports = {
     // Check if temporary role has expired (if purchased and already started timer)
     if (item.isTemporary && item.expiresAt && item.expiresAt < new Date()) {
       return message.reply("❌ This temporary role has already expired and cannot be equipped.");
+    }
+
+    let targetMember = message.member;
+    const friendArg = args[1];
+    if (friendArg) {
+      const match = friendArg.match(/^<@!?(\d+)>$/) || [null, friendArg];
+      const potentialMemberId = match[1];
+      const member = await message.guild.members.fetch(potentialMemberId).catch(() => null);
+      if (!member) {
+        return message.reply("❌ **Friend Not Found:** Please mention a valid server friend (e.g. `@name`) or leave it empty to equip on yourself.");
+      }
+      targetMember = member;
     }
 
     message.channel.sendTyping();
@@ -184,7 +171,7 @@ module.exports = {
         ? `You successfully equipped the role **${item.name}** on **yourself**!${durationText}`
         : `You successfully gifted and equipped the role **${item.name}** to **${targetMember.toString()}**!${durationText}`
       )
-      .setFooter({ text: `Type "${prefix}ur unequip ${item.name}" to return the role to inventory.` })
+      .setFooter({ text: `Type "${prefix}ur unequip ${index}" to return the role to inventory.` })
       .setTimestamp();
 
     if (activatedNow) {

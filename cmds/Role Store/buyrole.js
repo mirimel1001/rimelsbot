@@ -84,16 +84,28 @@ module.exports = {
       // Check pricing mode and calculate price/duration
       let totalPrice = item.price;
       let durationMs = item.durationMs;
-      let multiplier = 0;
 
       if (item.priceMode === 'RENT') {
-        const multiplierInput = args[1];
-        multiplier = parseInt(multiplierInput);
-        if (isNaN(multiplier) || multiplier <= 0) {
-          return message.reply(`❌ **Multiplier Required:** **${item.name}** is a rentable role (💰 ${formatNumber(item.price)} per ${formatDuration(item.durationMs)}).\nSpecify the number of rent units you wish to purchase!\n*Usage: \`${prefix}br ${index} [multiplier]\` (e.g. \`${prefix}br ${index} 3\` to rent for 3 units)*`);
+        const durationInput = args[1];
+        if (!durationInput) {
+          return message.reply(`❌ **Rent Period Required:** **${item.name}** is a rentable role (💰 ${formatNumber(item.price)} per ${formatDuration(item.durationMs)}).\nSpecify how long you wish to rent it for (minimum duration is **${formatDuration(item.durationMs)}**).\n*Usage: \`${prefix}br ${index} [duration/multiplier]\` (e.g. \`${prefix}br ${index} 15h\` or \`${prefix}br ${index} 2\` to rent for 2x units)*`);
         }
-        totalPrice = item.price * multiplier;
-        durationMs = item.durationMs * multiplier;
+
+        let customMs = parseDuration(durationInput);
+        if (customMs > 0) {
+          if (customMs < item.durationMs) {
+            return message.reply(`❌ **Rent Duration Too Short:** The minimum rental duration for this role is **${formatDuration(item.durationMs)}**.\nPlease specify a duration at or above the minimum.`);
+          }
+          durationMs = customMs;
+          totalPrice = Math.round((item.price / item.durationMs) * durationMs);
+        } else {
+          const multiplier = parseInt(durationInput);
+          if (isNaN(multiplier) || multiplier <= 0) {
+            return message.reply(`❌ **Invalid Rent Duration/Multiplier:** Please specify a duration like \`15h\`, \`2d\`, or an integer multiplier (e.g., \`2\` for twice the minimum duration of **${formatDuration(item.durationMs)}**).`);
+          }
+          durationMs = item.durationMs * multiplier;
+          totalPrice = item.price * multiplier;
+        }
       }
 
       // Check stock
@@ -107,11 +119,8 @@ module.exports = {
         return message.reply("⚠️ **Economy Link Required!** This server has not linked an UnbelievaBoat API token yet. Admins must set one up with `r unbtoken` first.");
       }
 
-      // Check if user already owns the role in their inventory
+      // Fetch user inventory (creates new if not found later)
       let userInv = await Inventory.findOne({ guildId: message.guild.id, userId: message.author.id });
-      if (userInv && userInv.roles.some(r => r.roleId === item.roleId)) {
-        return message.reply("⚠️ You already have this role in your inventory!");
-      }
 
       message.channel.sendTyping();
 
@@ -122,7 +131,7 @@ module.exports = {
           message.guild.id,
           message.author.id,
           totalPrice,
-          `Role Store Purchase: ${item.name} ${item.priceMode === 'RENT' ? `(${multiplier}x units)` : ''}`
+          `Role Store Purchase: ${item.name} ${item.priceMode === 'RENT' ? `(${formatDuration(durationMs)})` : ''}`
         );
 
         if (!deduction.success) {
@@ -165,7 +174,7 @@ module.exports = {
           .setDescription(`You successfully purchased **${item.name}** ${item.priceMode === 'RENT' ? `for **${formatDuration(durationMs)}**` : ''} for a total of **💰 ${formatNumber(totalPrice)}**!`)
           .addFields(
             { name: '📦 Delivery', value: `The item has been added to your inventory. Type \`${prefix}ri\` to view it.`, inline: false },
-            { name: '🏷️ Activation', value: `Use \`${prefix}ur ${item.name}\` to equip it on yourself, or \`${prefix}ur @member ${item.name}\` to gift/equip it to a friend!\n*(Role duration: **${durationText}**)*`, inline: false }
+            { name: '🏷️ Activation', value: `Use \`${prefix}ur ${userInv.roles.length}\` to equip it on yourself, or \`${prefix}ur ${userInv.roles.length} @member\` to gift/equip it to a friend!\n*(Role duration: **${durationText}**)*`, inline: false }
           )
           .setTimestamp();
 

@@ -38,7 +38,7 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setColor('#5865F2')
         .setTitle(`📦 ${message.author.username}'s Role Inventory`)
-        .setDescription(`Manage your items here.\n* Use \`${prefix}ur [name/index]\` to equip a role on yourself.*\n* Use \`${prefix}ur @member [name/index]\` to equip it on a friend.*\n* Use \`${prefix}ur unequip [name/index]\` to unequip it.*\n\n*Total items: ${inv.roles.length}*`)
+        .setDescription(`Manage your items here.\n* Use \`${prefix}ur [inventory id/number]\` to equip a role on yourself.*\n* Use \`${prefix}ur [inventory id/number] @member\` to gift and equip it on a friend.*\n* Use \`${prefix}ur unequip [inventory id/number]\` to return an active role to inventory.*\n\n*Total items: ${inv.roles.length}*`)
         .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
         .setTimestamp()
         .setFooter({ text: `Page ${index + 1} of ${totalPages}` });

@@ -167,11 +167,8 @@ module.exports = {
           return i.editReply({ content: "❌ Economy configurations not found for this server." });
         }
 
-        // Check if user already owns the role in their inventory
+        // Fetch user inventory
         let userInv = await Inventory.findOne({ guildId: message.guild.id, userId: i.user.id });
-        if (userInv && userInv.roles.some(r => r.roleId === buyItem.roleId)) {
-          return i.editReply({ content: "⚠️ You already have this role in your inventory!" });
-        }
 
         // Price Mode & Calculation
         let totalPrice = buyItem.price;
@@ -223,7 +220,7 @@ module.exports = {
           }
         }
 
-        await i.editReply({ content: `🛍️ **Purchase Successful!** You successfully purchased **${buyItem.name}** ${isRent ? `(${formatDuration(buyItem.durationMs)})` : ''} for **💰 ${formatNumber(totalPrice)}**!\nUse \`${prefix}ur ${buyItem.name}\` to equip it on yourself.` });
+        await i.editReply({ content: `🛍️ **Purchase Successful!** You successfully purchased **${buyItem.name}** ${isRent ? `(${formatDuration(buyItem.durationMs)})` : ''} for **💰 ${formatNumber(totalPrice)}**!\nUse \`${prefix}ur ${userInv.roles.length}\` to equip it on yourself.` });
 
         // Update the main shop page live to reflect depleted stock!
         const updatedGuild = await Guild.findOne({ guildId: message.guild.id });
