@@ -32,6 +32,20 @@ function formatDuration(ms) {
   return `${seconds}s`;
 }
 
+function findStoreItem(guildData, roleInput) {
+  if (!guildData || !guildData.roleStore || guildData.roleStore.length === 0) return null;
+  const parsedIndex = parseInt(roleInput);
+  if (!isNaN(parsedIndex)) {
+    if (parsedIndex >= 1 && parsedIndex <= guildData.roleStore.length) {
+      return guildData.roleStore[parsedIndex - 1];
+    }
+  }
+  const cleanId = roleInput.replace(/[<@&>]/g, '').trim();
+  return guildData.roleStore.find(item => 
+    item.roleId === cleanId || item.name.toLowerCase() === roleInput.toLowerCase().trim()
+  );
+}
+
 module.exports = {
   name: "buyrole",
   aliases: ["br", "rb", "rolebuy"],
@@ -249,16 +263,15 @@ module.exports = {
       // --- BR REMOVE ---
       if (input === 'remove') {
         const roleMention = args[1];
-        if (!roleMention) return message.reply(`❌ **Usage:** \`${prefix}br remove [@role/RoleID]\``);
+        if (!roleMention) return message.reply(`❌ **Usage:** \`${prefix}br remove [@role/RoleID/List Number]\``);
 
-        const roleId = roleMention.replace(/[<@&>]/g, '');
-        const indexToRemove = guildData.roleStore.findIndex(item => item.roleId === roleId);
-
-        if (indexToRemove === -1) {
+        const targetItem = findStoreItem(guildData, roleMention);
+        if (!targetItem) {
           return message.reply("❌ This role is not listed in the storefront.");
         }
 
-        const roleName = guildData.roleStore[indexToRemove].name;
+        const indexToRemove = guildData.roleStore.indexOf(targetItem);
+        const roleName = targetItem.name;
         guildData.roleStore.splice(indexToRemove, 1);
         await guildData.save();
 
@@ -271,11 +284,10 @@ module.exports = {
         const descInput = args.slice(2).join(' ');
 
         if (!roleMention || !descInput) {
-          return message.reply(`❌ **Usage:** \`${prefix}br setdesc [@role/RoleID] [description]\``);
+          return message.reply(`❌ **Usage:** \`${prefix}br setdesc [@role/RoleID/List Number] [description]\``);
         }
 
-        const roleId = roleMention.replace(/[<@&>]/g, '');
-        const item = guildData.roleStore.find(item => item.roleId === roleId);
+        const item = findStoreItem(guildData, roleMention);
         if (!item) return message.reply("❌ That role is not in the store.");
 
         item.description = descInput;
@@ -289,11 +301,10 @@ module.exports = {
         const stockInput = args[2];
 
         if (!roleMention || !stockInput) {
-          return message.reply(`❌ **Usage:** \`${prefix}br setstock [@role/RoleID] [limit/-1 for unlimited]\``);
+          return message.reply(`❌ **Usage:** \`${prefix}br setstock [@role/RoleID/List Number] [limit/-1 for unlimited]\``);
         }
 
-        const roleId = roleMention.replace(/[<@&>]/g, '');
-        const item = guildData.roleStore.find(item => item.roleId === roleId);
+        const item = findStoreItem(guildData, roleMention);
         if (!item) return message.reply("❌ That role is not in the store.");
 
         const stock = parseInt(stockInput);
@@ -310,11 +321,10 @@ module.exports = {
         const tempInput = args[2];
 
         if (!roleMention || !tempInput) {
-          return message.reply(`❌ **Usage:** \`${prefix}br settemp [@role/RoleID] [duration e.g. 7d, 12h, 30m / 0 for permanent]\``);
+          return message.reply(`❌ **Usage:** \`${prefix}br settemp [@role/RoleID/List Number] [duration e.g. 7d, 12h, 30m / 0 for permanent]\``);
         }
 
-        const roleId = roleMention.replace(/[<@&>]/g, '');
-        const item = guildData.roleStore.find(item => item.roleId === roleId);
+        const item = findStoreItem(guildData, roleMention);
         if (!item) return message.reply("❌ That role is not in the store.");
 
         if (tempInput === '0') {
@@ -341,11 +351,10 @@ module.exports = {
         const saleInput = args[2];
 
         if (!roleMention || !saleInput) {
-          return message.reply(`❌ **Usage:** \`${prefix}br setsale [@role/RoleID] [duration e.g. 3d, 24h / 0 to disable]\``);
+          return message.reply(`❌ **Usage:** \`${prefix}br setsale [@role/RoleID/List Number] [duration e.g. 3d, 24h / 0 to disable]\``);
         }
 
-        const roleId = roleMention.replace(/[<@&>]/g, '');
-        const item = guildData.roleStore.find(item => item.roleId === roleId);
+        const item = findStoreItem(guildData, roleMention);
         if (!item) return message.reply("❌ That role is not in the store.");
 
         if (saleInput === '0') {
@@ -463,9 +472,9 @@ async function startInteractiveSetup(client, message, guildData) {
 
       const roleInput = new TextInputBuilder()
         .setCustomId('rs_role_id')
-        .setLabel('Role ID, Mention, or Exact Name')
+        .setLabel('Role ID, Name, or List Number')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Enter Role ID to remove...')
+        .setPlaceholder('Enter role to remove...')
         .setRequired(true);
 
       modal.addComponents(new ActionRowBuilder().addComponents(roleInput));
@@ -478,21 +487,19 @@ async function startInteractiveSetup(client, message, guildData) {
         });
 
         if (submitted) {
-          const roleVal = submitted.fields.getTextInputValue('rs_role_id').replace(/[<@&>]/g, '').trim();
+          const roleVal = submitted.fields.getTextInputValue('rs_role_id').trim();
 
           const freshGuild = await Guild.findOne({ guildId: message.guild.id });
           if (!freshGuild || !freshGuild.roleStore) {
             return submitted.reply({ content: "❌ Store is empty.", flags: [MessageFlags.Ephemeral] });
           }
 
-          const indexToRemove = freshGuild.roleStore.findIndex(item => 
-            item.roleId === roleVal || item.name.toLowerCase() === roleVal.toLowerCase()
-          );
-
-          if (indexToRemove === -1) {
+          const targetItem = findStoreItem(freshGuild, roleVal);
+          if (!targetItem) {
             return submitted.reply({ content: "❌ That role is not in the store.", flags: [MessageFlags.Ephemeral] });
           }
 
+          const indexToRemove = freshGuild.roleStore.indexOf(targetItem);
           freshGuild.roleStore.splice(indexToRemove, 1);
           await freshGuild.save();
           await submitted.update({ embeds: [generateEmbed(freshGuild)] });
