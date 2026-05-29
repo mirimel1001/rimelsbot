@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, MessageFlags } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const Guild = require('../../models/Guild');
 const Inventory = require('../../models/Inventory');
 const { formatNumber, getEconomyToken, deductFunds } = require('../../utils/economy.js');
@@ -14,6 +14,20 @@ function formatDuration(ms) {
   if (hours > 0) return `${hours}h`;
   if (minutes > 0) return `${minutes}m`;
   return `${seconds}s`;
+}
+
+function parseDuration(str) {
+  if (!str) return 0;
+  const match = str.trim().toLowerCase().match(/^(\d+)([mhd])$/);
+  if (!match) return 0;
+  const val = parseInt(match[1]);
+  const unit = match[2];
+  const multipliers = {
+    'm': 60 * 1000,
+    'h': 60 * 60 * 1000,
+    'd': 24 * 60 * 60 * 1000
+  };
+  return val * multipliers[unit];
 }
 
 module.exports = {
@@ -144,88 +158,184 @@ module.exports = {
       // --- Direct Purchase Buttons (Open to anyone!) ---
       if (i.customId.startsWith('rs_buy_btn_')) {
         const btnIndex = parseInt(i.customId.split('_')[3]);
-        
-        await i.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+        // Token check
+        const token = getEconomyToken(client, message.guild.id);
+        if (!token) {
+          return i.reply({ content: "❌ Economy configurations not found for this server.", flags: [MessageFlags.Ephemeral] });
+        }
 
         const freshGuild = await Guild.findOne({ guildId: message.guild.id });
         const freshActiveStore = freshGuild.roleStore.filter(item => !item.saleExpiresAt || item.saleExpiresAt > now);
 
         if (btnIndex < 1 || btnIndex > freshActiveStore.length) {
-          return i.editReply({ content: "❌ Invalid storefront item number." });
+          return i.reply({ content: "❌ Invalid storefront item number.", flags: [MessageFlags.Ephemeral] });
         }
 
         const buyItem = freshActiveStore[btnIndex - 1];
 
         // Stock check
         if (buyItem.stock === 0) {
-          return i.editReply({ content: "❌ This role is currently out of stock!" });
+          return i.reply({ content: "❌ This role is currently out of stock!", flags: [MessageFlags.Ephemeral] });
         }
 
-        // Token check
-        const token = getEconomyToken(client, message.guild.id);
-        if (!token) {
-          return i.editReply({ content: "❌ Economy configurations not found for this server." });
-        }
-
-        // Fetch user inventory
-        let userInv = await Inventory.findOne({ guildId: message.guild.id, userId: i.user.id });
-
-        // Price Mode & Calculation
-        let totalPrice = buyItem.price;
-        let durationMs = buyItem.durationMs;
-        let isRent = buyItem.priceMode === 'RENT';
+        const isRent = buyItem.priceMode === 'RENT';
 
         if (isRent) {
-          // If direct bought via button, default rentable to 1 rent unit purchase
-          totalPrice = buyItem.price;
-          durationMs = buyItem.durationMs;
-        }
+          const modal = new ModalBuilder()
+            .setCustomId(`rs_buy_rent_modal_${i.id}`)
+            .setTitle(`Rent ${buyItem.name.slice(0, 20)}`);
 
-        // Deduct Coins
-        const deduction = await deductFunds(
-          client,
-          message.guild.id,
-          i.user.id,
-          totalPrice,
-          `Role Store Button Purchase: ${buyItem.name}`
-        );
+          const durationInput = new TextInputBuilder()
+            .setCustomId('rs_buy_rent_duration')
+            .setLabel(`Rent Duration (min ${formatDuration(buyItem.durationMs)}) *`)
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder(`e.g. 15h, 2d, or 2 for 2x units`)
+            .setRequired(true);
 
-        if (!deduction.success) {
-          return i.editReply({ content: deduction.error });
-        }
+          modal.addComponents(new ActionRowBuilder().addComponents(durationInput));
 
-        // Add to inventory
-        if (!userInv) {
-          userInv = new Inventory({ guildId: message.guild.id, userId: i.user.id, roles: [] });
-        }
+          await i.showModal(modal);
 
-        userInv.roles.push({
-          roleId: buyItem.roleId,
-          name: buyItem.name,
-          isTemporary: buyItem.isTemporary || isRent,
-          durationMs: durationMs,
-          purchasedAt: new Date(),
-          isUsed: false,
-          assignedTo: null
-        });
+          const submitted = await i.awaitModalSubmit({
+            time: 60000,
+            filter: mi => mi.customId === `rs_buy_rent_modal_${i.id}` && mi.user.id === i.user.id,
+          }).catch(() => null);
 
-        await userInv.save();
+          if (!submitted) return;
 
-        // Decrement stock in Mongoose
-        if (buyItem.stock > 0) {
-          const originalItem = freshGuild.roleStore.id(buyItem._id);
-          if (originalItem) {
-            originalItem.stock--;
-            await freshGuild.save();
+          await submitted.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+          const freshGuild2 = await Guild.findOne({ guildId: message.guild.id });
+          const freshActiveStore2 = freshGuild2.roleStore.filter(item => !item.saleExpiresAt || item.saleExpiresAt > now);
+          const buyItem2 = freshActiveStore2[btnIndex - 1];
+
+          // Stock check
+          if (buyItem2.stock === 0) {
+            return submitted.editReply({ content: "❌ This role is currently out of stock!" });
           }
+
+          const durationVal = submitted.fields.getTextInputValue('rs_buy_rent_duration').trim();
+          let customMs = parseDuration(durationVal);
+          let durationMs = buyItem2.durationMs;
+          let totalPrice = buyItem2.price;
+
+          if (customMs > 0) {
+            if (customMs < buyItem2.durationMs) {
+              return submitted.editReply({ content: `❌ **Rent Duration Too Short:** The minimum rental duration for this role is **${formatDuration(buyItem2.durationMs)}**.\nPlease specify a duration at or above the minimum.` });
+            }
+            durationMs = customMs;
+            totalPrice = Math.round((buyItem2.price / buyItem2.durationMs) * durationMs);
+          } else {
+            const multiplier = parseInt(durationVal);
+            if (isNaN(multiplier) || multiplier <= 0) {
+              return submitted.editReply({ content: `❌ **Invalid Rent Duration/Multiplier:** Please specify a duration like \`15h\`, \`2d\`, or an integer multiplier (e.g., \`2\` for twice the minimum duration of **${formatDuration(buyItem2.durationMs)}**).` });
+            }
+            durationMs = buyItem2.durationMs * multiplier;
+            totalPrice = buyItem2.price * multiplier;
+          }
+
+          // Deduct Coins
+          const deduction = await deductFunds(
+            client,
+            message.guild.id,
+            submitted.user.id,
+            totalPrice,
+            `Role Store Button Purchase: ${buyItem2.name} (${formatDuration(durationMs)})`
+          );
+
+          if (!deduction.success) {
+            return submitted.editReply({ content: deduction.error });
+          }
+
+          // Fetch user inventory
+          let userInv = await Inventory.findOne({ guildId: message.guild.id, userId: submitted.user.id });
+          if (!userInv) {
+            userInv = new Inventory({ guildId: message.guild.id, userId: submitted.user.id, roles: [] });
+          }
+
+          userInv.roles.push({
+            roleId: buyItem2.roleId,
+            name: buyItem2.name,
+            isTemporary: true,
+            durationMs: durationMs,
+            purchasedAt: new Date(),
+            isUsed: false,
+            assignedTo: null
+          });
+
+          await userInv.save();
+
+          // Decrement stock
+          if (buyItem2.stock > 0) {
+            const originalItem = freshGuild2.roleStore.id(buyItem2._id);
+            if (originalItem) {
+              originalItem.stock--;
+              await freshGuild2.save();
+            }
+          }
+
+          await submitted.editReply({ content: `🛍️ **Purchase Successful!** You successfully rented **${buyItem2.name}** (${formatDuration(durationMs)}) for **💰 ${formatNumber(totalPrice)}**!\nUse \`${prefix}ur ${userInv.roles.length}\` to equip it on yourself.` });
+
+          // Update main storefront message
+          const updatedGuild = await Guild.findOne({ guildId: message.guild.id });
+          const updatedActiveStore = updatedGuild.roleStore.filter(item => !item.saleExpiresAt || item.saleExpiresAt > now);
+          await mainMsg.edit(generateStorePage(pageIndex, updatedActiveStore));
+
+        } else {
+          // Standard FIXED / TEMP purchase
+          await i.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+          let totalPrice = buyItem.price;
+          let durationMs = buyItem.durationMs;
+
+          // Deduct Coins
+          const deduction = await deductFunds(
+            client,
+            message.guild.id,
+            i.user.id,
+            totalPrice,
+            `Role Store Button Purchase: ${buyItem.name}`
+          );
+
+          if (!deduction.success) {
+            return i.editReply({ content: deduction.error });
+          }
+
+          // Fetch user inventory
+          let userInv = await Inventory.findOne({ guildId: message.guild.id, userId: i.user.id });
+          if (!userInv) {
+            userInv = new Inventory({ guildId: message.guild.id, userId: i.user.id, roles: [] });
+          }
+
+          userInv.roles.push({
+            roleId: buyItem.roleId,
+            name: buyItem.name,
+            isTemporary: buyItem.isTemporary,
+            durationMs: durationMs,
+            purchasedAt: new Date(),
+            isUsed: false,
+            assignedTo: null
+          });
+
+          await userInv.save();
+
+          // Decrement stock
+          if (buyItem.stock > 0) {
+            const originalItem = freshGuild.roleStore.id(buyItem._id);
+            if (originalItem) {
+              originalItem.stock--;
+              await freshGuild.save();
+            }
+          }
+
+          await i.editReply({ content: `🛍️ **Purchase Successful!** You successfully purchased **${buyItem.name}** for **💰 ${formatNumber(totalPrice)}**!\nUse \`${prefix}ur ${userInv.roles.length}\` to equip it on yourself.` });
+
+          // Update main storefront message
+          const updatedGuild = await Guild.findOne({ guildId: message.guild.id });
+          const updatedActiveStore = updatedGuild.roleStore.filter(item => !item.saleExpiresAt || item.saleExpiresAt > now);
+          await mainMsg.edit(generateStorePage(pageIndex, updatedActiveStore));
         }
-
-        await i.editReply({ content: `🛍️ **Purchase Successful!** You successfully purchased **${buyItem.name}** ${isRent ? `(${formatDuration(buyItem.durationMs)})` : ''} for **💰 ${formatNumber(totalPrice)}**!\nUse \`${prefix}ur ${userInv.roles.length}\` to equip it on yourself.` });
-
-        // Update the main shop page live to reflect depleted stock!
-        const updatedGuild = await Guild.findOne({ guildId: message.guild.id });
-        const updatedActiveStore = updatedGuild.roleStore.filter(item => !item.saleExpiresAt || item.saleExpiresAt > now);
-        await mainMsg.edit(generateStorePage(pageIndex, updatedActiveStore));
       }
     });
 
