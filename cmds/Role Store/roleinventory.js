@@ -183,8 +183,11 @@ module.exports = {
         descriptionText += `*You do not currently own any items in your inventory. Use \`${prefix}br list\` to buy roles!*\n────────────────────────────────────────\n`;
       }
 
-      descriptionText += `\`${prefix}userole [inv id/num]\` // \`${prefix}ur [inv id/num] @MentionFriend\` // \`${prefix}ur unequip [inv id/num]\` // \`${prefix}ri del [inv id/num]\`\n`;
-      descriptionText += `────────────────────────────────────────\n`;
+      descriptionText += `**CMDS:**\n`;
+      descriptionText += `- \`${prefix}userole [inv id/num]\` - Equip\n`;
+      descriptionText += `- \`${prefix}ur [inv id/num] @MentionFriend\` - Gift a friend\n`;
+      descriptionText += `- \`${prefix}ur unequip [inv id/num]\` - Unequip\n`;
+      descriptionText += `- \`${prefix}ri del [inv id/num]\`  - Delete\n`;
 
       embed.setDescription(descriptionText);
 
