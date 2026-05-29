@@ -473,9 +473,17 @@ function registerBRListener(client) {
         .setPlaceholder('Enter description/perks of this role...')
         .setRequired(false);
 
+      const durationInput = new TextInputBuilder()
+        .setCustomId('rs_duration')
+        .setLabel('Temporary Duration (e.g. 7d, 24h / 0 for perm)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Enter 0 for permanent, or e.g., 7d, 24h, 30m')
+        .setRequired(false);
+
       modal.addComponents(
         new ActionRowBuilder().addComponents(priceInput),
-        new ActionRowBuilder().addComponents(descInput)
+        new ActionRowBuilder().addComponents(descInput),
+        new ActionRowBuilder().addComponents(durationInput)
       );
 
       await i.showModal(modal);
@@ -486,6 +494,7 @@ function registerBRListener(client) {
       const roleId = i.customId.split('_')[3];
       const priceVal = parseInt(i.fields.getTextInputValue('rs_price').trim());
       const descVal = i.fields.getTextInputValue('rs_desc').trim();
+      const durationVal = i.fields.getTextInputValue('rs_duration').trim().toLowerCase() || '0';
 
       const role = await i.guild.roles.fetch(roleId).catch(() => null);
       if (!role) {
@@ -494,6 +503,17 @@ function registerBRListener(client) {
 
       if (isNaN(priceVal) || priceVal < 0) {
         return i.reply({ content: "❌ Price must be a valid positive number.", flags: [MessageFlags.Ephemeral] });
+      }
+
+      let isTemporary = false;
+      let durationMs = 0;
+
+      if (durationVal !== '0' && durationVal !== '') {
+        durationMs = parseDuration(durationVal);
+        if (durationMs <= 0) {
+          return i.reply({ content: "❌ **Invalid Duration Format!** Please specify a duration like `7d` (days), `24h` (hours), or `30m` (minutes), or enter `0` for permanent.", flags: [MessageFlags.Ephemeral] });
+        }
+        isTemporary = true;
       }
 
       const freshGuild = await Guild.findOne({ guildId: i.guild.id }) || new Guild({ guildId: i.guild.id });
@@ -505,11 +525,14 @@ function registerBRListener(client) {
         roleId: role.id,
         name: role.name,
         price: priceVal,
-        description: descVal || "No description provided."
+        description: descVal || "No description provided.",
+        isTemporary: isTemporary,
+        durationMs: durationMs
       });
 
       await freshGuild.save();
-      return i.reply({ content: `✅ Successfully listed **${role.name}** in the storefront for **💰 ${priceVal.toLocaleString()}**!\n*Please re-open the setup dashboard to refresh the active listings table.*`, flags: [MessageFlags.Ephemeral] });
+      const durationText = isTemporary ? `⏳ **Temporary (${formatDuration(durationMs)})**` : '♾️ **Permanent**';
+      return i.reply({ content: `✅ Successfully listed **${role.name}** in the storefront for **💰 ${priceVal.toLocaleString()}**!\n* **Type:** ${durationText}\n\n*Please re-open the setup dashboard to refresh the active listings table.*`, flags: [MessageFlags.Ephemeral] });
     }
   });
 }
