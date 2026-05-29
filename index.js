@@ -335,6 +335,16 @@ setInterval(checkMaxBalances, 3 * 60 * 60 * 1000);
 // --- EVENT HANDLERS ---
 client.once(Events.ClientReady, async () => {
   console.log(`Logged in as ${client.user.tag}!`);
+  
+  // Print latest Git commit message on startup to track live version
+  try {
+    const { execSync } = require('child_process');
+    const gitMsg = execSync('git log -1 --pretty=%B').toString().trim();
+    console.log(`\x1b[32m[Git Update Status] Current Active Commit:\x1b[0m\n${gitMsg}\n`);
+  } catch (err) {
+    console.warn('[Git Status Warning] Unable to retrieve latest git commit message:', err.message);
+  }
+
   await loadCaches();
   checkMaxBalances();
   checkExpiredRoles();
