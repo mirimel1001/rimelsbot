@@ -73,7 +73,12 @@ module.exports = {
 
         descriptionText += `**[ ${itemNumber} ]  ${item.name}**\n`;
         descriptionText += `${item.description}\n`;
-        descriptionText += `*Price: ${priceTag}  |  Type: ${tempTag}  |  Stock: ${stockTag}${saleTag}*\n\n`;
+        descriptionText += `*Price: ${priceTag}  |  Type: ${tempTag}  |  Stock: ${stockTag}${saleTag}*\n`;
+        if (pageIdx < pageItems.length - 1) {
+          descriptionText += `────────────────────────────────────────\n`;
+        } else {
+          descriptionText += `\n`;
+        }
       });
 
       embed.setDescription(descriptionText);

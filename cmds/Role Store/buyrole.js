@@ -535,12 +535,16 @@ function registerBRListener(client) {
         return i.reply({ content: "⚠️ This role is already listed in the storefront!", flags: [MessageFlags.Ephemeral] });
       }
 
-      // Present buttons to select FIXED or RENT mode
+      // Present three buttons to select PERMANENT, TEMPORARY, or RENT mode
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId(`rs_choose_fixed_${role.id}`)
-          .setLabel('One-Time (Fixed)')
+          .setCustomId(`rs_choose_perm_${role.id}`)
+          .setLabel('One-Time (Permanent)')
           .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId(`rs_choose_temp_${role.id}`)
+          .setLabel('One-Time (Temporary)')
+          .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
           .setCustomId(`rs_choose_rent_${role.id}`)
           .setLabel('Rentable System')
@@ -548,7 +552,7 @@ function registerBRListener(client) {
       );
 
       return i.reply({
-        content: `📋 **Select Listing Mode for ${role.name}:**\n\n* **One-Time (Fixed):** A fixed price for permanent or temporary ownership.\n* **Rentable System:** A price set per rental unit duration (e.g. per 6 hours, per 1 day). Users choose how many units to purchase.`,
+        content: `📋 **Select Listing Mode for ${role.name}:**\n\n* **One-Time (Permanent):** Pay once and keep the role forever.\n* **One-Time (Temporary):** Pay once for a set active duration (e.g. 7 days).\n* **Rentable System:** Rent the role per unit of duration (e.g. per 6h, per 1d) and specify custom rent duration multiplier upon purchase.`,
         components: [row],
         flags: [MessageFlags.Ephemeral]
       });
@@ -556,7 +560,7 @@ function registerBRListener(client) {
 
     // --- 2. Catch Choice Button Clicks (Setup Dashboard) ---
     if (i.isButton()) {
-      if (i.customId.startsWith('rs_choose_fixed_')) {
+      if (i.customId.startsWith('rs_choose_perm_')) {
         const roleId = i.customId.split('_')[3];
         const role = await i.guild.roles.fetch(roleId).catch(() => null);
         if (!role) {
@@ -564,8 +568,51 @@ function registerBRListener(client) {
         }
 
         const modal = new ModalBuilder()
-          .setCustomId(`rs_add_fixed_${role.id}`)
-          .setTitle(`Fixed Mode: ${role.name.slice(0, 20)}`);
+          .setCustomId(`rs_add_perm_${role.id}`)
+          .setTitle(`Permanent Mode: ${role.name.slice(0, 20)}`);
+
+        const priceInput = new TextInputBuilder()
+          .setCustomId('rs_price')
+          .setLabel('Store Price (Coins) *')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('e.g. 5000')
+          .setRequired(true);
+
+        const descInput = new TextInputBuilder()
+          .setCustomId('rs_desc')
+          .setLabel('Store Description')
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder('Enter description/perks of this role...')
+          .setRequired(false);
+
+        const stockInput = new TextInputBuilder()
+          .setCustomId('rs_stock')
+          .setLabel('Stock Limit (-1 for unlimited)')
+          .setStyle(TextInputStyle.Short)
+          .setValue('-1')
+          .setPlaceholder('Enter -1 for unlimited, or e.g., 10')
+          .setRequired(false);
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(priceInput),
+          new ActionRowBuilder().addComponents(descInput),
+          new ActionRowBuilder().addComponents(stockInput)
+        );
+
+        await i.showModal(modal);
+        return;
+      }
+
+      if (i.customId.startsWith('rs_choose_temp_')) {
+        const roleId = i.customId.split('_')[3];
+        const role = await i.guild.roles.fetch(roleId).catch(() => null);
+        if (!role) {
+          return i.reply({ content: "❌ Role not found on the server.", flags: [MessageFlags.Ephemeral] });
+        }
+
+        const modal = new ModalBuilder()
+          .setCustomId(`rs_add_temp_${role.id}`)
+          .setTitle(`Temporary Mode: ${role.name.slice(0, 20)}`);
 
         const priceInput = new TextInputBuilder()
           .setCustomId('rs_price')
@@ -583,15 +630,24 @@ function registerBRListener(client) {
 
         const durationInput = new TextInputBuilder()
           .setCustomId('rs_duration')
-          .setLabel('Duration (e.g., 7d, 24h / 0 for perm)')
+          .setLabel('Temporary Duration (e.g. 7d, 24h) *')
           .setStyle(TextInputStyle.Short)
-          .setPlaceholder('Enter 0 for permanent, or e.g., 7d, 24h, 30m')
+          .setPlaceholder('e.g. 7d, 12h, 30m')
+          .setRequired(true);
+
+        const stockInput = new TextInputBuilder()
+          .setCustomId('rs_stock')
+          .setLabel('Stock Limit (-1 for unlimited)')
+          .setStyle(TextInputStyle.Short)
+          .setValue('-1')
+          .setPlaceholder('Enter -1 for unlimited, or e.g., 10')
           .setRequired(false);
 
         modal.addComponents(
           new ActionRowBuilder().addComponents(priceInput),
           new ActionRowBuilder().addComponents(descInput),
-          new ActionRowBuilder().addComponents(durationInput)
+          new ActionRowBuilder().addComponents(durationInput),
+          new ActionRowBuilder().addComponents(stockInput)
         );
 
         await i.showModal(modal);
@@ -630,10 +686,19 @@ function registerBRListener(client) {
           .setPlaceholder('e.g. 6h, 12h, 1d (Minimum 6 hours)')
           .setRequired(true);
 
+        const stockInput = new TextInputBuilder()
+          .setCustomId('rs_stock')
+          .setLabel('Stock Limit (-1 for unlimited)')
+          .setStyle(TextInputStyle.Short)
+          .setValue('-1')
+          .setPlaceholder('Enter -1 for unlimited, or e.g., 10')
+          .setRequired(false);
+
         modal.addComponents(
           new ActionRowBuilder().addComponents(priceInput),
           new ActionRowBuilder().addComponents(descInput),
-          new ActionRowBuilder().addComponents(rentUnitInput)
+          new ActionRowBuilder().addComponents(rentUnitInput),
+          new ActionRowBuilder().addComponents(stockInput)
         );
 
         await i.showModal(modal);
@@ -642,11 +707,11 @@ function registerBRListener(client) {
     }
 
     // --- 3. Catch Add Modal Submissions ---
-    if (i.isModalSubmit() && i.customId.startsWith('rs_add_fixed_')) {
+    if (i.isModalSubmit() && i.customId.startsWith('rs_add_perm_')) {
       const roleId = i.customId.split('_')[3];
       const priceVal = parseInt(i.fields.getTextInputValue('rs_price').trim());
       const descVal = i.fields.getTextInputValue('rs_desc').trim();
-      const durationVal = i.fields.getTextInputValue('rs_duration').trim().toLowerCase() || '0';
+      const stockVal = i.fields.getTextInputValue('rs_stock')?.trim() || '-1';
 
       const role = await i.guild.roles.fetch(roleId).catch(() => null);
       if (!role) {
@@ -657,15 +722,9 @@ function registerBRListener(client) {
         return i.reply({ content: "❌ Price must be a valid positive number.", flags: [MessageFlags.Ephemeral] });
       }
 
-      let isTemporary = false;
-      let durationMs = 0;
-
-      if (durationVal !== '0' && durationVal !== '') {
-        durationMs = parseDuration(durationVal);
-        if (durationMs <= 0) {
-          return i.reply({ content: "❌ **Invalid Duration Format!** Please specify a duration like `7d` (days), `24h` (hours), or `30m` (minutes), or enter `0` for permanent.", flags: [MessageFlags.Ephemeral] });
-        }
-        isTemporary = true;
+      const stock = parseInt(stockVal);
+      if (isNaN(stock) || stock < -1) {
+        return i.reply({ content: "❌ **Invalid Stock Limit!** Please enter `-1` for unlimited, or a positive integer (e.g. `10`).", flags: [MessageFlags.Ephemeral] });
       }
 
       const freshGuild = await Guild.findOne({ guildId: i.guild.id }) || new Guild({ guildId: i.guild.id });
@@ -679,20 +738,22 @@ function registerBRListener(client) {
         price: priceVal,
         priceMode: 'FIXED',
         description: descVal || "No description provided.",
-        isTemporary: isTemporary,
-        durationMs: durationMs
+        isTemporary: false,
+        durationMs: 0,
+        stock: stock
       });
 
       await freshGuild.save();
-      const durationText = isTemporary ? `⏳ **Temporary (${formatDuration(durationMs)})**` : '♾️ **Permanent**';
-      return i.reply({ content: `✅ Successfully listed **${role.name}** in the storefront for **💰 ${priceVal.toLocaleString()}**!\n* **Type:** ${durationText}\n\n*Please re-open the setup dashboard to refresh the active listings table.*`, flags: [MessageFlags.Ephemeral] });
+      const stockText = stock === -1 ? 'Unlimited' : `${stock}`;
+      return i.reply({ content: `✅ Successfully listed **${role.name}** in the storefront for **💰 ${priceVal.toLocaleString()}**!\n* **Type:** ♾️ **Permanent**\n* **Stock:** ${stockText}\n\n*Please re-open the setup dashboard to refresh the active listings table.*`, flags: [MessageFlags.Ephemeral] });
     }
 
-    if (i.isModalSubmit() && i.customId.startsWith('rs_add_rent_')) {
+    if (i.isModalSubmit() && i.customId.startsWith('rs_add_temp_')) {
       const roleId = i.customId.split('_')[3];
       const priceVal = parseInt(i.fields.getTextInputValue('rs_price').trim());
       const descVal = i.fields.getTextInputValue('rs_desc').trim();
-      const rentUnitVal = i.fields.getTextInputValue('rs_rent_unit').trim().toLowerCase();
+      const durationVal = i.fields.getTextInputValue('rs_duration').trim().toLowerCase();
+      const stockVal = i.fields.getTextInputValue('rs_stock')?.trim() || '-1';
 
       const role = await i.guild.roles.fetch(roleId).catch(() => null);
       if (!role) {
@@ -701,6 +762,59 @@ function registerBRListener(client) {
 
       if (isNaN(priceVal) || priceVal < 0) {
         return i.reply({ content: "❌ Price must be a valid positive number.", flags: [MessageFlags.Ephemeral] });
+      }
+
+      const stock = parseInt(stockVal);
+      if (isNaN(stock) || stock < -1) {
+        return i.reply({ content: "❌ **Invalid Stock Limit!** Please enter `-1` for unlimited, or a positive integer (e.g. `10`).", flags: [MessageFlags.Ephemeral] });
+      }
+
+      const durationMs = parseDuration(durationVal);
+      if (durationMs <= 0) {
+        return i.reply({ content: "❌ **Invalid Duration Format!** Please specify a duration like `7d` (days), `24h` (hours), or `30m` (minutes).", flags: [MessageFlags.Ephemeral] });
+      }
+
+      const freshGuild = await Guild.findOne({ guildId: i.guild.id }) || new Guild({ guildId: i.guild.id });
+      if (freshGuild.roleStore.some(item => item.roleId === role.id)) {
+        return i.reply({ content: "⚠️ This role is already listed in the store!", flags: [MessageFlags.Ephemeral] });
+      }
+
+      freshGuild.roleStore.push({
+        roleId: role.id,
+        name: role.name,
+        price: priceVal,
+        priceMode: 'FIXED',
+        description: descVal || "No description provided.",
+        isTemporary: true,
+        durationMs: durationMs,
+        stock: stock
+      });
+
+      await freshGuild.save();
+      const durationText = `⏳ **Temporary (${formatDuration(durationMs)})**`;
+      const stockText = stock === -1 ? 'Unlimited' : `${stock}`;
+      return i.reply({ content: `✅ Successfully listed **${role.name}** in the storefront for **💰 ${priceVal.toLocaleString()}**!\n* **Type:** ${durationText}\n* **Stock:** ${stockText}\n\n*Please re-open the setup dashboard to refresh the active listings table.*`, flags: [MessageFlags.Ephemeral] });
+    }
+
+    if (i.isModalSubmit() && i.customId.startsWith('rs_add_rent_')) {
+      const roleId = i.customId.split('_')[3];
+      const priceVal = parseInt(i.fields.getTextInputValue('rs_price').trim());
+      const descVal = i.fields.getTextInputValue('rs_desc').trim();
+      const rentUnitVal = i.fields.getTextInputValue('rs_rent_unit').trim().toLowerCase();
+      const stockVal = i.fields.getTextInputValue('rs_stock')?.trim() || '-1';
+
+      const role = await i.guild.roles.fetch(roleId).catch(() => null);
+      if (!role) {
+        return i.reply({ content: "❌ Role not found on the server.", flags: [MessageFlags.Ephemeral] });
+      }
+
+      if (isNaN(priceVal) || priceVal < 0) {
+        return i.reply({ content: "❌ Price must be a valid positive number.", flags: [MessageFlags.Ephemeral] });
+      }
+
+      const stock = parseInt(stockVal);
+      if (isNaN(stock) || stock < -1) {
+        return i.reply({ content: "❌ **Invalid Stock Limit!** Please enter `-1` for unlimited, or a positive integer (e.g. `10`).", flags: [MessageFlags.Ephemeral] });
       }
 
       const durationMs = parseDuration(rentUnitVal);
@@ -724,11 +838,13 @@ function registerBRListener(client) {
         priceMode: 'RENT',
         description: descVal || "No description provided.",
         isTemporary: true,
-        durationMs: durationMs
+        durationMs: durationMs,
+        stock: stock
       });
 
       await freshGuild.save();
-      return i.reply({ content: `✅ Successfully listed **${role.name}** in the storefront for **💰 ${priceVal.toLocaleString()}** per **${formatDuration(durationMs)}**!\n* **Type:** 🔑 **Rentable**\n\n*Please re-open the setup dashboard to refresh the active listings table.*`, flags: [MessageFlags.Ephemeral] });
+      const stockText = stock === -1 ? 'Unlimited' : `${stock}`;
+      return i.reply({ content: `✅ Successfully listed **${role.name}** in the storefront for **💰 ${priceVal.toLocaleString()}** per **${formatDuration(durationMs)}**!\n* **Type:** 🔑 **Rentable**\n* **Stock:** ${stockText}\n\n*Please re-open the setup dashboard to refresh the active listings table.*`, flags: [MessageFlags.Ephemeral] });
     }
 
     // --- 4. Catch Role Edit Select Menu Submission ---
@@ -771,17 +887,25 @@ function registerBRListener(client) {
           .setValue(formatDuration(item.durationMs))
           .setRequired(true);
 
+        const stockInput = new TextInputBuilder()
+          .setCustomId('rs_stock')
+          .setLabel('Stock Limit (-1 for unlimited)')
+          .setStyle(TextInputStyle.Short)
+          .setValue(item.stock !== undefined ? item.stock.toString() : '-1')
+          .setRequired(false);
+
         modal.addComponents(
           new ActionRowBuilder().addComponents(priceInput),
           new ActionRowBuilder().addComponents(descInput),
-          new ActionRowBuilder().addComponents(rentUnitInput)
+          new ActionRowBuilder().addComponents(rentUnitInput),
+          new ActionRowBuilder().addComponents(stockInput)
         );
 
         await i.showModal(modal);
-      } else {
+      } else if (item.isTemporary) {
         const modal = new ModalBuilder()
-          .setCustomId(`rs_edit_fixed_${item.roleId}`)
-          .setTitle(`Edit Fixed: ${item.name.slice(0, 20)}`);
+          .setCustomId(`rs_edit_temp_${item.roleId}`)
+          .setTitle(`Edit Temporary: ${item.name.slice(0, 20)}`);
 
         const priceInput = new TextInputBuilder()
           .setCustomId('rs_price')
@@ -799,15 +923,56 @@ function registerBRListener(client) {
 
         const durationInput = new TextInputBuilder()
           .setCustomId('rs_duration')
-          .setLabel('Duration (e.g., 7d, 24h / 0 for perm)')
+          .setLabel('Temporary Duration (e.g. 7d, 24h) *')
           .setStyle(TextInputStyle.Short)
-          .setValue(item.isTemporary ? formatDuration(item.durationMs) : '0')
+          .setValue(formatDuration(item.durationMs))
+          .setRequired(true);
+
+        const stockInput = new TextInputBuilder()
+          .setCustomId('rs_stock')
+          .setLabel('Stock Limit (-1 for unlimited)')
+          .setStyle(TextInputStyle.Short)
+          .setValue(item.stock !== undefined ? item.stock.toString() : '-1')
           .setRequired(false);
 
         modal.addComponents(
           new ActionRowBuilder().addComponents(priceInput),
           new ActionRowBuilder().addComponents(descInput),
-          new ActionRowBuilder().addComponents(durationInput)
+          new ActionRowBuilder().addComponents(durationInput),
+          new ActionRowBuilder().addComponents(stockInput)
+        );
+
+        await i.showModal(modal);
+      } else {
+        const modal = new ModalBuilder()
+          .setCustomId(`rs_edit_perm_${item.roleId}`)
+          .setTitle(`Edit Permanent: ${item.name.slice(0, 20)}`);
+
+        const priceInput = new TextInputBuilder()
+          .setCustomId('rs_price')
+          .setLabel('Store Price (Coins) *')
+          .setStyle(TextInputStyle.Short)
+          .setValue(item.price.toString())
+          .setRequired(true);
+
+        const descInput = new TextInputBuilder()
+          .setCustomId('rs_desc')
+          .setLabel('Store Description')
+          .setStyle(TextInputStyle.Paragraph)
+          .setValue(item.description || '')
+          .setRequired(false);
+
+        const stockInput = new TextInputBuilder()
+          .setCustomId('rs_stock')
+          .setLabel('Stock Limit (-1 for unlimited)')
+          .setStyle(TextInputStyle.Short)
+          .setValue(item.stock !== undefined ? item.stock.toString() : '-1')
+          .setRequired(false);
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(priceInput),
+          new ActionRowBuilder().addComponents(descInput),
+          new ActionRowBuilder().addComponents(stockInput)
         );
 
         await i.showModal(modal);
@@ -815,25 +980,19 @@ function registerBRListener(client) {
     }
 
     // --- 5. Catch Edit Modal Submissions ---
-    if (i.isModalSubmit() && i.customId.startsWith('rs_edit_fixed_')) {
+    if (i.isModalSubmit() && i.customId.startsWith('rs_edit_perm_')) {
       const roleId = i.customId.split('_')[3];
       const priceVal = parseInt(i.fields.getTextInputValue('rs_price').trim());
       const descVal = i.fields.getTextInputValue('rs_desc').trim();
-      const durationVal = i.fields.getTextInputValue('rs_duration').trim().toLowerCase() || '0';
+      const stockVal = i.fields.getTextInputValue('rs_stock')?.trim() || '-1';
 
       if (isNaN(priceVal) || priceVal < 0) {
         return i.reply({ content: "❌ Price must be a valid positive number.", flags: [MessageFlags.Ephemeral] });
       }
 
-      let isTemporary = false;
-      let durationMs = 0;
-
-      if (durationVal !== '0' && durationVal !== '') {
-        durationMs = parseDuration(durationVal);
-        if (durationMs <= 0) {
-          return i.reply({ content: "❌ **Invalid Duration Format!** Please specify a duration like `7d` (days), `24h` (hours), or `30m` (minutes), or enter `0` for permanent.", flags: [MessageFlags.Ephemeral] });
-        }
-        isTemporary = true;
+      const stock = parseInt(stockVal);
+      if (isNaN(stock) || stock < -1) {
+        return i.reply({ content: "❌ **Invalid Stock Limit!** Please enter `-1` for unlimited, or a positive integer (e.g. `10`).", flags: [MessageFlags.Ephemeral] });
       }
 
       const freshGuild = await Guild.findOne({ guildId: i.guild.id });
@@ -849,12 +1008,57 @@ function registerBRListener(client) {
       // Update values
       item.price = priceVal;
       item.description = descVal || "No description provided.";
-      item.isTemporary = isTemporary;
-      item.durationMs = durationMs;
+      item.isTemporary = false;
+      item.durationMs = 0;
+      item.stock = stock;
 
       await freshGuild.save();
-      const durationText = isTemporary ? `⏳ **Temporary (${formatDuration(durationMs)})**` : '♾️ **Permanent**';
-      return i.reply({ content: `✅ Successfully updated **${item.name}** in the storefront!\n* **Price:** 💰 ${priceVal.toLocaleString()}\n* **Type:** ${durationText}\n\n*Please re-open the setup dashboard to refresh the active listings table.*`, flags: [MessageFlags.Ephemeral] });
+      const stockText = stock === -1 ? 'Unlimited' : `${stock}`;
+      return i.reply({ content: `✅ Successfully updated **${item.name}** in the storefront!\n* **Price:** 💰 ${priceVal.toLocaleString()}\n* **Type:** ♾️ **Permanent**\n* **Stock:** ${stockText}\n\n*Please re-open the setup dashboard to refresh the active listings table.*`, flags: [MessageFlags.Ephemeral] });
+    }
+
+    if (i.isModalSubmit() && i.customId.startsWith('rs_edit_temp_')) {
+      const roleId = i.customId.split('_')[3];
+      const priceVal = parseInt(i.fields.getTextInputValue('rs_price').trim());
+      const descVal = i.fields.getTextInputValue('rs_desc').trim();
+      const durationVal = i.fields.getTextInputValue('rs_duration').trim().toLowerCase();
+      const stockVal = i.fields.getTextInputValue('rs_stock')?.trim() || '-1';
+
+      if (isNaN(priceVal) || priceVal < 0) {
+        return i.reply({ content: "❌ Price must be a valid positive number.", flags: [MessageFlags.Ephemeral] });
+      }
+
+      const stock = parseInt(stockVal);
+      if (isNaN(stock) || stock < -1) {
+        return i.reply({ content: "❌ **Invalid Stock Limit!** Please enter `-1` for unlimited, or a positive integer (e.g. `10`).", flags: [MessageFlags.Ephemeral] });
+      }
+
+      const durationMs = parseDuration(durationVal);
+      if (durationMs <= 0) {
+        return i.reply({ content: "❌ **Invalid Duration Format!** Please specify a duration like `7d` (days), `24h` (hours), or `30m` (minutes).", flags: [MessageFlags.Ephemeral] });
+      }
+
+      const freshGuild = await Guild.findOne({ guildId: i.guild.id });
+      if (!freshGuild) {
+        return i.reply({ content: "❌ Store settings not found.", flags: [MessageFlags.Ephemeral] });
+      }
+
+      const item = freshGuild.roleStore.find(si => si.roleId === roleId);
+      if (!item) {
+        return i.reply({ content: "❌ Role not found in storefront.", flags: [MessageFlags.Ephemeral] });
+      }
+
+      // Update values
+      item.price = priceVal;
+      item.description = descVal || "No description provided.";
+      item.isTemporary = true;
+      item.durationMs = durationMs;
+      item.stock = stock;
+
+      await freshGuild.save();
+      const durationText = `⏳ **Temporary (${formatDuration(durationMs)})**`;
+      const stockText = stock === -1 ? 'Unlimited' : `${stock}`;
+      return i.reply({ content: `✅ Successfully updated **${item.name}** in the storefront!\n* **Price:** 💰 ${priceVal.toLocaleString()}\n* **Type:** ${durationText}\n* **Stock:** ${stockText}\n\n*Please re-open the setup dashboard to refresh the active listings table.*`, flags: [MessageFlags.Ephemeral] });
     }
 
     if (i.isModalSubmit() && i.customId.startsWith('rs_edit_rent_')) {
@@ -862,9 +1066,15 @@ function registerBRListener(client) {
       const priceVal = parseInt(i.fields.getTextInputValue('rs_price').trim());
       const descVal = i.fields.getTextInputValue('rs_desc').trim();
       const rentUnitVal = i.fields.getTextInputValue('rs_rent_unit').trim().toLowerCase();
+      const stockVal = i.fields.getTextInputValue('rs_stock')?.trim() || '-1';
 
       if (isNaN(priceVal) || priceVal < 0) {
         return i.reply({ content: "❌ Price must be a valid positive number.", flags: [MessageFlags.Ephemeral] });
+      }
+
+      const stock = parseInt(stockVal);
+      if (isNaN(stock) || stock < -1) {
+        return i.reply({ content: "❌ **Invalid Stock Limit!** Please enter `-1` for unlimited, or a positive integer (e.g. `10`).", flags: [MessageFlags.Ephemeral] });
       }
 
       const durationMs = parseDuration(rentUnitVal);
@@ -891,9 +1101,11 @@ function registerBRListener(client) {
       item.description = descVal || "No description provided.";
       item.isTemporary = true;
       item.durationMs = durationMs;
+      item.stock = stock;
 
       await freshGuild.save();
-      return i.reply({ content: `✅ Successfully updated rentable **${item.name}** in the storefront!\n* **Price:** 💰 ${priceVal.toLocaleString()} per ${formatDuration(durationMs)}\n* **Type:** 🔑 **Rentable**\n\n*Please re-open the setup dashboard to refresh the active listings table.*`, flags: [MessageFlags.Ephemeral] });
+      const stockText = stock === -1 ? 'Unlimited' : `${stock}`;
+      return i.reply({ content: `✅ Successfully updated rentable **${item.name}** in the storefront!\n* **Price:** 💰 ${priceVal.toLocaleString()} per ${formatDuration(durationMs)}\n* **Type:** 🔑 **Rentable**\n* **Stock:** ${stockText}\n\n*Please re-open the setup dashboard to refresh the active listings table.*`, flags: [MessageFlags.Ephemeral] });
     }
   });
 }
