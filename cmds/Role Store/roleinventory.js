@@ -45,10 +45,10 @@ module.exports = {
     let inv = await Inventory.findOne({ guildId: message.guild.id, userId: message.author.id });
 
     const firstArg = args[0]?.toLowerCase();
-    if (firstArg === 'discard' || firstArg === 'remove' || firstArg === 'delete') {
+    if (firstArg === 'discard' || firstArg === 'remove' || firstArg === 'delete' || firstArg === 'del') {
       const indexInput = args[1];
       if (!indexInput) {
-        return message.reply(`❌ **Usage:** \`${prefix}ri discard [inventory id/number]\``);
+        return message.reply(`❌ **Usage:** \`${prefix}ri del [inventory id/number]\``);
       }
 
       if (!inv || !inv.roles || inv.roles.length === 0) {
@@ -128,7 +128,7 @@ module.exports = {
         .setTitle(`📦 ${message.author.username}'s Role Inventory`)
         .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
         .setTimestamp()
-        .setFooter({ text: `Page ${index + 1} of ${totalPages} | Commands: ${prefix}ur [index] [@member] / unequip [index] / ri discard [index]` });
+        .setFooter({ text: `Page ${index + 1} of ${totalPages} | ${prefix}userole [inv id/num] // ${prefix}ur [inv id/num] @MentionFriend // ${prefix}ur unequip [inv id/num] // ${prefix}ri del [inv id/num]` });
 
       let descriptionText = "";
       if (ownRolesCount > 0) {

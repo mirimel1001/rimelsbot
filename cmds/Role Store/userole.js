@@ -16,21 +16,24 @@ function formatDuration(ms) {
 
 module.exports = {
   name: "userole",
-  aliases: ["ur", "equip", "unequip"],
+  aliases: ["ur", "equip", "unequip", "une"],
   description: "Equip a role from inventory to yourself, equip it on a friend, or unequip it.",
-  usage: "ur [inventory id/number] [empty for yourself / @friend] OR ur unequip [inventory id/number]",
+  usage: "ur [inventory id/number] [empty for yourself / @friend] OR ur unequip [inventory id/number] (or ur une [index])",
   run: async (client, message, args, prefix, config) => {
     if (!message.guild) return message.reply("❌ Roles can only be equipped inside a server.");
 
     const firstArg = args[0]?.toLowerCase();
+    const msgWords = message.content.trim().split(/ +/);
+    const triggeredCmd = msgWords[0].slice(prefix.length).toLowerCase();
+    const isDirectUnequip = triggeredCmd === 'unequip' || triggeredCmd === 'une';
 
     // -------------------------------------------------------------
     // --- 1. SUBCOMMAND: UNEQUIP A ROLE ---
     // -------------------------------------------------------------
-    if (firstArg === 'unequip' || firstArg === 'take' || firstArg === 'remove') {
-      const indexInput = args[1];
+    if (firstArg === 'unequip' || firstArg === 'une' || firstArg === 'take' || firstArg === 'remove' || isDirectUnequip) {
+      const indexInput = isDirectUnequip ? args[0] : args[1];
       if (!indexInput) {
-        return message.reply(`❌ **Usage:** \`${prefix}ur unequip [inventory id/number]\``);
+        return message.reply(`❌ **Usage:** \`${prefix}ur unequip [inventory id/number]\` (or \`${prefix}une [inventory id/number]\`)`);
       }
 
       const inv = await Inventory.findOne({ guildId: message.guild.id, userId: message.author.id });
