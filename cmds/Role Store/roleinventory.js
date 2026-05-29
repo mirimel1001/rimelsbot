@@ -128,67 +128,63 @@ module.exports = {
         .setTitle(`📦 ${message.author.username}'s Role Inventory`)
         .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
         .setTimestamp()
-        .setFooter({ text: `Page ${index + 1} of ${totalPages} | ${prefix}userole [inv id/num] // ${prefix}ur [inv id/num] @MentionFriend // ${prefix}ur unequip [inv id/num] // ${prefix}ri del [inv id/num]` });
+        .setFooter({ text: `Page ${index + 1} of ${totalPages}` });
 
-      let descriptionText = "";
-      if (ownRolesCount > 0) {
-        descriptionText += `*Total owned items: ${ownRolesCount}*\n────────────────────────────────────────\n\n`;
-      } else {
-        descriptionText += `*You do not currently own any items in your inventory. Use \`${prefix}br list\` to buy roles!*\n\n`;
-      }
-
+      let descriptionText = "────────────────────────────────────────\n";
+      
       // 1. Render Gifted Items First (if any)
       if (giftedRoles.length > 0) {
-        descriptionText += `**🎁 Active Roles Equipped on You by Others**\n`;
+        descriptionText += `Total gift items: ${giftedRoles.length}\n────────────────────────────────────────\n`;
+        descriptionText += `🎁 **Active Roles Equipped on You by Others**\n`;
         giftedRoles.forEach((gr, idx) => {
           let tempText = '♾️ Permanent';
           if (gr.isTemporary) {
             const timeRemaining = gr.expiresAt ? Math.max(0, gr.expiresAt.getTime() - Date.now()) : 0;
             tempText = `⏳ Temp (Expires: <t:${Math.floor(gr.expiresAt.getTime() / 1000)}:R> | ${formatPreciseDuration(timeRemaining)})`;
           }
-          descriptionText += `**[ Gift #${idx + 1} ]  ${gr.name}**\n`;
-          descriptionText += `*Equipped by: <@${gr.giftedBy}>  |  Type: ${tempText}*\n`;
-          if (idx < giftedRoles.length - 1 || ownRolesCount > 0) {
-            descriptionText += `────────────────────────────────────────\n`;
-          } else {
-            descriptionText += `\n`;
-          }
+          descriptionText += `**[ Gift #${idx + 1} ] ${gr.name}**\n`;
+          descriptionText += `*Equipped by: <@${gr.giftedBy}> | Type: ${tempText}*\n`;
+          descriptionText += `────────────────────────────────────────\n`;
         });
       }
 
       // 2. Render Own Items
-      pageItems.forEach((item, pageIdx) => {
-        const itemNumber = start + pageIdx + 1;
-        const purchaseDate = new Date(item.purchasedAt).toLocaleDateString();
-        
-        let typeTag = "";
-        let statusTag = "";
+      if (ownRolesCount > 0) {
+        descriptionText += `Total owned items: ${ownRolesCount}\n────────────────────────────────────────\n`;
+        pageItems.forEach((item, pageIdx) => {
+          const itemNumber = start + pageIdx + 1;
+          const purchaseDate = new Date(item.purchasedAt).toLocaleDateString();
+          
+          let typeTag = "";
+          let statusTag = "";
 
-        if (item.isTemporary) {
-          typeTag = `⏳ Temp (${formatDuration(item.durationMs)})`;
-          if (item.isUsed) {
-            const timeRemaining = item.expiresAt ? Math.max(0, item.expiresAt.getTime() - Date.now()) : 0;
-            statusTag = `✅ Equipped on ${item.assignedTo === message.author.id ? 'Self' : `<@${item.assignedTo}>`} (<t:${Math.floor(item.expiresAt.getTime() / 1000)}:R> remaining | ${formatPreciseDuration(timeRemaining)})`;
+          if (item.isTemporary) {
+            typeTag = `⏳ Temp (${formatDuration(item.durationMs)})`;
+            if (item.isUsed) {
+              const timeRemaining = item.expiresAt ? Math.max(0, item.expiresAt.getTime() - Date.now()) : 0;
+              statusTag = `✅ Equipped on ${item.assignedTo === message.author.id ? 'Self' : `<@${item.assignedTo}>`} (<t:${Math.floor(item.expiresAt.getTime() / 1000)}:R> remaining | ${formatPreciseDuration(timeRemaining)})`;
+            } else {
+              statusTag = `💤 Dormant in Inventory`;
+            }
           } else {
-            statusTag = `💤 Dormant in Inventory`;
+            typeTag = `♾️ Permanent`;
+            if (item.isUsed) {
+              statusTag = `✅ Equipped on ${item.assignedTo === message.author.id ? 'Self' : `<@${item.assignedTo}>`}`;
+            } else {
+              statusTag = `📦 Unused in Inventory`;
+            }
           }
-        } else {
-          typeTag = `♾️ Permanent`;
-          if (item.isUsed) {
-            statusTag = `✅ Equipped on ${item.assignedTo === message.author.id ? 'Self' : `<@${item.assignedTo}>`}`;
-          } else {
-            statusTag = `📦 Unused in Inventory`;
-          }
-        }
 
-        descriptionText += `**[ ${itemNumber} ]  ${item.name}**\n`;
-        descriptionText += `*Type: ${typeTag}  |  Status: ${statusTag}  |  Bought: ${purchaseDate}*\n`;
-        if (pageIdx < pageItems.length - 1) {
+          descriptionText += `**[ ${itemNumber} ] ${item.name}**\n`;
+          descriptionText += `*Type: ${typeTag} | Status: ${statusTag} | Bought: ${purchaseDate}*\n`;
           descriptionText += `────────────────────────────────────────\n`;
-        } else {
-          descriptionText += `\n`;
-        }
-      });
+        });
+      } else {
+        descriptionText += `*You do not currently own any items in your inventory. Use \`${prefix}br list\` to buy roles!*\n────────────────────────────────────────\n`;
+      }
+
+      descriptionText += `\`${prefix}userole [inv id/num]\` // \`${prefix}ur [inv id/num] @MentionFriend\` // \`${prefix}ur unequip [inv id/num]\` // \`${prefix}ri del [inv id/num]\`\n`;
+      descriptionText += `────────────────────────────────────────\n`;
 
       embed.setDescription(descriptionText);
 
