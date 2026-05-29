@@ -16,7 +16,7 @@ function formatDuration(ms) {
 
 module.exports = {
   name: "roleinventory",
-  aliases: ["ri", "inventory", "myroles"],
+  aliases: ["i", "inv", "ri", "inventory", "myroles"],
   description: "View your purchased role inventory, showing active wearers and timers.",
   usage: "ri",
   run: async (client, message, args, prefix, config) => {

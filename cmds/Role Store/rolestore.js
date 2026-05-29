@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, MessageFlags } = require('discord.js');
 const Guild = require('../../models/Guild');
-const { formatNumber } = require('../../utils/economy.js');
+const Inventory = require('../../models/Inventory');
+const { formatNumber, getEconomyToken, deductFunds } = require('../../utils/economy.js');
 
 function formatDuration(ms) {
   if (ms <= 0) return "Permanent";
@@ -41,44 +42,57 @@ module.exports = {
     const totalPages = Math.ceil(activeStore.length / pageSize);
 
     // --- Embed and Buttons Generator ---
-    const generateStorePage = (index) => {
+    const generateStorePage = (index, storeList = activeStore) => {
       const start = index * pageSize;
-      const pageItems = activeStore.slice(start, start + pageSize);
+      const pageItems = storeList.slice(start, start + pageSize);
 
       const embed = new EmbedBuilder()
         .setColor('#5865F2')
         .setTitle('🏪 Server Role Storefront')
-        .setDescription(`Browse purchaseable roles below. Buy any role using its listed number!\n*Example: \`${prefix}br 1\` to buy the first role.*\n\n*Total roles on sale: ${activeStore.length}*`)
         .setThumbnail(message.guild.iconURL({ dynamic: true }))
         .setTimestamp()
-        .setFooter({ text: `Page ${index + 1} of ${totalPages} | Shop index is live` });
+        .setFooter({ text: `Page ${index + 1} of ${totalPages} | Real-time buy buttons active` });
+
+      let descriptionText = `Click a button below to instantly buy an item, or use the \`${prefix}br [number]\` command to purchase.\n\n`;
 
       pageItems.forEach((item, pageIdx) => {
         const itemNumber = start + pageIdx + 1;
         
         let priceTag = `💰 ${formatNumber(item.price)}`;
-        let tempTag = '♾️ Permanent';
+        let tempTag = 'Permanent';
 
         if (item.priceMode === 'RENT') {
-          priceTag = `💰 ${formatNumber(item.price)} / day`;
-          tempTag = `🔑 Rentable (Dynamic)`;
+          priceTag = `💰 ${formatNumber(item.price)} / ${formatDuration(item.durationMs)}`;
+          tempTag = `Rentable`;
         } else if (item.isTemporary) {
-          tempTag = `⏳ Temp (${formatDuration(item.durationMs)})`;
+          tempTag = `Temp (${formatDuration(item.durationMs)})`;
         }
 
-        const stockTag = item.stock === 0 ? '❌ **OUT OF STOCK**' : (item.stock === -1 ? '∞' : `${item.stock} left`);
-        const saleTag = item.saleExpiresAt ? ` | 🍂 Sale ends: <t:${Math.floor(item.saleExpiresAt.getTime() / 1000)}:R>` : '';
+        const stockTag = item.stock === 0 ? '❌ OUT OF STOCK' : (item.stock === -1 ? 'Unlimited' : `${item.stock} left`);
+        const saleTag = item.saleExpiresAt ? ` | Sale ends: <t:${Math.floor(item.saleExpiresAt.getTime() / 1000)}:R>` : '';
 
-        const desc = `**Price:** ${priceTag}\n**Details:** ${item.description}\n**Type:** ${tempTag} | **Stock:** ${stockTag}${saleTag}`;
-        
-        embed.addFields({
-          name: `🛍️ [${itemNumber}] ${item.name}`,
-          value: desc,
-          inline: false
-        });
+        descriptionText += `**[ ${itemNumber} ]  ${item.name}**\n`;
+        descriptionText += `${item.description}\n`;
+        descriptionText += `*Price: ${priceTag}  |  Type: ${tempTag}  |  Stock: ${stockTag}${saleTag}*\n\n`;
       });
 
-      const row = new ActionRowBuilder().addComponents(
+      embed.setDescription(descriptionText);
+
+      // Row 1: Direct Buy Buttons for page items
+      const buyRow = new ActionRowBuilder();
+      pageItems.forEach((item, pageIdx) => {
+        const itemNumber = start + pageIdx + 1;
+        buyRow.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`rs_buy_btn_${itemNumber}`)
+            .setLabel(`Buy [${itemNumber}]`)
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(item.stock === 0)
+        );
+      });
+
+      // Row 2: Pagination Controls
+      const pageRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId('store_prev')
           .setLabel('◀️ Previous')
@@ -91,27 +105,125 @@ module.exports = {
           .setDisabled(index >= totalPages - 1)
       );
 
-      return { embeds: [embed], components: totalPages > 1 ? [row] : [] };
+      const components = [buyRow];
+      if (totalPages > 1) {
+        components.push(pageRow);
+      }
+
+      return { embeds: [embed], components: components };
     };
 
     const mainMsg = await message.reply(generateStorePage(pageIndex));
-    if (totalPages <= 1) return;
 
-    const collector = mainMsg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 });
+    const collector = mainMsg.createMessageComponentCollector({ time: 600000 });
 
     collector.on('collect', async (i) => {
-      if (i.user.id !== message.author.id) {
-        return i.reply({ content: 'Only the user who loaded the shop can flip pages.', flags: [MessageFlags.Ephemeral] });
+      // --- Page Flipping (Only trigger for command author) ---
+      if (i.customId === 'store_prev' || i.customId === 'store_next') {
+        if (i.user.id !== message.author.id) {
+          return i.reply({ content: 'Only the user who loaded the shop can flip pages.', flags: [MessageFlags.Ephemeral] });
+        }
+
+        if (i.customId === 'store_prev') {
+          pageIndex--;
+        } else if (i.customId === 'store_next') {
+          pageIndex++;
+        }
+
+        const freshGuild = await Guild.findOne({ guildId: message.guild.id });
+        const freshActiveStore = freshGuild.roleStore.filter(item => !item.saleExpiresAt || item.saleExpiresAt > now);
+        await i.update(generateStorePage(pageIndex, freshActiveStore));
+        return;
       }
 
-      if (i.customId === 'store_prev') {
-        pageIndex--;
-        await i.update(generateStorePage(pageIndex));
-      }
+      // --- Direct Purchase Buttons (Open to anyone!) ---
+      if (i.customId.startsWith('rs_buy_btn_')) {
+        const btnIndex = parseInt(i.customId.split('_')[3]);
+        
+        await i.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-      if (i.customId === 'store_next') {
-        pageIndex++;
-        await i.update(generateStorePage(pageIndex));
+        const freshGuild = await Guild.findOne({ guildId: message.guild.id });
+        const freshActiveStore = freshGuild.roleStore.filter(item => !item.saleExpiresAt || item.saleExpiresAt > now);
+
+        if (btnIndex < 1 || btnIndex > freshActiveStore.length) {
+          return i.editReply({ content: "❌ Invalid storefront item number." });
+        }
+
+        const buyItem = freshActiveStore[btnIndex - 1];
+
+        // Stock check
+        if (buyItem.stock === 0) {
+          return i.editReply({ content: "❌ This role is currently out of stock!" });
+        }
+
+        // Token check
+        const token = getEconomyToken(client, message.guild.id);
+        if (!token) {
+          return i.editReply({ content: "❌ Economy configurations not found for this server." });
+        }
+
+        // Check if user already owns the role in their inventory
+        let userInv = await Inventory.findOne({ guildId: message.guild.id, userId: i.user.id });
+        if (userInv && userInv.roles.some(r => r.roleId === buyItem.roleId)) {
+          return i.editReply({ content: "⚠️ You already have this role in your inventory!" });
+        }
+
+        // Price Mode & Calculation
+        let totalPrice = buyItem.price;
+        let durationMs = buyItem.durationMs;
+        let isRent = buyItem.priceMode === 'RENT';
+
+        if (isRent) {
+          // If direct bought via button, default rentable to 1 rent unit purchase
+          totalPrice = buyItem.price;
+          durationMs = buyItem.durationMs;
+        }
+
+        // Deduct Coins
+        const deduction = await deductFunds(
+          client,
+          message.guild.id,
+          i.user.id,
+          totalPrice,
+          `Role Store Button Purchase: ${buyItem.name}`
+        );
+
+        if (!deduction.success) {
+          return i.editReply({ content: deduction.error });
+        }
+
+        // Add to inventory
+        if (!userInv) {
+          userInv = new Inventory({ guildId: message.guild.id, userId: i.user.id, roles: [] });
+        }
+
+        userInv.roles.push({
+          roleId: buyItem.roleId,
+          name: buyItem.name,
+          isTemporary: buyItem.isTemporary || isRent,
+          durationMs: durationMs,
+          purchasedAt: new Date(),
+          isUsed: false,
+          assignedTo: null
+        });
+
+        await userInv.save();
+
+        // Decrement stock in Mongoose
+        if (buyItem.stock > 0) {
+          const originalItem = freshGuild.roleStore.id(buyItem._id);
+          if (originalItem) {
+            originalItem.stock--;
+            await freshGuild.save();
+          }
+        }
+
+        await i.editReply({ content: `🛍️ **Purchase Successful!** You successfully purchased **${buyItem.name}** ${isRent ? `(${formatDuration(buyItem.durationMs)})` : ''} for **💰 ${formatNumber(totalPrice)}**!\nUse \`${prefix}ur ${buyItem.name}\` to equip it on yourself.` });
+
+        // Update the main shop page live to reflect depleted stock!
+        const updatedGuild = await Guild.findOne({ guildId: message.guild.id });
+        const updatedActiveStore = updatedGuild.roleStore.filter(item => !item.saleExpiresAt || item.saleExpiresAt > now);
+        await mainMsg.edit(generateStorePage(pageIndex, updatedActiveStore));
       }
     });
 
