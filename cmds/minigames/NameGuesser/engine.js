@@ -3,6 +3,7 @@ const { formatNumber, getEconomyToken } = require('../../../utils/economy.js');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const NameGuesserLog = require('../../../models/NameGuesserLog.js');
 
 module.exports = {
   startSetup: async (client, message, game) => {
@@ -92,6 +93,30 @@ module.exports = {
     const players = Array.from(game.players.values());
     const shuffledImages = [...game.images].sort(() => Math.random() - 0.5);
     for (let i = 0; i < players.length; i++) players[i].assignedImageIdx = game.images.indexOf(shuffledImages[i]);
+    
+    // Create MongoDB Log
+    try {
+      const dbPlayers = players.map(p => ({
+        id: p.id,
+        name: p.name,
+        assignedName: game.images[p.assignedImageIdx].name,
+        ranked: null
+      }));
+      const dbLog = await NameGuesserLog.create({
+        guildId: game.guildId,
+        channelId: game.channelId,
+        hostId: game.host,
+        hostName: game.hostName,
+        status: 'RUNNING',
+        prize: game.prize,
+        players: dbPlayers,
+        history: []
+      });
+      game.dbLogId = dbLog._id.toString();
+    } catch (e) {
+      console.error('[NameGuesser DB start error]', e);
+    }
+
     for (const p of players) {
       const user = await client.users.fetch(p.id);
       const others = players.filter(op => op.id !== p.id);
@@ -113,99 +138,142 @@ module.exports = {
   },
 
   updateLog: async (client, game) => {
-    let historyText = '';
-    for (const e of game.history) {
-      if (e.type === 'QUESTION') historyText += `❓ **Question from ${e.player}:** "${e.text}"\nMajority: ${e.majority} | Host: ${e.host} | Result: ${e.result}\n\n`;
-      else historyText += `🎯 **Guess from ${e.player}:** "${e.text}"\nHost: ${e.host} | Result: ${e.result}\n\n`;
+    if (!game.logQueue) {
+      game.logQueue = [];
+      game.logProcessing = false;
     }
+    return new Promise((resolve) => {
+      game.logQueue.push({ client, resolve });
+      module.exports.processLogQueue(game);
+    });
+  },
 
-    let activeComponents = [];
-    const activePlayer = game.players.get(game.activePlayerId);
+  processLogQueue: async (game) => {
+    if (game.logProcessing || game.logQueue.length === 0) return;
+    game.logProcessing = true;
 
-    if (game.status === 'RUNNING') {
-      if (game.currentQuestion) {
-        historyText += `⁉️ **Current Question from ${activePlayer.name}:** "${game.currentQuestion}"\n`;
-        const yesCount = Array.from(game.votes.values()).filter(v => v === 'yes').length;
-        const noCount = Array.from(game.votes.values()).filter(v => v === 'no').length;
-        historyText += `Majority: ${yesCount > noCount ? 'Yes' : (noCount > yesCount ? 'No' : 'Undecided')} | Host: ${game.hostDecision === 'yes' ? 'Yes' : (game.hostDecision === 'no' ? 'No' : 'Undecided')} | Result: Undecided\n`;
-        activeComponents.push(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ng_vote_yes').setLabel('Yes').setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId('ng_vote_no').setLabel('No').setStyle(ButtonStyle.Danger)));
-      }
-    } else if (game.status === 'VALIDATION') {
-      const target = game.players.get(game.validatingPlayerId);
-      historyText += `🎯 **Current Guess from ${target.name}:** "${game.lastGuess}"\nHost: Validating... | Result: Undecided\n`;
-    } else if (game.status === 'ENDED') {
-      historyText += `\n🏁 **GAME OVER**\n**Pot:** 💰 ${formatNumber(game.prize)}\n**Payouts:**\n`;
-      const winnerCount = game.winners.length;
-      const firstPrize = winnerCount === 1 ? game.prize : Math.floor(game.prize * 0.5);
-      const restPrize = winnerCount > 1 ? Math.floor((game.prize - firstPrize) / (winnerCount - 1)) : 0;
-      game.winners.forEach((id, idx) => {
-        historyText += `${idx + 1}. **${game.players.get(id).name}** (+💰 ${formatNumber(idx === 0 ? firstPrize : restPrize)})\n`;
-      });
-    }
-
-    const mainEmbed = new EmbedBuilder().setColor(game.status === 'ENDED' ? '#2ECC71' : '#9B59B6').setTitle(game.status === 'ENDED' ? '🏁 Name Guesser: Game Over' : '📜 Name Guesser: Game Log').setDescription(historyText || 'No history yet.');
-    if (game.lastStatus) mainEmbed.setAuthor({ name: game.lastStatus.replace(/\*/g, '') });
-
-    // Footer with fallback commands
-    let footerText = 'Manual cmds: ';
-    if (game.status === 'RUNNING') {
-      if (game.currentQuestion) footerText += 'ng vote [yes/no]';
-      else footerText += 'ng ask [question], ng guess [identity]';
-    } else if (game.status === 'VALIDATION') footerText += 'Host: ng validate [win/fail]';
-    else if (game.status === 'LOBBY') footerText += 'ng join, ng leave, ng start';
-    mainEmbed.setFooter({ text: footerText });
-
-    const recipients = Array.from(game.players.keys());
-    if (!recipients.includes(game.host)) recipients.push(game.host);
+    const { client, resolve } = game.logQueue.shift();
 
     try {
-      const channel = await client.channels.fetch(game.channelId);
-      const content = (game.status === 'RUNNING' && !game.currentQuestion) ? `<@${game.activePlayerId}>` : '';
-      if (game.channelLogMsgIds[0]) {
-        const msg = await channel.messages.fetch(game.channelLogMsgIds[0]).catch(() => null);
-        if (msg) await msg.delete().catch(() => {});
+      let historyText = '';
+      const maxLogItems = 12;
+      const historyWindow = game.history.slice(-maxLogItems);
+      if (game.history.length > maxLogItems) {
+        historyText += `*... (showing last ${maxLogItems} events; truncated ${game.history.length - maxLogItems} older events) ...*\n\n`;
       }
-      game.channelLogMsgIds[0] = (await channel.send({ content, embeds: [mainEmbed], components: activeComponents })).id;
-    } catch (e) {}
 
-    for (const id of recipients) {
+      for (const e of historyWindow) {
+        if (e.type === 'QUESTION') historyText += `❓ **Question from ${e.player}:** "${e.text}"\nMajority: ${e.majority} | Host: ${e.host} | Result: ${e.result}\n\n`;
+        else if (e.type === 'GUESS') historyText += `🎯 **Guess from ${e.player}:** "${e.text}"\nHost: ${e.host} | Result: ${e.result}\n\n`;
+        else if (e.type === 'KICK') historyText += `❌ **${e.player}** was kicked by the host.\n\n`;
+      }
+
+      let activeComponents = [];
+      const activePlayer = game.players.get(game.activePlayerId);
+
+      if (game.status === 'RUNNING') {
+        if (game.currentQuestion) {
+          historyText += `⁉️ **Current Question from ${activePlayer.name}:** "${game.currentQuestion}"\n`;
+          const yesCount = Array.from(game.votes.values()).filter(v => v === 'yes').length;
+          const noCount = Array.from(game.votes.values()).filter(v => v === 'no').length;
+          historyText += `Majority: ${yesCount > noCount ? 'Yes' : (noCount > yesCount ? 'No' : 'Undecided')} | Host: ${game.hostDecision === 'yes' ? 'Yes' : (game.hostDecision === 'no' ? 'No' : 'Undecided')} | Result: Undecided\n`;
+          activeComponents.push(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ng_vote_yes').setLabel('Yes').setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId('ng_vote_no').setLabel('No').setStyle(ButtonStyle.Danger)));
+        }
+      } else if (game.status === 'VALIDATION') {
+        const target = game.players.get(game.validatingPlayerId);
+        historyText += `🎯 **Current Guess from ${target.name}:** "${game.lastGuess}"\nHost: Validating... | Result: Undecided\n`;
+      } else if (game.status === 'ENDED') {
+        historyText += `\n🏁 **GAME OVER**\n**Pot:** 💰 ${formatNumber(game.prize)}\n**Payouts:**\n`;
+        const winnerCount = game.winners.length;
+        const firstPrize = winnerCount === 1 ? game.prize : Math.floor(game.prize * 0.5);
+        const restPrize = winnerCount > 1 ? Math.floor((game.prize - firstPrize) / (winnerCount - 1)) : 0;
+        game.winners.forEach((id, idx) => {
+          const p = game.players.get(id);
+          if (p) historyText += `${idx + 1}. **${p.name}** (+💰 ${formatNumber(idx === 0 ? firstPrize : restPrize)})\n`;
+        });
+      }
+
+      const mainEmbed = new EmbedBuilder().setColor(game.status === 'ENDED' ? '#2ECC71' : '#9B59B6').setTitle(game.status === 'ENDED' ? '🏁 Name Guesser: Game Over' : '📜 Name Guesser: Game Log').setDescription(historyText || 'No history yet.');
+      if (game.lastStatus) mainEmbed.setAuthor({ name: game.lastStatus.replace(/\*/g, '') });
+
+      // Footer with fallback commands
+      let footerText = 'Manual cmds: ';
+      if (game.status === 'RUNNING') {
+        if (game.currentQuestion) footerText += 'ng vote [yes/no]';
+        else footerText += 'ng ask [question], ng guess [identity], ng identities';
+      } else if (game.status === 'VALIDATION') footerText += 'Host: ng validate [win/fail]';
+      else if (game.status === 'LOBBY') footerText += 'ng join, ng leave, ng start';
+      mainEmbed.setFooter({ text: footerText });
+
+      const recipients = Array.from(game.players.keys());
+      if (!recipients.includes(game.host)) recipients.push(game.host);
+
       try {
-        const user = await client.users.fetch(id);
-        let userComponents = [];
-        if (game.status === 'VALIDATION' && id === game.host) userComponents.push(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`ng_validate_win_${game.validatingPlayerId}`).setLabel('Valid (Win)').setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId(`ng_validate_fail_${game.validatingPlayerId}`).setLabel('Invalid').setStyle(ButtonStyle.Danger)));
-        else if (game.currentQuestion) {
-          if (id === game.host) userComponents.push(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ng_vote_yes').setLabel('Host Yes').setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId('ng_vote_no').setLabel('Host No').setStyle(ButtonStyle.Danger)));
-          else if (id !== game.activePlayerId) userComponents.push(activeComponents[0]);
+        const channel = await client.channels.fetch(game.channelId);
+        const content = (game.status === 'RUNNING' && !game.currentQuestion) ? `<@${game.activePlayerId}>` : '';
+        let edited = false;
+        if (game.channelLogMsgIds[0]) {
+          const msg = await channel.messages.fetch(game.channelLogMsgIds[0]).catch(() => null);
+          if (msg) {
+            await msg.edit({ content, embeds: [mainEmbed], components: activeComponents }).catch(() => null);
+            edited = true;
+          }
         }
-        let userMsgIds = game.dmLogMsgIds.get(id) || [];
-        if (userMsgIds[0]) {
-          const msg = await user.dmChannel?.messages.fetch(userMsgIds[0]).catch(() => null);
-          if (msg) await msg.delete().catch(() => {});
+        if (!edited) {
+          game.channelLogMsgIds[0] = (await channel.send({ content, embeds: [mainEmbed], components: activeComponents })).id;
         }
-        userMsgIds[0] = (await user.send({ embeds: [mainEmbed], components: userComponents })).id;
-        game.dmLogMsgIds.set(id, userMsgIds);
       } catch (e) {}
+
+      for (const id of recipients) {
+        try {
+          const user = await client.users.fetch(id);
+          let userComponents = [];
+          if (game.status === 'VALIDATION' && id === game.host) {
+            userComponents.push(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`ng_validate_win_${game.validatingPlayerId}`).setLabel('Valid (Win)').setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId(`ng_validate_fail_${game.validatingPlayerId}`).setLabel('Invalid').setStyle(ButtonStyle.Danger)));
+          } else if (game.currentQuestion) {
+            if (id === game.host) {
+              userComponents.push(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ng_vote_yes').setLabel('Host Yes').setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId('ng_vote_no').setLabel('Host No').setStyle(ButtonStyle.Danger)));
+            } else if (id !== game.activePlayerId) {
+              userComponents.push(activeComponents[0]);
+            }
+          }
+          let userMsgIds = game.dmLogMsgIds.get(id) || [];
+          let dmEdited = false;
+          if (userMsgIds[0]) {
+            const dmChannel = user.dmChannel || await user.createDM();
+            const msg = await dmChannel.messages.fetch(userMsgIds[0]).catch(() => null);
+            if (msg) {
+              await msg.edit({ embeds: [mainEmbed], components: userComponents }).catch(() => null);
+              dmEdited = true;
+            }
+          }
+          if (!dmEdited) {
+            userMsgIds[0] = (await user.send({ embeds: [mainEmbed], components: userComponents })).id;
+            game.dmLogMsgIds.set(id, userMsgIds);
+          }
+        } catch (e) {}
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      game.logProcessing = false;
+      resolve();
+      module.exports.processLogQueue(game);
     }
   },
 
   startTurn: async (client, game) => {
     const players = Array.from(game.players.values()).filter(p => p.ranked === null);
     if (players.length <= 1) return module.exports.endGame(client, game);
-    
-    // Safety check for turnIdx
     if (game.turnIdx >= players.length) game.turnIdx = 0;
-    
     const activePlayer = players[game.turnIdx % players.length];
     game.activePlayerId = activePlayer.id;
     game.status = 'RUNNING';
-    game.consecutiveYesCount = 0; 
+    game.consecutiveYesCount = 0;
 
     try {
       const user = await client.users.fetch(game.activePlayerId);
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('ng_ask').setLabel('Ask Question').setStyle(ButtonStyle.Primary), 
-        new ButtonBuilder().setCustomId('ng_guess').setLabel('Guess Identity').setStyle(ButtonStyle.Success)
-      );
+      const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ng_ask').setLabel('Ask Question').setStyle(ButtonStyle.Primary), new ButtonBuilder().setCustomId('ng_guess').setLabel('Guess Identity').setStyle(ButtonStyle.Success));
       game.currentTurnMsgId = (await user.send({ content: `🎲 **It's your turn, ${activePlayer.name}!** Ask a question or make a guess.`, components: [row] })).id;
     } catch (e) {}
     return module.exports.updateLog(client, game);
@@ -225,11 +293,39 @@ module.exports = {
   },
 
   handleVote: async (client, interaction, game, choice) => {
-    if (interaction.user.id === game.activePlayerId) return interaction.reply({ content: "You can't vote on your own!", flags: [MessageFlags.Ephemeral] });
-    if (interaction.user.id === game.host) { game.hostDecision = choice; interaction.reply({ content: `✅ Decided: **${choice.toUpperCase()}**`, flags: [MessageFlags.Ephemeral] }); }
-    else { game.votes.set(interaction.user.id, choice); interaction.reply({ content: `✅ Voted **${choice.toUpperCase()}**`, flags: [MessageFlags.Ephemeral] }); }
-    if (game.votes.size >= Array.from(game.players.values()).filter(p => p.id !== game.activePlayerId).length) module.exports.resolveRound(client, game);
-    else return module.exports.updateLog(client, game);
+    const user = interaction.user || interaction.author;
+    const isInteraction = !!interaction.user;
+
+    if (user.id === game.activePlayerId) {
+      const resp = { content: "❌ You can't vote on your own!" };
+      if (isInteraction) resp.flags = [MessageFlags.Ephemeral];
+      return interaction.reply(resp);
+    }
+    
+    if (game.hostDecision && game.hostDecision !== 'none') {
+      const resp = { content: "⚠️ The host has already decided this round!" };
+      if (isInteraction) resp.flags = [MessageFlags.Ephemeral];
+      return interaction.reply(resp);
+    }
+
+    if (user.id === game.host) { 
+      game.hostDecision = choice;
+      const resp = { content: `✅ Host Override applied: **${choice.toUpperCase()}**` };
+      if (isInteraction) resp.flags = [MessageFlags.Ephemeral];
+      await interaction.reply(resp).catch(() => null);
+      return module.exports.resolveRound(client, game);
+    } else { 
+      game.votes.set(user.id, choice); 
+      const resp = { content: `✅ Your vote '**${choice.toUpperCase()}**' has been accepted.` };
+      if (isInteraction) resp.flags = [MessageFlags.Ephemeral];
+      await interaction.reply(resp).catch(() => null); 
+    }
+
+    if (game.votes.size >= Array.from(game.players.values()).filter(p => p.id !== game.activePlayerId).length) {
+      return module.exports.resolveRound(client, game);
+    } else {
+      return module.exports.updateLog(client, game);
+    }
   },
 
   resolveRound: async (client, game) => {
@@ -237,18 +333,25 @@ module.exports = {
     const yesCount = votes.filter(v => v === 'yes').length;
     const noCount = votes.filter(v => v === 'no').length;
     const finalResult = game.hostDecision !== 'none' ? game.hostDecision : (yesCount > noCount ? 'yes' : 'no');
-    
-    game.history.push({ 
+
+    const event = { 
       type: 'QUESTION', 
       player: game.players.get(game.activePlayerId).name, 
+      playerId: game.activePlayerId,
       text: game.currentQuestion, 
       majority: yesCount > noCount ? 'Yes' : 'No', 
       host: game.hostDecision !== 'none' ? (game.hostDecision === 'yes' ? 'Yes' : 'No') : 'No Override', 
-      result: finalResult === 'yes' ? '✅ YES' : '❌ NO' 
-    });
+      result: finalResult === 'yes' ? '✅ YES' : '❌ NO',
+      timestamp: new Date()
+    };
+    game.history.push(event);
 
-    game.currentQuestion = null; 
-    game.votes.clear(); 
+    if (game.dbLogId) {
+      await NameGuesserLog.findByIdAndUpdate(game.dbLogId, { $push: { history: event } }).catch(() => null);
+    }
+
+    game.currentQuestion = null;
+    game.votes.clear();
     game.hostDecision = 'none';
 
     if (finalResult === 'yes') {
@@ -268,21 +371,33 @@ module.exports = {
   },
 
   handleGuess: async (client, interaction, game, guess) => {
-    const player = game.players.get(interaction.user.id);
+    const user = interaction.user || interaction.author;
+    const isInteraction = !!interaction.user;
+    const player = game.players.get(user.id);
     game.lastGuess = guess;
     if (game.currentTurnMsgId) {
-      const user = await client.users.fetch(player.id);
-      const msg = await user.dmChannel?.messages.fetch(game.currentTurnMsgId).catch(() => null);
+      const targetUser = await client.users.fetch(player.id);
+      const msg = await targetUser.dmChannel?.messages.fetch(game.currentTurnMsgId).catch(() => null);
       if (msg) await msg.delete().catch(() => null);
     }
     const img = game.images[player.assignedImageIdx];
     if (guess.toLowerCase().trim() === img.name.toLowerCase().trim()) {
-      interaction.reply({ content: `🎉 **BINGO!**`, flags: [MessageFlags.Ephemeral] });
-      game.history.push({ type: 'GUESS', player: player.name, text: guess, host: '✅ Auto-Match', result: '🏆 WIN!' });
+      const resp = { content: `🎉 **BINGO!**` };
+      if (isInteraction) resp.flags = [MessageFlags.Ephemeral];
+      interaction.reply(resp).catch(() => null);
+      
+      const event = { type: 'GUESS', player: player.name, playerId: player.id, text: guess, host: '✅ Auto-Match', result: '🏆 WIN!', timestamp: new Date() };
+      game.history.push(event);
+      if (game.dbLogId) {
+        await NameGuesserLog.findByIdAndUpdate(game.dbLogId, { $push: { history: event } }).catch(() => null);
+      }
       game.lastStatus = `🏆 WINNER! ${player.name} guessed right!`;
       return module.exports.markWinner(client, game, player);
     } else {
-      interaction.reply({ content: "📤 Sent to Host for validation.", flags: [MessageFlags.Ephemeral] });
+      const resp = { content: "📤 Sent to Host for validation." };
+      if (isInteraction) resp.flags = [MessageFlags.Ephemeral];
+      interaction.reply(resp).catch(() => null);
+      
       game.status = 'VALIDATION'; game.validatingPlayerId = player.id; game.lastStatus = `⚖️ Host is checking ${player.name}'s guess...`;
       return module.exports.updateLog(client, game);
     }
@@ -292,12 +407,20 @@ module.exports = {
     const isWin = i.customId.startsWith('ng_validate_win_');
     const player = game.players.get(game.validatingPlayerId);
     if (isWin) {
-      game.history.push({ type: 'GUESS', player: player.name, text: game.lastGuess, host: '✅ Validated', result: '🏆 WIN!' });
+      const event = { type: 'GUESS', player: player.name, playerId: player.id, text: game.lastGuess, host: '✅ Validated', result: '🏆 WIN!', timestamp: new Date() };
+      game.history.push(event);
+      if (game.dbLogId) {
+        await NameGuesserLog.findByIdAndUpdate(game.dbLogId, { $push: { history: event } }).catch(() => null);
+      }
       game.lastStatus = `🏆 WINNER! ${player.name} guessed right!`;
       await i.update({ content: `✅ Validated.`, components: [] }).catch(() => {});
       return module.exports.markWinner(client, game, player);
     } else {
-      game.history.push({ type: 'GUESS', player: player.name, text: game.lastGuess, host: '❌ Rejected', result: '🔄 Keep Playing' });
+      const event = { type: 'GUESS', player: player.name, playerId: player.id, text: game.lastGuess, host: '❌ Rejected', result: '🔄 Keep Playing', timestamp: new Date() };
+      game.history.push(event);
+      if (game.dbLogId) {
+        await NameGuesserLog.findByIdAndUpdate(game.dbLogId, { $push: { history: event } }).catch(() => null);
+      }
       game.lastStatus = `❌ Guess Rejected for ${player.name}.`;
       await i.update({ content: `❌ Rejected.`, components: [] }).catch(() => {});
       game.turnIdx++; return module.exports.startTurn(client, game);
@@ -308,8 +431,14 @@ module.exports = {
     if (player.ranked !== null) return;
     player.ranked = game.winners.length + 1;
     game.winners.push(player.id);
-    
-    // REVELATION
+
+    if (game.dbLogId) {
+      await NameGuesserLog.updateOne(
+        { _id: game.dbLogId, "players.id": player.id },
+        { $set: { "players.$.ranked": player.ranked } }
+      ).catch(() => null);
+    }
+
     const img = game.images[player.assignedImageIdx];
     const revEmbed = new EmbedBuilder().setColor('#F1C40F').setTitle(`🎉 ${player.name} guessed correctly!`).setDescription(`Their identity was: **${img.name}**`).setImage(img.url);
     const channel = await client.channels.fetch(game.channelId);
@@ -317,20 +446,22 @@ module.exports = {
     const user = await client.users.fetch(player.id);
     await user.send({ embeds: [revEmbed] }).catch(() => {});
 
-    if (Array.from(game.players.values()).filter(p => p.ranked === null).length <= 1) return module.exports.endGame(client, game);
-    
-    // If we increment turnIdx here while a player is removed, we might skip someone.
-    // However, our startTurn logic uses % length and a safety reset.
-    // Let's ensure turnIdx is handled safely.
-    if (game.turnIdx >= Array.from(game.players.values()).filter(p => p.ranked === null).length) {
-      game.turnIdx = 0;
-    }
-    
+    const remaining = Array.from(game.players.values()).filter(p => p.ranked === null);
+    if (remaining.length <= 1) return module.exports.endGame(client, game);
+
+    if (game.turnIdx >= remaining.length) game.turnIdx = 0;
     return module.exports.startTurn(client, game);
   },
 
   endGame: async (client, game) => {
     game.status = 'ENDED';
+    if (game.dbLogId) {
+      await NameGuesserLog.findByIdAndUpdate(game.dbLogId, {
+        status: 'ENDED',
+        endedAt: new Date()
+      }).catch(() => null);
+    }
+
     await module.exports.updateLog(client, game);
     const token = getEconomyToken(client, game.guildId);
     const winnerCount = game.winners.length;
@@ -345,5 +476,48 @@ module.exports = {
       }
     }
     client.nameGuesserGames.delete(game.channelId);
+  },
+
+  kickPlayer: async (client, game, targetId) => {
+    const player = game.players.get(targetId);
+    if (!player) return;
+
+    game.players.delete(targetId);
+
+    const event = {
+      type: 'KICK',
+      player: player.name,
+      playerId: targetId,
+      text: 'Kicked by Host',
+      result: '❌ REMOVED',
+      timestamp: new Date()
+    };
+    game.history.push(event);
+
+    if (game.dbLogId) {
+      await NameGuesserLog.findByIdAndUpdate(game.dbLogId, {
+        $pull: { players: { id: targetId } },
+        $push: { history: event }
+      }).catch(() => null);
+    }
+
+    if (game.status === 'LOBBY' || game.status === 'SETUP_PRIZE') {
+      return module.exports.updateLobbyUI(client, game);
+    }
+
+    if (game.status === 'RUNNING') {
+      game.lastStatus = `❌ ${player.name} was kicked by the host.`;
+      
+      const remaining = Array.from(game.players.values()).filter(p => p.ranked === null);
+      if (remaining.length < 2) {
+        return module.exports.endGame(client, game);
+      }
+
+      if (game.activePlayerId === targetId) {
+        if (game.turnIdx >= remaining.length) game.turnIdx = 0;
+        return module.exports.startTurn(client, game);
+      }
+      return module.exports.updateLog(client, game);
+    }
   }
 };

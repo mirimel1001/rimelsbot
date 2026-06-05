@@ -3,13 +3,14 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const { getEconomyToken, formatNumber } = require('../../../utils/economy.js');
+const NameGuesserLog = require('../../../models/NameGuesserLog.js');
 
 module.exports = {
   name: "nameguesser",
   aliases: ["ng", "rng"],
   category: "Games",
   description: "A host-driven guessing game. Host provides images, players guess their own secret identity!",
-  usage: "nameguesser [setup/join/leave/start/cancel/status]",
+  usage: "nameguesser [setup/join/leave/start/cancel/status/history/identities/kick]",
   run: async (client, message, args, prefix, config) => {
     registerNGListener(client);
     const subCommand = args[0]?.toLowerCase();
@@ -52,6 +53,52 @@ module.exports = {
       return engine.startSetup(client, message, newGame);
     }
 
+    // --- HISTORY COMMAND (DB Query, works even when game is over) ---
+    if (subCommand === 'history' || subCommand === 'hist' || subCommand === 'h' || subCommand === 'logs') {
+      const channelId = message.channel.id || game?.channelId;
+      if (!channelId) return message.reply("❌ This command must be run in a server channel.");
+
+      const log = await NameGuesserLog.findOne({ channelId }).sort({ createdAt: -1 });
+      if (!log) {
+        return message.reply("❌ No game logs found for this channel. Note: Logs are deleted 30 minutes after the game ends.");
+      }
+
+      const targetUser = message.mentions.users.first();
+      
+      if (targetUser) {
+        const playerHistory = log.history.filter(e => e.playerId === targetUser.id);
+        if (playerHistory.length === 0) {
+          return message.reply(`🔍 No questions/guesses found for **${targetUser.username}** in this match.`);
+        }
+
+        let text = `📜 **Questions & Guesses for ${targetUser.username} (Game ${log.status}):**\n\n`;
+        playerHistory.forEach((e, idx) => {
+          if (e.type === 'QUESTION') {
+            text += `❓ **Q${idx+1}:** "${e.text}"\nResult: ${e.result} (Majority: ${e.majority} | Host: ${e.host})\n\n`;
+          } else if (e.type === 'GUESS') {
+            text += `🎯 **Guess:** "${e.text}"\nResult: ${e.result} (Host: ${e.host})\n\n`;
+          }
+        });
+        const embed = new EmbedBuilder().setColor('#3498DB').setDescription(text.substring(0, 4096));
+        return message.reply({ embeds: [embed] });
+      } else {
+        let text = `📜 **Complete Game History (Game ${log.status}):**\n\n`;
+        log.history.forEach((e, idx) => {
+          if (e.type === 'QUESTION') {
+            text += `❓ **Question from ${e.player}:** "${e.text}"\nResult: ${e.result}\n\n`;
+          } else if (e.type === 'GUESS') {
+            text += `🎯 **Guess from ${e.player}:** "${e.text}"\nResult: ${e.result}\n\n`;
+          } else if (e.type === 'KICK') {
+            text += `❌ **${e.player}** was kicked by Host.\n\n`;
+          }
+        });
+        if (log.history.length === 0) text += "No actions logged yet.";
+        
+        const embed = new EmbedBuilder().setColor('#3498DB').setDescription(text.substring(0, 4096));
+        return message.reply({ embeds: [embed] });
+      }
+    }
+
     if (!game) {
       return message.reply(`🎮 Use \`${prefix}nameguesser setup\` to start a new game!`);
     }
@@ -91,7 +138,65 @@ module.exports = {
         const engine = require('./engine.js');
         return engine.startGame(client, game);
       }
+    }
 
+    // --- IDENTITIES/LIST COMMAND ---
+    if (subCommand === 'identities' || subCommand === 'list' || subCommand === 'secret' || subCommand === 'secrets') {
+      if (game.status !== 'RUNNING') {
+        return message.reply("⚠️ There is no active game running.");
+      }
+
+      const isHost = message.author.id === game.host;
+      const isPlayer = game.players.has(message.author.id);
+
+      if (!isHost && !isPlayer) {
+        return message.reply("❌ You are not a participant in this game.");
+      }
+
+      const embed = new EmbedBuilder().setColor('#3498DB');
+
+      if (isHost) {
+        embed.setTitle('👑 Host: Game Identities');
+        const list = Array.from(game.players.values()).map(p => {
+          const img = game.images[p.assignedImageIdx];
+          return `👤 **${p.name}** is: **${img.name}**`;
+        }).join('\n') || "No players assigned.";
+        embed.setDescription(list);
+        await message.author.send({ embeds: [embed] }).catch(() => {});
+        if (message.guild) {
+          return message.reply("📥 Sent the full identity list to your DMs.");
+        }
+        return;
+      } else {
+        embed.setTitle('🎭 Secret Identities of Other Players');
+        const list = Array.from(game.players.values())
+          .filter(p => p.id !== message.author.id)
+          .map(p => {
+            const img = game.images[p.assignedImageIdx];
+            return `👤 **${p.name}** is: **${img.name}**`;
+          }).join('\n') || "No other players.";
+        embed.setDescription(list + "\n\n*(Your own identity is hidden!)*");
+        await message.author.send({ embeds: [embed] }).catch(() => {});
+        if (message.guild) {
+          return message.reply("📥 Sent the identities of all other players to your DMs.");
+        }
+        return;
+      }
+    }
+
+    // --- KICK COMMAND ---
+    if (subCommand === 'kick') {
+      if (message.author.id !== game.host) return message.reply("❌ Only the Host can kick players!");
+      const target = message.mentions.users.first() || (args[1] ? await client.users.fetch(args[1]).catch(() => null) : null);
+      if (!target) return message.reply("❌ Please specify a player to kick. Usage: `ng kick <@player>`");
+
+      if (!game.players.has(target.id)) {
+        return message.reply("⚠️ That user is not in this game.");
+      }
+
+      const engine = require('./engine.js');
+      await engine.kickPlayer(client, game, target.id);
+      return message.reply(`✅ **${target.username}** has been kicked from the game.`);
     }
 
     // --- 3. GLOBAL COMMANDS ---
@@ -160,7 +265,7 @@ module.exports = {
         if (mode !== 'CHAT' && mode !== 'VC') return message.reply("❌ Usage: `ng force [CHAT/VC]`");
         game.discussionMode = mode;
         message.reply(`⚙️ **Host forced mode to:** ${mode}`);
-        return engine.updateMainEmbed(client, game);
+        return engine.updateLog(client, game);
       }
     }
   }

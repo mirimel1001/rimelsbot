@@ -64,12 +64,42 @@ module.exports = async (client, message, prefix, getConfig) => {
     }
 
     // --- NAMEGUESSER DM COMMANDS ---
+    if (msgLower.startsWith('ng ') || msgLower.startsWith('rng ')) {
+      const game = Array.from(client.nameGuesserGames.values()).find(g => 
+        (g.host === message.author.id || g.players.has(message.author.id))
+      );
+      if (game) {
+        const commandArgs = message.content.trim().split(/ +/).slice(1);
+        return require('../cmds/minigames/NameGuesser/nameguesser.js').run(client, message, commandArgs, 'ng', getConfig());
+      }
+    }
+
     if (msgLower.startsWith('g ') || msgLower.startsWith('guess ')) {
       const game = Array.from(client.nameGuesserGames.values()).find(g => 
         g.status === 'RUNNING' && 
         g.players.has(message.author.id)
       );
       if (game) return require('../cmds/minigames/NameGuesser/nameguesser.js').run(client, message, ['guess', ...message.content.split(' ').slice(1)], 'ng', getConfig());
+    }
+
+    if (msgLower === 'list' || msgLower === 'identities' || msgLower === 'secret' || msgLower === 'secrets') {
+      const game = Array.from(client.nameGuesserGames.values()).find(g => 
+        g.status === 'RUNNING' && 
+        (g.host === message.author.id || g.players.has(message.author.id))
+      );
+      if (game) return require('../cmds/minigames/NameGuesser/nameguesser.js').run(client, message, ['identities'], 'ng', getConfig());
+    }
+
+    if (msgLower === 'yes' || msgLower === 'no' || msgLower === 'y' || msgLower === 'n') {
+      const game = Array.from(client.nameGuesserGames.values()).find(g => 
+        g.status === 'RUNNING' && 
+        g.currentQuestion &&
+        (g.host === message.author.id || g.players.has(message.author.id))
+      );
+      if (game) {
+        const choice = (msgLower === 'yes' || msgLower === 'y') ? 'yes' : 'no';
+        return require('../cmds/minigames/NameGuesser/nameguesser.js').run(client, message, ['vote', choice], 'ng', getConfig());
+      }
     }
   }
 

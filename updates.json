@@ -251,5 +251,21 @@
       "Subscription Automation: Integrated an optimized background worker scanning every 3 hours to automatically strip expired temporary roles.",
       "One-Click DM Renewals: Programmed automated private DM warnings containing a one-click renewal button to instantly restart timers."
     ]
+  },
+  {
+    "version": "2.2.0",
+    "date": "2026-06-06",
+    "title": "Name Guesser Database Persistence & Control Upgrades",
+    "items": [
+      "Database Logging: Integrated MongoDB logging for Name Guesser, capturing all questions, guesses, and actions in real-time.",
+      "Time-To-Live Deletion: Configured automatic 30-minute MongoDB TTL self-cleaning to purge logs half an hour after a match ends.",
+      "Log History Query: Added 'ng history' and 'ng history @player' commands to retrieve current or past match logs within the 30-minute window.",
+      "Anti-Spam UI Edits: Overhauled log updates to use Discord message edits in channels and DMs, eliminating duplicate and orphaned messages.",
+      "Log Slicing & Queuing: Sliced live logs to the last 12 events to safely fit inside Discord's 4,096 character limit, and added an update lock queue.",
+      "DM Compatibility & Routing: Resolved message compatibility bugs in DMs (author vs user property checks) and enabled prefix-less 'ng' routing in DMs.",
+      "Immediate Host Override: Host votes now immediately resolve rounds, bypassing remaining player votes and blocking late inputs.",
+      "Prefix-less DM Voting: Enabled quick prefix-less 'yes'/'no'/'y'/'n' votes in DMs with explicit confirmation replies.",
+      "Host Kick Command: Added 'ng kick <@player>' command to allow hosts to remove players mid-game or in the lobby."
+    ]
   }
 ]
