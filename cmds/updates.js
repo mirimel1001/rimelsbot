@@ -55,12 +55,31 @@ module.exports = {
         }
 
         pageItems.forEach(update => {
-          const items = update.items.map(item => `• ${item}`).join('\n');
-          embed.addFields({
-            name: `📦 v${update.version} - ${update.title} (${update.date})`,
-            value: items || 'No details provided.',
-            inline: false
+          let itemsText = '';
+          let partIndex = 1;
+
+          update.items.forEach(item => {
+            const line = `• ${item}\n`;
+            if (itemsText.length + line.length > 1000) {
+              embed.addFields({
+                name: partIndex === 1 ? `📦 v${update.version} - ${update.title} (${update.date})` : `📦 v${update.version} (Continued)`,
+                value: itemsText || 'No details provided.',
+                inline: false
+              });
+              itemsText = line;
+              partIndex++;
+            } else {
+              itemsText += line;
+            }
           });
+
+          if (itemsText) {
+            embed.addFields({
+              name: partIndex === 1 ? `📦 v${update.version} - ${update.title} (${update.date})` : `📦 v${update.version} (Continued)`,
+              value: itemsText,
+              inline: false
+            });
+          }
         });
 
         if (data.length === 0) {
