@@ -265,7 +265,7 @@
       "DM Compatibility & Routing: Resolved message compatibility bugs in DMs (author vs user property checks) and enabled prefix-less 'ng' routing in DMs.",
       "Immediate Host Override: Host votes now immediately resolve rounds, bypassing remaining player votes and blocking late inputs.",
       "Prefix-less DM Voting: Enabled quick prefix-less 'yes'/'no'/'y'/'n' votes in DMs with explicit confirmation replies.",
-      "Host Kick Command: Added 'ng kick <@player>' command to allow hosts to remove players mid-game or in the lobby."
+      "Host Kick Command: Added 'ng kick <@player>' command to allow hosts to remove players mid-game or from the lobby."
     ]
   }
 ]
