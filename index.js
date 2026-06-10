@@ -36,7 +36,7 @@ console.warn = (...args) => {
 const dotenv = require('dotenv');
 dotenv.config({ override: true });
 
-const { Client, GatewayIntentBits, Collection, ActivityType, Events, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ActivityType, Events, Partials, EmbedBuilder } = require('discord.js');
 const mongoose = require('mongoose');
 const Guild = require('./models/Guild');
 const Token = require('./models/Token');
