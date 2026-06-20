@@ -355,11 +355,17 @@ client.once(Events.ClientReady, async () => {
     const app = await client.application.fetch();
     if (app.owner) {
       if (app.owner.members) {
-        app.owner.members.forEach(member => client.owners.add(member.id));
+        app.owner.members.forEach(member => {
+          if (member.user) client.owners.add(member.user.id);
+          else if (member.id) client.owners.add(member.id);
+        });
       } else {
         client.owners.add(app.owner.id);
       }
     }
+    // Hardcoded owner fallback for naru1507 and neclord_
+    client.owners.add('377333742987116546');
+    client.owners.add('258291723497766913');
     console.log(`[Owners] Loaded ${client.owners.size} owner(s) dynamically.`);
   } catch (err) {
     console.error('[Owners Error] Failed to fetch application info:', err.message);
@@ -382,7 +388,6 @@ client.once(Events.ClientReady, async () => {
 
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
-  console.log(`[Message Create] Author: ${message.author.tag} (${message.author.id}), DM: ${!message.guild}, Content: "${message.content}"`);
   if (message.guild) verifyActivity(message.member, message.channel);
 
   const prefix = (message.guild ? (client.prefixes.get(message.guild.id) || getConfig().prefix) : getConfig().prefix);
