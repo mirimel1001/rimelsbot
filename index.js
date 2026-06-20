@@ -16,9 +16,9 @@ const writeToFile = (msg) => {
 console.log = (...args) => {
   const msg = args.join(' ');
   writeToFile(`INFO: ${msg}`);
-  const isDebug = msg.toLowerCase().includes('maxbalance') || 
-                  msg.toLowerCase().includes('[cache]') || 
-                  msg.toLowerCase().includes('[loader]');
+  const isDebug = msg.toLowerCase().includes('maxbalance') ||
+    msg.toLowerCase().includes('[cache]') ||
+    msg.toLowerCase().includes('[loader]');
   if (!isDebug) originalLog(...args);
 };
 console.error = (...args) => {
@@ -41,7 +41,9 @@ const mongoose = require('mongoose');
 const Guild = require('./models/Guild');
 const Token = require('./models/Token');
 const Inventory = require('./models/Inventory');
-const dmHandler = require('./utils/dmHandler');
+const dmhandler_werewolf = require('./cmds/minigames/Werewolf/dmhandler_werewolf');
+const dmhandler_nameguesser = require('./cmds/minigames/NameGuesser/dmhandler_nameguesser');
+const dmhandler_hgm = require('./cmds/HGM/dmhandler_hgm');
 
 // --- DATABASE CONNECTION ---
 if (process.env.MONGO_URI) {
@@ -62,7 +64,7 @@ const getConfig = () => ({ prefix: process.env.GLOBAL_PREFIX || 'r' });
 // --- BOT INITIALIZATION ---
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages],
-  partials: [Partials.Channel],
+  partials: [Partials.Channel, Partials.Message, Partials.User],
   allowedMentions: { repliedUser: false }
 });
 
@@ -71,6 +73,7 @@ client.aliases = new Collection();
 client.cooldowns = new Collection();
 client.werewolfGames = new Map();
 client.nameGuesserGames = new Map();
+client.owners = new Set();
 
 // Caches
 client.prefixes = new Collection();
@@ -103,8 +106,8 @@ const verifyActivity = async (member, channel) => {
     if (!messages) return;
 
     const fourteenDaysAgo = now - (14 * 24 * 60 * 60 * 1000);
-    const userMessages = messages.filter(m => 
-      m.author.id === member.id && 
+    const userMessages = messages.filter(m =>
+      m.author.id === member.id &&
       m.createdTimestamp > fourteenDaysAgo
     );
     const count = userMessages.size;
@@ -121,14 +124,14 @@ const verifyActivity = async (member, channel) => {
             // Success Logs
             if (config.logChannel) {
               const logChan = config.logChannel === 'same' ? channel : member.guild.channels.cache.get(config.logChannel);
-              
+
               if (logChan && logChan.permissionsFor(client.user)?.has('SendMessages')) {
                 // Support placeholders: {user}, {role}, {name}
                 let msg = config.customMessage || "Congrats you just got {name} role {role}!";
                 msg = msg.replace(/{user}|{User Mention}/g, member.toString())
-                         .replace(/{role}|{Role}/g, `<@&${config.roleId}>`)
-                         .replace(/{name}|{Activity Name}/g, config.name);
-                
+                  .replace(/{role}|{Role}/g, `<@&${config.roleId}>`)
+                  .replace(/{name}|{Activity Name}/g, config.name);
+
                 const logMsg = await logChan.send(msg).catch(() => null);
                 if (logMsg && config.deleteLog) {
                   setTimeout(() => logMsg.delete().catch(() => null), (config.deleteTime || 60) * 1000);
@@ -142,7 +145,7 @@ const verifyActivity = async (member, channel) => {
 
             if (config.adminLogChannel) {
               const adminChan = config.adminLogChannel === 'same' ? channel : member.guild.channels.cache.get(config.adminLogChannel);
-              
+
               if (adminChan && adminChan.permissionsFor(client.user)?.has('SendMessages')) {
                 const logContent = `${member.id} | ${member} - ${config.name} - <@&${config.roleId}>`;
                 const embed = new EmbedBuilder()
@@ -236,7 +239,7 @@ const checkMaxBalances = async () => {
         await enforceMaxBalance(client, guildId, id);
         await new Promise(r => setTimeout(r, 500));
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 };
 // --- TEMPORARY ROLE EXPIRATION WORKER ---
@@ -298,10 +301,10 @@ const checkExpiredRoles = async () => {
               // Check storefront price in Guild schema
               const guildData = await Guild.findOne({ guildId });
               const storeItem = guildData?.roleStore.find(si => si.roleId === item.roleId);
-              
+
               if (storeItem) {
                 dmEmbed.addFields({ name: '💰 Renewal Cost', value: `💰 ${formatNumber(storeItem.price)}` });
-                
+
                 const renewRow = new ActionRowBuilder().addComponents(
                   new ButtonBuilder()
                     .setCustomId(`role_renew_${item.roleId}_${guildId}`)
@@ -335,17 +338,33 @@ setInterval(checkMaxBalances, 3 * 60 * 60 * 1000);
 // --- EVENT HANDLERS ---
 client.once(Events.ClientReady, async () => {
   console.log(`Logged in as ${client.user.tag}!`);
-  
+
   // Print latest Git commit message on startup to track live version
   try {
     const { execSync } = require('child_process');
     const gitMsg = execSync('git log -1 --pretty=%B').toString().trim();
-    console.log(`\x1b[32m[Git Update Status] Current Active Commit:\x1b[0m\n${gitMsg}\n`);
+    console.log(`\x1b[32m[Current Active Git Commit]:\x1b[0m ${gitMsg}\n`);
   } catch (err) {
     console.warn('[Git Status Warning] Unable to retrieve latest git commit message:', err.message);
   }
 
   await loadCaches();
+
+  // Fetch owners dynamically
+  try {
+    const app = await client.application.fetch();
+    if (app.owner) {
+      if (app.owner.members) {
+        app.owner.members.forEach(member => client.owners.add(member.id));
+      } else {
+        client.owners.add(app.owner.id);
+      }
+    }
+    console.log(`[Owners] Loaded ${client.owners.size} owner(s) dynamically.`);
+  } catch (err) {
+    console.error('[Owners Error] Failed to fetch application info:', err.message);
+  }
+
   checkMaxBalances();
   checkExpiredRoles();
   setInterval(() => {
@@ -357,19 +376,28 @@ client.once(Events.ClientReady, async () => {
         const s = statusData[Math.floor(Math.random() * statusData.length)];
         client.user.setPresence({ activities: [{ name: s.name.replace('{prefix}', getConfig().prefix).replace('{servers}', servers), type: ActivityType[s.type] }], status: 'online' });
       }
-    } catch (e) {}
+    } catch (e) { }
   }, 60000);
 });
 
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
+  console.log(`[Message Create] Author: ${message.author.tag} (${message.author.id}), DM: ${!message.guild}, Content: "${message.content}"`);
   if (message.guild) verifyActivity(message.member, message.channel);
-  
+
   const prefix = (message.guild ? (client.prefixes.get(message.guild.id) || getConfig().prefix) : getConfig().prefix);
-  
-  // Use the new DM/Game Handler
-  const wasHandled = await dmHandler(client, message, prefix, getConfig);
-  if (wasHandled) return;
+
+  // Use HGM DM Handler
+  const hgmHandled = await dmhandler_hgm(client, message, prefix, getConfig);
+  if (hgmHandled) return;
+
+  // Use Werewolf DM Handler
+  const werewolfHandled = await dmhandler_werewolf(client, message, prefix, getConfig);
+  if (werewolfHandled) return;
+
+  // Use NameGuesser DM Handler
+  const nameguesserHandled = await dmhandler_nameguesser(client, message, prefix, getConfig);
+  if (nameguesserHandled) return;
 
   if (!message.content.toLowerCase().startsWith(prefix.toLowerCase())) return;
 
@@ -377,14 +405,28 @@ client.on('messageCreate', async (message) => {
   const input = args.shift().toLowerCase();
   const cmdName = client.commands.get(input) ? input : client.aliases.get(input);
   const command = client.commands.get(cmdName);
-  
+
   if (!command) return;
-  try { await command.run(client, message, args, prefix, getConfig()); } 
+  try { await command.run(client, message, args, prefix, getConfig()); }
   catch (e) { console.error(e); message.reply('❌ Command Error.'); }
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
+
+  if (interaction.customId === 'hgm_delete_list') {
+    if (!client.owners.has(interaction.user.id)) {
+      const { MessageFlags } = require('discord.js');
+      return interaction.reply({ content: "❌ Only the bot owner can delete this list.", flags: [MessageFlags.Ephemeral] });
+    }
+    try {
+      await interaction.message.delete();
+    } catch (e) {
+      console.error('[HGM Delete Error]', e);
+    }
+    return;
+  }
+
   if (interaction.customId.startsWith('role_renew_')) {
     const { EmbedBuilder, MessageFlags } = require('discord.js');
     const { getEconomyToken, deductFunds, formatNumber } = require('./utils/economy.js');
@@ -482,7 +524,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       // Disable the button in the original DM
       try {
         await interaction.message.edit({ components: [] });
-      } catch (e) {}
+      } catch (e) { }
 
     } catch (err) {
       console.error('[Role Renewal Button Error]', err);

@@ -6,12 +6,15 @@ module.exports = {
   usage: "help",
   run: async (client, message, args, prefix, config) => {
     // 1. GROUP COMMANDS BY CATEGORY
-    const isAdmin = message.member.permissions.has(PermissionsBitField.Flags.Administrator) || message.guild.ownerId === message.author.id;
+    const isAdmin = message.member ? (message.member.permissions.has(PermissionsBitField.Flags.Administrator) || message.guild?.ownerId === message.author.id) : false;
+    const isOwner = client.owners?.has(message.author.id);
 
     const categories = {};
     client.commands.forEach(cmd => {
       // Filter Administrative Commands for non-admins
       if (cmd.adminOnly && !isAdmin) return;
+      // Filter Owner Only Commands for non-owners
+      if (cmd.ownerOnly && !isOwner) return;
 
       const cat = cmd.category || 'Other';
       if (!categories[cat]) categories[cat] = [];
@@ -31,8 +34,14 @@ module.exports = {
         .setFooter({ text: '✨ Use the dropdown to switch categories.' });
 
       categories[cat].forEach(cmd => {
+        const isOwnerDMH = !message.guild && cmd.name === 'hgm';
+        const displayName = isOwnerDMH ? 'h' : cmd.name.toUpperCase();
         const aliasText = cmd.aliases && cmd.aliases.length > 0 ? ` [${cmd.aliases.join(', ')}]` : '';
-        const usage = cmd.usage ? `\`${prefix}${cmd.usage}\`` : `\`${prefix}${cmd.name}\``;
+        const cmdPrefix = (!message.guild && cmd.ownerOnly) ? '' : prefix;
+        
+        let usageStr = cmd.usage;
+        if (isOwnerDMH) usageStr = 'h [add/remove/list/text/pm] [args]';
+        const usage = usageStr ? `\`${cmdPrefix}${usageStr}\`` : `\`${cmdPrefix}${cmd.name}\``;
         
         let desc = cmd.description || 'No description.';
         if (cat === 'Game Settings') {
@@ -40,7 +49,7 @@ module.exports = {
         }
 
         embed.addFields({
-          name: `🔹 ${cmd.name.toUpperCase()}${aliasText}`,
+          name: `🔹 ${displayName}${aliasText}`,
           value: `${desc}\n**Usage:** ${usage}`
         });
       });
@@ -73,7 +82,8 @@ module.exports = {
         if (matches.length === 1) {
           const cmd = matches[0];
           const aliasText = cmd.aliases && cmd.aliases.length > 0 ? ` [${cmd.aliases.join(', ')}]` : '';
-          const usage = cmd.usage ? `\`${prefix}${cmd.usage}\`` : `\`${prefix}${cmd.name}\``;
+          const cmdPrefix = (!message.guild && cmd.ownerOnly) ? '' : prefix;
+          const usage = cmd.usage ? `\`${cmdPrefix}${cmd.usage}\`` : `\`${cmdPrefix}${cmd.name}\``;
           
           initialEmbed = new EmbedBuilder()
             .setColor('#F1C40F')
@@ -201,7 +211,8 @@ module.exports = {
               if (matches.length === 1) {
                 const cmd = matches[0];
                 const aliasText = cmd.aliases && cmd.aliases.length > 0 ? ` [${cmd.aliases.join(', ')}]` : '';
-                const usage = cmd.usage ? `\`${prefix}${cmd.usage}\`` : `\`${prefix}${cmd.name}\``;
+                const cmdPrefix = (!message.guild && cmd.ownerOnly) ? '' : prefix;
+                const usage = cmd.usage ? `\`${cmdPrefix}${cmd.usage}\`` : `\`${cmdPrefix}${cmd.name}\``;
                 
                 resultEmbed = new EmbedBuilder()
                   .setColor('#F1C40F')
