@@ -267,5 +267,21 @@
       "Prefix-less DM Voting: Enabled quick prefix-less 'yes'/'no'/'y'/'n' votes in DMs with explicit confirmation replies.",
       "Host Kick Command: Added 'ng kick <@player>' command to allow hosts to remove players mid-game or from the lobby."
     ]
+  },
+  {
+    "version": "2.2.1",
+    "date": "2026-06-22",
+    "title": "Live Web Presence Sync & Command Upgrades",
+    "items": [
+      "Intents Expansion: Enabled GuildPresences and GuildMembers gateway intents to track status changes and server member details.",
+      "Mongoose Schema Sync: Added a Presence schema to record user statuses, active roles, dynamic avatars, and custom activity updates in MongoDB.",
+      "Real-Time Listeners: Wired presenceUpdate and guildMemberUpdate events to automatically sync live changes directly to the cloud.",
+      "On-Demand Command: Created websync (alias ws) command restricted to bot owners to trigger bulk synchronization on command.",
+      "Startup Synchronization: Automatically runs a full guild synchronization on ready, consolidating logs to a clean single-line summary.",
+      "Startup Ready Notifications: Sends an online confirmation message directly to the server's dedicated text channel upon successful connection.",
+      "Local Test Dashboard: Created a public webtest project containing a backend Express API and a premium glassmorphic frontend UI.",
+      "Genshin Countdown (gpc): Launched a countdown command for upcoming Genshin Impact banners, scraping release times, stitching multiple images vertically using sharp/composite, and pushing a live countdown embed.",
+      "HGM Broadcast System: Added owner-only broadcast list manager (hgm add/remove/list/text/pm) and custom DM handlers for secure member list messaging, message exclusions, and prefix-less DM reply forwarding."
+    ]
   }
 ]

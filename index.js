@@ -383,6 +383,16 @@ client.once(Events.ClientReady, async () => {
     console.error('[Owners Error] Failed to fetch application info:', err.message);
   }
 
+  // Send startup online notification message to the specified channel
+  try {
+    const channel = await client.channels.fetch('641587187774783488').catch(() => null);
+    if (channel && channel.isTextBased()) {
+      await channel.send('✅ Bot restarted and is now online.').catch(() => null);
+    }
+  } catch (err) {
+    console.error('[Ready Message Error] Failed to send online message:', err.message);
+  }
+
   checkMaxBalances();
   checkExpiredRoles();
   setInterval(() => {

@@ -34,8 +34,6 @@ const syncPresence = async (client) => {
       return;
     }
 
-    console.log(`[WebSync] Starting presence and role synchronization for guild: ${guild.name}...`);
-    
     // Fetch all members with their presences
     const members = await guild.members.fetch({ withPresences: true });
     
@@ -75,10 +73,10 @@ const syncPresence = async (client) => {
 
     if (bulkOps.length > 0) {
       await Presence.bulkWrite(bulkOps);
-      console.log(`[WebSync] Successfully synchronized ${bulkOps.length} members to database.`);
+      console.log(`[WebSync] ${bulkOps.length} members synced from ${guild.name}`);
       return bulkOps.length;
     } else {
-      console.log('[WebSync] No members to sync.');
+      console.log(`[WebSync] 0 members synced from ${guild.name}`);
       return 0;
     }
   } catch (error) {
