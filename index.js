@@ -63,7 +63,14 @@ const getConfig = () => ({ prefix: process.env.GLOBAL_PREFIX || 'r' });
 
 // --- BOT INITIALIZATION ---
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildPresences,
+    GatewayIntentBits.GuildMembers
+  ],
   partials: [Partials.Channel, Partials.Message, Partials.User],
   allowedMentions: { repliedUser: false }
 });
@@ -350,6 +357,14 @@ client.once(Events.ClientReady, async () => {
 
   await loadCaches();
 
+  // Initial Web Presence synchronization
+  try {
+    const { syncPresence } = require('./cmds/Web/websync.js');
+    await syncPresence(client);
+  } catch (err) {
+    console.error('[WebSync Error] Failed initial sync on ready:', err.message);
+  }
+
   // Fetch owners dynamically
   try {
     const app = await client.application.fetch();
@@ -532,6 +547,25 @@ client.on(Events.InteractionCreate, async (interaction) => {
       console.error('[Role Renewal Button Error]', err);
       return interaction.editReply({ content: "❌ An error occurred while renewing your subscription." });
     }
+  }
+});
+
+// --- WEB SYNCHRONIZATION EVENT LISTENERS ---
+client.on('presenceUpdate', (oldPresence, newPresence) => {
+  try {
+    const { updateSinglePresence } = require('./cmds/Web/websync.js');
+    updateSinglePresence(newPresence);
+  } catch (err) {
+    console.error('[WebSync Event Error] presenceUpdate failed:', err.message);
+  }
+});
+
+client.on('guildMemberUpdate', (oldMember, newMember) => {
+  try {
+    const { updateSingleMember } = require('./cmds/Web/websync.js');
+    updateSingleMember(oldMember, newMember);
+  } catch (err) {
+    console.error('[WebSync Event Error] guildMemberUpdate failed:', err.message);
   }
 });
 
