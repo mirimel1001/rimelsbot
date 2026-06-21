@@ -10,7 +10,8 @@ const PresenceSchema = new mongoose.Schema({
   activities: [{
     name: { type: String },
     state: { type: String },
-    emoji: { type: String }
+    emoji: { type: String },
+    type: { type: Number }
   }],
   roles: [{
     id: { type: String },
@@ -59,7 +60,8 @@ const syncPresence = async (client) => {
       const activities = presence ? presence.activities.map(act => ({
         name: act.name,
         state: act.state || "",
-        emoji: parseEmoji(act.emoji)
+        emoji: parseEmoji(act.emoji),
+        type: act.type
       })) : [];
       const avatarUrl = member.user.displayAvatarURL({ dynamic: true, size: 512 });
 
@@ -111,7 +113,8 @@ const updateSinglePresence = async (newPresence) => {
     const activities = newPresence.activities.map(act => ({
       name: act.name,
       state: act.state || "",
-      emoji: parseEmoji(act.emoji)
+      emoji: parseEmoji(act.emoji),
+      type: act.type
     }));
 
     await Presence.findOneAndUpdate(
@@ -143,7 +146,8 @@ const updateSingleMember = async (oldMember, newMember) => {
     const activities = presence ? presence.activities.map(act => ({
       name: act.name,
       state: act.state || "",
-      emoji: parseEmoji(act.emoji)
+      emoji: parseEmoji(act.emoji),
+      type: act.type
     })) : [];
     const roles = newMember.roles.cache
       .filter(role => role.name !== '@everyone')
