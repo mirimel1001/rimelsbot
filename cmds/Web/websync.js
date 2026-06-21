@@ -117,7 +117,7 @@ const updateSinglePresence = async (newPresence) => {
           roles: roles
         }
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
   } catch (error) {
     console.error('[WebSync Error] Failed to update single presence:', error);
@@ -153,7 +153,7 @@ const updateSingleMember = async (oldMember, newMember) => {
           roles: roles
         }
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
   } catch (error) {
     console.error('[WebSync Error] Failed to update member roles/nickname:', error);
