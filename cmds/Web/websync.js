@@ -9,7 +9,8 @@ const PresenceSchema = new mongoose.Schema({
   status: { type: String, default: 'offline' }, // online, idle, dnd, offline
   activities: [{
     name: { type: String },
-    state: { type: String }
+    state: { type: String },
+    emoji: { type: String }
   }],
   roles: [{
     id: { type: String },
@@ -20,6 +21,14 @@ const PresenceSchema = new mongoose.Schema({
 const Presence = mongoose.models.Presence || mongoose.model('Presence', PresenceSchema);
 
 // --- SYNC UTILITIES ---
+
+const parseEmoji = (emoji) => {
+  if (!emoji) return null;
+  if (emoji.id) {
+    return `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? 'gif' : 'png'}`;
+  }
+  return emoji.name || null;
+};
 
 const syncPresence = async (client) => {
   try {
@@ -49,7 +58,8 @@ const syncPresence = async (client) => {
       const status = presence ? presence.status : 'offline';
       const activities = presence ? presence.activities.map(act => ({
         name: act.name,
-        state: act.state || ""
+        state: act.state || "",
+        emoji: parseEmoji(act.emoji)
       })) : [];
       const avatarUrl = member.user.displayAvatarURL({ dynamic: true, size: 512 });
 
@@ -100,7 +110,8 @@ const updateSinglePresence = async (newPresence) => {
     const avatarUrl = newPresence.user.displayAvatarURL({ dynamic: true, size: 512 });
     const activities = newPresence.activities.map(act => ({
       name: act.name,
-      state: act.state || ""
+      state: act.state || "",
+      emoji: parseEmoji(act.emoji)
     }));
 
     await Presence.findOneAndUpdate(
@@ -131,7 +142,8 @@ const updateSingleMember = async (oldMember, newMember) => {
     const status = presence ? presence.status : 'offline';
     const activities = presence ? presence.activities.map(act => ({
       name: act.name,
-      state: act.state || ""
+      state: act.state || "",
+      emoji: parseEmoji(act.emoji)
     })) : [];
     const roles = newMember.roles.cache
       .filter(role => role.name !== '@everyone')
