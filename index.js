@@ -410,6 +410,9 @@ client.once(Events.ClientReady, async () => {
 
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
+  if (!message.guild) {
+    console.log(`[DM Debug] Received DM from ${message.author.username} (${message.author.id}): "${message.content}"`);
+  }
   if (message.guild) verifyActivity(message.member, message.channel);
 
   const prefix = (message.guild ? (client.prefixes.get(message.guild.id) || getConfig().prefix) : getConfig().prefix);
