@@ -15,7 +15,8 @@ const PresenceSchema = new mongoose.Schema({
   }],
   roles: [{
     id: { type: String },
-    name: { type: String }
+    name: { type: String },
+    position: { type: Number }
   }]
 }, { timestamps: true });
 
@@ -54,7 +55,7 @@ const syncPresence = async (client) => {
       const presence = member.presence;
       const roles = member.roles.cache
         .filter(role => role.name !== '@everyone')
-        .map(role => ({ id: role.id, name: role.name }));
+        .map(role => ({ id: role.id, name: role.name, position: role.position }));
 
       const status = presence ? presence.status : 'offline';
       const activities = presence ? presence.activities.map(act => ({
@@ -107,7 +108,7 @@ const updateSinglePresence = async (newPresence) => {
 
     const roles = member.roles.cache
       .filter(role => role.name !== '@everyone')
-      .map(role => ({ id: role.id, name: role.name }));
+      .map(role => ({ id: role.id, name: role.name, position: role.position }));
 
     const avatarUrl = newPresence.user.displayAvatarURL({ dynamic: true, size: 512 });
     const activities = newPresence.activities.map(act => ({
@@ -151,7 +152,7 @@ const updateSingleMember = async (oldMember, newMember) => {
     })) : [];
     const roles = newMember.roles.cache
       .filter(role => role.name !== '@everyone')
-      .map(role => ({ id: role.id, name: role.name }));
+      .map(role => ({ id: role.id, name: role.name, position: role.position }));
 
     const avatarUrl = newMember.user.displayAvatarURL({ dynamic: true, size: 512 });
 
