@@ -393,6 +393,18 @@ client.once(Events.ClientReady, async () => {
     console.error('[Ready Message Error] Failed to send online message:', err.message);
   }
 
+  // Send startup online notification message to the bot owners
+  for (const ownerId of client.owners) {
+    try {
+      const owner = await client.users.fetch(ownerId).catch(() => null);
+      if (owner) {
+        await owner.send('✅ Bot restarted and is now online.').catch(() => null);
+      }
+    } catch (err) {
+      console.error(`[Ready DM Error] Failed to send online DM to ${ownerId}:`, err.message);
+    }
+  }
+
   checkMaxBalances();
   checkExpiredRoles();
   setInterval(() => {
@@ -409,7 +421,24 @@ client.once(Events.ClientReady, async () => {
 });
 
 client.on('messageCreate', async (message) => {
-  if (message.author.bot) return;
+  if (message.partial) {
+    try {
+      await message.fetch();
+    } catch (err) {
+      console.error('[Message Fetch Error] Failed to fetch partial message:', err.message);
+      return;
+    }
+  }
+
+  if (message.channel && message.channel.partial) {
+    try {
+      await message.channel.fetch();
+    } catch (err) {
+      console.error('[Channel Fetch Error] Failed to fetch partial channel:', err.message);
+    }
+  }
+
+  if (message.author && message.author.bot) return;
   if (!message.guild) {
     console.log(`[DM Debug] Received DM from ${message.author.username} (${message.author.id}): "${message.content}"`);
   }
