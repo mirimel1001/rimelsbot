@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const SyncRequest = require('../../models/SyncRequest');
 
 // --- DATABASE SCHEMA ---
 const PresenceSchema = new mongoose.Schema({
@@ -175,6 +176,60 @@ const updateSingleMember = async (oldMember, newMember) => {
   }
 };
 
+const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes global cooldown
+
+const processSyncQueue = async (client) => {
+  try {
+    // Find the oldest pending request
+    const pendingRequest = await SyncRequest.findOne({ status: 'pending' }).sort({ requestedAt: 1 });
+    if (!pendingRequest) return;
+
+    // Check if any request is currently processing
+    const processingRequest = await SyncRequest.findOne({ status: 'processing' });
+    if (processingRequest) {
+      return;
+    }
+
+    // Check cooldown since the last processed sync
+    const lastProcessed = await SyncRequest.findOne({ 
+      status: { $in: ['completed', 'failed'] } 
+    }).sort({ processedAt: -1 });
+
+    if (lastProcessed && lastProcessed.processedAt) {
+      const timeSinceLast = Date.now() - lastProcessed.processedAt.getTime();
+      if (timeSinceLast < COOLDOWN_MS) {
+        console.log(`[WebSync] Rejecting pending sync request (cooldown active: ${Math.round((COOLDOWN_MS - timeSinceLast)/1000)}s remaining)`);
+        pendingRequest.status = 'failed';
+        pendingRequest.error = 'Cooldown active';
+        pendingRequest.processedAt = new Date();
+        await pendingRequest.save();
+        return;
+      }
+    }
+
+    // Mark as processing
+    pendingRequest.status = 'processing';
+    await pendingRequest.save();
+
+    console.log(`[WebSync] Processing sync request trigger...`);
+    try {
+      const count = await syncPresence(client);
+      pendingRequest.status = 'completed';
+      pendingRequest.processedAt = new Date();
+      await pendingRequest.save();
+      console.log(`[WebSync] Sync request completed successfully. Synced ${count} members.`);
+    } catch (err) {
+      pendingRequest.status = 'failed';
+      pendingRequest.error = err.message || String(err);
+      pendingRequest.processedAt = new Date();
+      await pendingRequest.save();
+      console.error(`[WebSync] Sync request failed:`, err);
+    }
+  } catch (error) {
+    console.error('[WebSync Error] Error in processSyncQueue:', error);
+  }
+};
+
 // --- COMMAND DEFINITION ---
 module.exports = {
   name: 'websync',
@@ -197,5 +252,7 @@ module.exports = {
   // Export sync utilities for index.js
   syncPresence,
   updateSinglePresence,
-  updateSingleMember
+  updateSingleMember,
+  processSyncQueue
 };
+

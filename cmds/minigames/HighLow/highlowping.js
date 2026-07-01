@@ -7,24 +7,14 @@ module.exports = {
   description: "Toggle the cooldown reminder for HighLow. If on, you'll be pinged when you can play again.",
   usage: "highlowping",
   run: async (client, message, args, prefix, config) => {
-    // 1. Load Settings
-    const filePath = './server_game_settings.json';
-    let data = { guilds: {} };
+    // 1. Load Settings from MongoDB Cache
+    const Guild = require('../../../models/Guild');
+    const currentCache = client.gameSettings.get(message.guild.id) || {};
     
-    try {
-      if (fs.existsSync(filePath)) {
-        data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      }
-    } catch (err) {
-      console.error('Error reading server_game_settings.json:', err.message);
-      return message.reply("❌ Error loading settings.");
-    }
+    if (!currentCache.reminders) currentCache.reminders = {};
+    if (!currentCache.reminders[message.author.id]) currentCache.reminders[message.author.id] = {};
 
-    if (!data.guilds[message.guild.id]) data.guilds[message.guild.id] = {};
-    if (!data.guilds[message.guild.id].reminders) data.guilds[message.guild.id].reminders = {};
-    if (!data.guilds[message.guild.id].reminders[message.author.id]) data.guilds[message.guild.id].reminders[message.author.id] = {};
-
-    const currentStatus = data.guilds[message.guild.id].reminders[message.author.id].highlow || false;
+    const currentStatus = currentCache.reminders[message.author.id].highlow || false;
     const statusText = currentStatus ? "✅ **ON**" : "❌ **OFF**";
 
     const promptMsg = await message.reply(`🔔 **HighLow Reminder Status:** ${statusText}\nDo you want to change it? Type **yes** or **no**.`);
@@ -36,10 +26,19 @@ module.exports = {
       const input = m.content.toLowerCase();
       if (input === 'yes' || input === 'y') {
         const newStatus = !currentStatus;
-        data.guilds[message.guild.id].reminders[message.author.id].highlow = newStatus;
+        
+        if (!currentCache.reminders) currentCache.reminders = {};
+        if (!currentCache.reminders[message.author.id]) currentCache.reminders[message.author.id] = {};
+        currentCache.reminders[message.author.id].highlow = newStatus;
         
         try {
-          fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+          await Guild.findOneAndUpdate(
+            { guildId: message.guild.id },
+            { gameSettings: currentCache },
+            { upsert: true }
+          );
+          client.gameSettings.set(message.guild.id, currentCache);
+          
           const resultText = newStatus ? "✅ **ON**" : "❌ **OFF**";
           message.reply(`🔄 **Updated!** Your HighLow reminder is now ${resultText}.`);
         } catch (err) {

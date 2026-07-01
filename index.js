@@ -52,7 +52,43 @@ if (process.env.MONGO_URI) {
 
   const db = mongoose.connection;
   db.on('error', err => console.error('[Database] Runtime Error:', err));
-  db.once('open', () => console.log('[Database] Connected to MongoDB Atlas!'));
+  db.once('open', () => {
+    console.log('[Database] Connected to MongoDB Atlas!');
+    
+    // --- WATCH FOR WEB SYNC REQUESTS ---
+    const startSyncWatcher = () => {
+      const SyncRequest = require('./models/SyncRequest');
+      const { processSyncQueue } = require('./cmds/Web/websync.js');
+
+      // Attempt to use Change Streams (needs MongoDB replica set)
+      try {
+        const changeStream = SyncRequest.watch();
+        changeStream.on('change', async (change) => {
+          if (change.operationType === 'insert') {
+            await processSyncQueue(client);
+          }
+        });
+        changeStream.on('error', (err) => {
+          console.warn('[WebSync Watcher] Change stream error, falling back to polling:', err.message);
+          changeStream.close();
+          startPolling();
+        });
+        console.log('[WebSync Watcher] Started listening via MongoDB Change Streams.');
+      } catch (err) {
+        console.warn('[WebSync Watcher] Change stream not supported/failed, falling back to polling:', err.message);
+        startPolling();
+      }
+
+      function startPolling() {
+        console.log('[WebSync Watcher] Started polling MongoDB for sync requests.');
+        setInterval(async () => {
+          await processSyncQueue(client);
+        }, 10000); // Check every 10 seconds
+      }
+    };
+
+    startSyncWatcher();
+  });
   db.on('disconnected', () => console.warn('[Database] Disconnected. Reconnecting...'));
 } else {
   console.warn('[Database] MONGO_URI not found in .env. Persistence disabled.');
