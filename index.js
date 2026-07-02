@@ -293,13 +293,12 @@ const checkExpiredRoles = async () => {
 
   try {
     const now = new Date();
-    // Find all inventories with active temporary roles that have expired
+    // Find all inventories with temporary roles that have expired
     const inventories = await Inventory.find({
       "roles": {
         $elemMatch: {
           isTemporary: true,
-          isUsed: true,
-          expiresAt: { $lt: now }
+          expiresAt: { $ne: null, $lt: now }
         }
       }
     });
@@ -309,14 +308,14 @@ const checkExpiredRoles = async () => {
       const toRemoveIds = [];
 
       for (const item of inv.roles) {
-        if (item.isTemporary && item.isUsed && item.expiresAt && item.expiresAt < now) {
+        if (item.isTemporary && item.expiresAt && item.expiresAt < now) {
           const guildId = inv.guildId;
           const buyerId = inv.userId;
           const wearerId = item.assignedTo;
-
-          // Strip role from wearer on Discord
           const guild = client.guilds.cache.get(guildId);
-          if (guild) {
+
+          // Strip role from wearer on Discord (only if it was active/used)
+          if (item.isUsed && wearerId && guild) {
             const member = await guild.members.fetch(wearerId).catch(() => null);
             const role = await guild.roles.fetch(item.roleId).catch(() => null);
 
@@ -327,12 +326,14 @@ const checkExpiredRoles = async () => {
                 console.error(`[Expiration Worker] Failed to remove role ${role.name} from ${member.user.username}:`, err.message);
               }
             }
+          }
 
-            // Mark for deletion from inventory array upon expiration
-            toRemoveIds.push(item._id);
-            needsSave = true;
+          // Mark for deletion from inventory array upon expiration
+          toRemoveIds.push(item._id);
+          needsSave = true;
 
-            // Send expiration DM with renewal option
+          // Send expiration DM with renewal option (only for active roles)
+          if (item.isUsed && guild) {
             const purchaser = await client.users.fetch(buyerId).catch(() => null);
             if (purchaser) {
               const dmEmbed = new EmbedBuilder()

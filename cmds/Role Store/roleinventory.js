@@ -167,6 +167,36 @@ module.exports = {
 
     let inv = await Inventory.findOne({ guildId: message.guild.id, userId: targetUser.id });
 
+    if (inv && inv.roles && inv.roles.length > 0) {
+      let changed = false;
+      const now = new Date();
+      const activeRoles = [];
+      for (const item of inv.roles) {
+        if (item.isTemporary && item.expiresAt && item.expiresAt < now) {
+          if (item.isUsed && item.assignedTo) {
+            const wearerMember = await message.guild.members.fetch(item.assignedTo).catch(() => null);
+            if (wearerMember) {
+              const discordRole = await message.guild.roles.fetch(item.roleId).catch(() => null);
+              if (discordRole) {
+                try {
+                  await wearerMember.roles.remove(discordRole);
+                } catch (err) {
+                  console.error('[Dyn Expire Discord Remove Error]', err);
+                }
+              }
+            }
+          }
+          changed = true;
+        } else {
+          activeRoles.push(item);
+        }
+      }
+      if (changed) {
+        inv.roles = activeRoles;
+        await inv.save();
+      }
+    }
+
     // Query active roles equipped on this user by other guild members
     const activeGifted = await Inventory.find({
       guildId: message.guild.id,

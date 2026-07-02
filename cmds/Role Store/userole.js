@@ -123,7 +123,9 @@ module.exports = {
 
     // Check if temporary role has expired (if purchased and already started timer)
     if (item.isTemporary && item.expiresAt && item.expiresAt < new Date()) {
-      return message.reply("❌ This temporary role has already expired and cannot be equipped.");
+      inv.roles.pull(item._id);
+      await inv.save();
+      return message.reply("❌ This temporary role has already expired and has been removed from your inventory.");
     }
 
     let targetMember = message.member;
