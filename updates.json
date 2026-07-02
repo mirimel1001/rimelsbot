@@ -283,5 +283,26 @@
       "Genshin Countdown (gpc): Launched a countdown command for upcoming Genshin Impact banners, scraping release times, stitching multiple images vertically using sharp/composite, and pushing a live countdown embed.",
       "HGM Broadcast System: Added owner-only broadcast list manager (hgm add/remove/list/text/pm) and custom DM handlers for secure member list messaging, message exclusions, and prefix-less DM reply forwarding."
     ]
+  },
+  {
+    "version": "2.2.2",
+    "date": "2026-06-27",
+    "title": "Web Presence Enhancements & DM Stability",
+    "items": [
+      "Role Hierarchy Position: Updated presence schema and sync scripts to store role hierarchy ranks, enabling correct role sorting in the web presence database.",
+      "Custom Activity & Emotes: Patched web presence sync to accurately capture status emotes and live custom activities.",
+      "DM Message Routing Fixes: Resolved silent errors handling partial messages in DMs and enabled direct DM notifications to bot owners upon startup."
+    ]
+  },
+  {
+    "version": "2.2.3",
+    "date": "2026-07-02",
+    "title": "Cloud-Native Settings, WebSync Change Streams, & Expiration Fixes",
+    "items": [
+      "Game Settings Migration: Transitioned High/Low betting game configuration (highlowping) from server_game_settings.json to MongoDB Guild cache.",
+      "WebSync Queue Watcher: Integrated a Change Stream listener for SyncRequests with a fallback database poll and a 5-minute global cooldown.",
+      "Role Expiration Overhaul: Fixed inventory cleanups by pruning expired temporary roles whether they are active or dormant.",
+      "Database Reconnect Logging: Added explicit console confirmations when the bot successfully reconnects to MongoDB."
+    ]
   }
 ]
