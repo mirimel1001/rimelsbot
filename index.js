@@ -90,6 +90,7 @@ if (process.env.MONGO_URI) {
     startSyncWatcher();
   });
   db.on('disconnected', () => console.warn('[Database] Disconnected. Reconnecting...'));
+  db.on('reconnected', () => console.log('[Database] Reconnected successfully!'));
 } else {
   console.warn('[Database] MONGO_URI not found in .env. Persistence disabled.');
 }
