@@ -558,7 +558,30 @@ client.on('messageCreate', async (message) => {
     verifyActivity(message.member, message.channel);
   }
 
-  const prefix = (message.guild ? (client.prefixes.get(message.guild.id) || getConfig().prefix) : getConfig().prefix);
+  // Real-time Database Sync on command prefix match
+  let prefix = (message.guild ? (client.prefixes.get(message.guild.id) || getConfig().prefix) : getConfig().prefix);
+  if (message.guild && (message.content.toLowerCase().startsWith(prefix.toLowerCase()) || message.content.toLowerCase().startsWith('r'))) {
+    try {
+      const Guild = require('./models/Guild');
+      const Token = require('./models/Token');
+      const [g, t] = await Promise.all([
+        Guild.findOne({ guildId: message.guild.id }),
+        Token.findOne({ guildId: message.guild.id })
+      ]);
+      if (g) {
+        if (g.prefix) client.prefixes.set(g.guildId, g.prefix);
+        if (g.gameSettings) client.gameSettings.set(g.guildId, g.gameSettings);
+        if (g.activityRoles) client.arConfigs.set(g.guildId, g.activityRoles);
+      }
+      if (t) {
+        client.unbTokens.set(message.guild.id, t.token);
+      }
+      // Re-read prefix after database sync in case it changed
+      prefix = (message.guild ? (client.prefixes.get(message.guild.id) || getConfig().prefix) : getConfig().prefix);
+    } catch (dbErr) {
+      console.error('[Cache Realtime Sync Error]', dbErr.message);
+    }
+  }
 
   // Use HGM DM Handler
   const hgmHandled = await dmhandler_hgm(client, message, prefix, getConfig);
