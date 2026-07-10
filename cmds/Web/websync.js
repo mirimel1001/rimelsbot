@@ -33,16 +33,16 @@ const parseEmoji = (emoji) => {
   return emoji.name || null;
 };
 
-const syncPresence = async (client) => {
+const syncPresence = async (client, silent = false) => {
   try {
     const guildId = process.env.MAIN_GUILD_ID;
     if (!guildId) {
-      console.warn('[WebSync] MAIN_GUILD_ID not defined in .env.');
+      if (!silent) console.warn('[WebSync] MAIN_GUILD_ID not defined in .env.');
       return;
     }
     const guild = client.guilds.cache.get(guildId);
     if (!guild) {
-      console.warn(`[WebSync] Guild with ID ${guildId} not found in client cache.`);
+      if (!silent) console.warn(`[WebSync] Guild with ID ${guildId} not found in client cache.`);
       return;
     }
 
@@ -87,14 +87,14 @@ const syncPresence = async (client) => {
 
     if (bulkOps.length > 0) {
       await Presence.bulkWrite(bulkOps);
-      console.log(`[WebSync] ${bulkOps.length} members synced from ${guild.name}`);
+      if (!silent) console.log(`[WebSync] ${bulkOps.length} members synced from ${guild.name}`);
       return bulkOps.length;
     } else {
-      console.log(`[WebSync] 0 members synced from ${guild.name}`);
+      if (!silent) console.log(`[WebSync] 0 members synced from ${guild.name}`);
       return 0;
     }
   } catch (error) {
-    console.error('[WebSync Error] Failed to synchronize presences:', error);
+    if (!silent) console.error('[WebSync Error] Failed to synchronize presences:', error);
     throw error;
   }
 };

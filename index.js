@@ -471,8 +471,7 @@ client.once(Events.ClientReady, async () => {
     await syncPresence(client);
     
     setInterval(async () => {
-      console.log('[WebSync] Running scheduled automatic synchronization...');
-      await syncPresence(client).catch(err => console.error('[WebSync Loop Error]', err.message));
+      await syncPresence(client, true).catch(err => console.error('[WebSync Loop Error]', err.message));
     }, 10 * 60 * 1000); // 10 minutes
   } catch (err) {
     console.error('[WebSync Error] Failed initial sync on ready:', err.message);
