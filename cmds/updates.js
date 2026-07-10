@@ -19,13 +19,14 @@ module.exports = {
   usage: "updates [keyword]",
   run: async (client, message, args, prefix, config) => {
     try {
-      const updatesPath = path.join(__dirname, '../updates.json');
+      const updatesPath = path.join(__dirname, '../updatesNcommands.json');
       
       if (!fs.existsSync(updatesPath)) {
-        return message.reply('📭 No update history found. `updates.json` is missing.');
+        return message.reply('📭 No update history found. `updatesNcommands.json` is missing.');
       }
 
-      const updatesData = JSON.parse(fs.readFileSync(updatesPath, 'utf8'));
+      const fileData = JSON.parse(fs.readFileSync(updatesPath, 'utf8'));
+      const updatesData = fileData.updates;
 
       if (!Array.isArray(updatesData) || updatesData.length === 0) {
         return message.reply('📭 The update history is currently empty.');
@@ -216,7 +217,7 @@ module.exports = {
 
     } catch (error) {
       console.error('Updates Command Error:', error);
-      return message.reply('❌ Failed to load updates. There might be a formatting error in `updates.json`.');
+      return message.reply('❌ Failed to load updates. There might be a formatting error in `updatesNcommands.json`.');
     }
   }
 };

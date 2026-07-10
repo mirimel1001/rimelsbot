@@ -1,0 +1,628 @@
+{
+  "updates": [
+    {
+      "version": "1.1.0",
+      "date": "2026-04-18",
+      "title": "Foundation & Core Framework",
+      "items": [
+        "Initial bot setup with a modular and recursive command handler.",
+        "Implemented per-server prefix system (r) with case-insensitive detection.",
+        "Added auto-healing JSON initialization for configuration persistence.",
+        "Integrated UnbelievaBoat economy with optimized Axios requests.",
+        "Launched High/Low betting game with interactive buttons.",
+        "Implemented ImageGuess (Gartic) with Pixabay and Jimp image processing."
+      ]
+    },
+    {
+      "version": "1.2.0",
+      "date": "2026-04-18",
+      "title": "Minigame Maturity & Dashboard",
+      "items": [
+        "Launched the Multiplayer Host-Funded Werewolf game system.",
+        "Implemented an interactive Setup Dashboard for game masters.",
+        "Added dedicated game channel restrictions (rgamechannel).",
+        "Introduced per-game cooldowns and custom delays (rdelay).",
+        "Modernized the help system with dropdown categories and buttons."
+      ]
+    },
+    {
+      "version": "1.3.0",
+      "date": "2026-04-20",
+      "title": "Engine Stability & Deployment",
+      "items": [
+        "Overhauled Werewolf engine with manual commands and team chat.",
+        "Added live skip progress logic and alive/dead player lists to embeds.",
+        "Implemented partial matching logic for more lenient ImageGuessing.",
+        "Hardened file pathing for seamless Wispbyte hosting compatibility.",
+        "Fixed interaction collisions and duplicate embed declarations."
+      ]
+    },
+    {
+      "version": "1.4.0",
+      "date": "2026-04-21",
+      "title": "Wispbyte & UX Core",
+      "items": [
+        "Forced .env priority to fix 'Invalid Token' errors on Wispbyte.",
+        "Added token sanitization (trim/quote removal) for safety.",
+        "Self-healing configuration system for missing/corrupted files.",
+        "Permission-based help menu (hides admin cmds from members)."
+      ]
+    },
+    {
+      "version": "1.5.0",
+      "date": "2026-04-21",
+      "title": "Werewolf: Tactical Overhaul",
+      "items": [
+        "Player Indexing (1, 2, 3...) for fast targeting.",
+        "Secret DM commands for Wolves and Seers.",
+        "Tactical Vote Cancellation during the Day phase.",
+        "20% Prize Tax and Seer scan limits (default 2)."
+      ]
+    },
+    {
+      "version": "1.6.0",
+      "date": "2026-04-21",
+      "title": "The Social & Logging Update",
+      "items": [
+        "Collaborative 'Death Stories' for Werewolves via standalone commands.",
+        "Unified persistent DM log embeds for the Host and all Players.",
+        "Standalone DM commands (skip, wsay, how) requiring no prefix.",
+        "Winner summaries now pushed to persistent logs at endgame."
+      ]
+    },
+    {
+      "version": "1.7.0",
+      "date": "2026-04-22",
+      "title": "Persistence & Metadata",
+      "items": [
+        "Migrated from Git-based 'commits' to local 'updates.json' storage.",
+        "Added support for rich, multi-line update descriptions.",
+        "Enhanced update embeds with better visibility and organization."
+      ]
+    },
+    {
+      "version": "1.8.0",
+      "date": "2026-04-22",
+      "title": "Dynamic DM Dashboard & Shorthands",
+      "items": [
+        "Updated DM log embeds to show only relevant commands for your role/phase.",
+        "Added prefix-less support for 'v [ID]' (vote) and 'unvote' in DMs.",
+        "Added auto-highlighting (➡️) for the player's own name in their DM logs.",
+        "Synchronized Seer scan counts and Werewolf shortcuts across all DMs."
+      ]
+    },
+    {
+      "version": "1.9.0",
+      "date": "2026-04-22",
+      "title": "Decentralization & Performance",
+      "items": [
+        "Decentralized Economy: Added per-server UnbelievaBoat linking with live API validation (rrunbtoken).",
+        "Memory Caching: Implemented global memory collections for prefixes and settings, drastically reducing disk I/O.",
+        "Robust Restrictions: Minigames now verify channel existence before blocking commands to prevent deadlocks.",
+        "Modernized UI/UX: Fixed deprecated ephemeral flags and updated technical guides with precise Bot Client ID steps.",
+        "File Cleanup: Removed redundant source files to maintain a lean and professional directory structure."
+      ]
+    },
+    {
+      "version": "2.0.0",
+      "date": "2026-04-22",
+      "title": "The Competition & Organization Update",
+      "items": [
+        "New Game: Launched the 'bet' command for 50/50 PvP gambling with other users.",
+        "Help Overhaul: Consolidated all games into a single 'Minigames' category for a cleaner dropdown menu.",
+        "Categorized Help: Minigame help is now split into 'Games' and 'Game Settings' with polished descriptions.",
+        "Visual Feedback: Added 🗳️ (ballot box) icons for voters in Werewolf and improved 'Ready' visibility.",
+        "Smarter Loader: Refactored the command engine to support nested folder categorization and type tagging."
+      ]
+    },
+    {
+      "version": "2.1.0",
+      "date": "2026-04-27",
+      "title": "The Economy & Integration Update",
+      "items": [
+        "Economy Suite: Launched fully linked UnbelievaBoat commands: balance, leaderboard, withdraw, and deposit.",
+        "Visual Aesthetics: Styled economy responses to match UnbelievaBoat's minimalist design and signature color palette.",
+        "Interactive Leaderboard: Added 'Next' and 'Previous' buttons for seamless browsing of server rankings.",
+        "Smart Shorthand: Economy commands now support k, m, b, t multipliers (e.g., 10k, 1m) for faster transactions.",
+        "Admin Aliases: winningrate and checkwinningrate (cwr) now support game aliases like 'hl' for 'highlow'.",
+        "Cooldown Reminders: Added highlowping (hlp) to notify users exactly when they can play HighLow again.",
+        "Stability Fixes: Implemented API cache-busting and robust data parsing to ensure leaderboard accuracy.",
+        "Global Silence: Disabled replied-user pings across all commands for a less intrusive user experience.",
+        "HighLow Draw: Ties no longer result in a loss or fine; it is now a neutral draw.",
+        "Refined Defaults: Cleaned up global winning rates to correctly apply only to HighLow.",
+        "Minimalist Economy: Removed avatars from withdraw/deposit messages for a cleaner look."
+      ]
+    },
+    {
+      "version": "2.1.1",
+      "date": "2026-04-27",
+      "title": "The Polish & Peer-to-Peer Update",
+      "items": [
+        "P2P Transfers: Added give-money (aliases: give, pay) to transfer cash to other members with full shorthand support.",
+        "Visual Refinement: Standardized 'no avatar/name' format for economy embeds to ensure a clean, consistent UI.",
+        "Reliable Pings: Upgraded HighLow cooldown reminders to use replies, ensuring notifications trigger reliably on mobile.",
+        "Text Alignment: Updated deposit and withdraw responses to match UnbelievaBoat's exact phrasing for a seamless experience.",
+        "Unified Palette: Synced the leaderboard color with the rest of the economy suite for a more cohesive design."
+      ]
+    },
+    {
+      "version": "2.1.2",
+      "date": "2026-05-08",
+      "title": "The Centralized Economy & Monitoring Update",
+      "items": [
+        "Architecture Consolidation: Merged fragmented server configuration files into a centralized system for better performance and easier management.",
+        "Max Balance Monitor: Implemented an automated background audit system that enforces server-specific currency caps via the UnbelievaBoat API.",
+        "Dynamic Enforcement: Members can now earn infinitely by default unless a limit is set, with a 10B default cap for the main server.",
+        "New Control Command: Added maxbalance (aliases: maxbal, mb) to allow server owners to configure or disable currency limits.",
+        "Auto-Migration: Added a smart initialization system that automatically transitions legacy data to the new structure on startup.",
+        "Optimized Performance: Refactored all game and administrative commands to utilize memory caches for faster response times."
+      ]
+    },
+    {
+      "version": "2.1.3",
+      "date": "2026-05-09",
+      "title": "The Reactive Security & Optimization Update",
+      "items": [
+        "Reactive Audits: Implemented instant balance checks after every minigame win (Bet, HighLow, ImageGuess, Werewolf) to enforce limits in real-time.",
+        "Optimized Audit Timing: Switched background audits to a 3-hour interval to drastically reduce API overhead and server load.",
+        "Silent Background Logs: Cleaned up the console by redirecting background debug messages to bot_logs.txt while keeping the UI clear for important events.",
+        "Stability Fix: Resolved 'MaxListenersExceeded' warnings by increasing internal EventEmitter limits to accommodate large-scale server audits.",
+        "Synchronized Deployment: Updated all core files and backup zips to ensure latest optimizations are included in future server migrations."
+      ]
+    },
+    {
+      "version": "2.1.4",
+      "date": "2026-05-12",
+      "title": "The Social Identity & Architecture Update",
+      "items": [
+        "New Game: Launched 'Name Guesser' (rng), a host-driven social identity game with a 'Who Am I?' mechanic.",
+        "Advanced Engine: Implemented a robust multi-phase state machine for image collection, titling, and turn-based questioning.",
+        "Cross-DM Interaction: Added seamless voting and guessing logic that bridges private DMs and server channels.",
+        "Host Authority: Empowered hosts with 'Trump' decision power for voting and manual guess validation to account for typos.",
+        "Ranked Payouts: Integrated dynamic prize splitting for multiple winners with automated UnbelievaBoat settlement.",
+        "Architecture Overhaul: Completely updated documentation and optimized DM command routing for modularity."
+      ]
+    },
+    {
+      "version": "2.1.5",
+      "date": "2026-05-12",
+      "title": "The NameGuesser UI/UX Overhaul",
+      "items": [
+        "Single-Message UI: Consolidated the entire game state into a single, persistent 'Game Log' dashboard.",
+        "Anti-Spam Architecture: Replaced separate prompts and notifications with a unified, auto-updating embed system.",
+        "Dynamic Dashboard: Implemented a 'Delete and Resend' strategy to keep the game at the bottom of the chat without cluttering history.",
+        "Self-Cleaning DMs: Added turn notifications in DMs that automatically delete themselves after a player takes action.",
+        "Sequential Setup: Launched a streamlined 'Bulk Upload & Name' flow for faster game preparation.",
+        "Impactful Revelations: Added a revelation system that displays a winner's identity and image in both the channel and DMs.",
+        "Fair Play Enforcement: Implemented a 3-question limit for 'Yes' answers and mandatory turn passing for incorrect guesses.",
+        "Reliability Fallbacks: Added dynamic manual command instructions to all embed footers as a backup for button failures."
+      ]
+    },
+    {
+      "version": "2.1.6",
+      "date": "2026-05-16",
+      "title": "The Activity Verification & Role Automation Update",
+      "items": [
+        "New Feature: Launched Activity Role Events (AR) allowing admins to set custom message requirements for roles.",
+        "Stateless Architecture: Implemented a high-performance verification engine that uses API history fetching instead of disk storage.",
+        "Optimized Audits: Integrated a 5-minute per-user cooldown and 100-message batching to prevent Discord API rate limits.",
+        "Dual-Storage Logic: Main server configurations are now saved directly to default_myserver.json, while others use a dedicated ar_configs.json.",
+        "Admin Control Suite: Added comprehensive commands (ar setup, list, del, setcount, setrole) for real-time requirement management.",
+        "Arcane Integration: Automated role issuance triggered by both message activity and Arcane Bot level-up events."
+      ]
+    },
+    {
+      "version": "2.1.7",
+      "date": "2026-05-16",
+      "title": "The Cloud-Native Revolution Update",
+      "items": [
+        "Database Migration: Migrated all server configurations (prefixes, games, roles) from local JSON to MongoDB Atlas.",
+        "Dedicated Token Vault: Isolated UnbelievaBoat API tokens into a secure, dedicated collection for enhanced security.",
+        "Zero-Disk Architecture: Successfully removed all local storage files (custom_guilds.json, ar_configs.json, default_myserver.json).",
+        "Automatic Migration Engine: Implemented a one-time startup logic to seamlessly move legacy server data to the Cloud.",
+        "Performance Optimization: Developed a high-speed memory cache synchronized with MongoDB for sub-millisecond latency.",
+        "DM Logic Refactor: Isolated all prefix-less game interactions into a dedicated dmHandler.js for maximum stability.",
+        "Full Game Sync: Refactored HighLow, Bet, and ImageGuess to use Cloud-native settings and win rates."
+      ]
+    },
+    {
+      "version": "2.1.8",
+      "date": "2026-05-16",
+      "title": "The Interactive Dashboard & Modular Requirement Update",
+      "items": [
+        "Interactive Dashboard: Launched a button-based edit menu (r ar edit) with real-time feedback and Modal-driven configuration.",
+        "Modular Architecture: Refactored the core system to support multiple requirement types, starting with 'Requirement Messages' (req msgs).",
+        "Intelligent Logging: Implemented 'Current Channel' (same) logging logic that celebrates role grants in the user's active channel.",
+        "Chat-Based Selectors: Replaced technical IDs with a user-friendly chat collector for log channel selection, supporting mentions and links.",
+        "Terminology Purge: Completely removed legacy 'Threshold' branding across the entire codebase, UI, and documentation.",
+        "Auto-Cleanup: Implemented self-deleting prompts and responses for a zero-clutter administrative experience.",
+        "Performance Tuning: Optimized internal verification logic and upgraded interaction responses to the latest Discord.js standards."
+      ]
+    },
+    {
+      "version": "2.1.9",
+      "date": "2026-05-29",
+      "title": "The Role Store & Inventory Automation Update",
+      "items": [
+        "New Feature: Launched a premium Role Store Utility letting admins sell server roles using the UnbelievaBoat economy.",
+        "Pricing Models: Added support for both Fixed Pricing (one-time purchase) and Rent Mode (dynamic daily renting where users buy custom days).",
+        "Inventory Management: Added a database-backed inventory system (r ri) to track purchased roles, dormant durations, and active wearers.",
+        "Activation & Gifting: Designed a dynamic activation engine (r ur) allowing users to wear roles, gift/equip them on friends, or return them to inventory.",
+        "Interactive Dashboard: Implemented a button-and-modal driven configuration panel (r br setup) featuring Discord's native RoleSelectMenuBuilder.",
+        "Subscription Automation: Integrated an optimized background worker scanning every 3 hours to automatically strip expired temporary roles.",
+        "One-Click DM Renewals: Programmed automated private DM warnings containing a one-click renewal button to instantly restart timers."
+      ]
+    },
+    {
+      "version": "2.2.0",
+      "date": "2026-06-06",
+      "title": "Name Guesser Database Persistence & Control Upgrades",
+      "items": [
+        "Database Logging: Integrated MongoDB logging for Name Guesser, capturing all questions, guesses, and actions in real-time.",
+        "Time-To-Live Deletion: Configured automatic 30-minute MongoDB TTL self-cleaning to purge logs half an hour after a match ends.",
+        "Log History Query: Added 'ng history' and 'ng history @player' commands to retrieve current or past match logs within the 30-minute window.",
+        "Anti-Spam UI Edits: Overhauled log updates to use Discord message edits in channels and DMs, eliminating duplicate and orphaned messages.",
+        "Log Slicing & Queuing: Sliced live logs to the last 12 events to safely fit inside Discord's 4,096 character limit, and added an update lock queue.",
+        "DM Compatibility & Routing: Resolved message compatibility bugs in DMs (author vs user property checks) and enabled prefix-less 'ng' routing in DMs.",
+        "Immediate Host Override: Host votes now immediately resolve rounds, bypassing remaining player votes and blocking late inputs.",
+        "Prefix-less DM Voting: Enabled quick prefix-less 'yes'/'no'/'y'/'n' votes in DMs with explicit confirmation replies.",
+        "Host Kick Command: Added 'ng kick <@player>' command to allow hosts to remove players mid-game or from the lobby."
+      ]
+    },
+    {
+      "version": "2.2.1",
+      "date": "2026-06-22",
+      "title": "Live Web Presence Sync & Command Upgrades",
+      "items": [
+        "Intents Expansion: Enabled GuildPresences and GuildMembers gateway intents to track status changes and server member details.",
+        "Mongoose Schema Sync: Added a Presence schema to record user statuses, active roles, dynamic avatars, and custom activity updates in MongoDB.",
+        "Real-Time Listeners: Wired presenceUpdate and guildMemberUpdate events to automatically sync live changes directly to the cloud.",
+        "On-Demand Command: Created websync (alias ws) command restricted to bot owners to trigger bulk synchronization on command.",
+        "Startup Synchronization: Automatically runs a full guild synchronization on ready, consolidating logs to a clean single-line summary.",
+        "Startup Ready Notifications: Sends an online confirmation message directly to the server's dedicated text channel upon successful connection.",
+        "Local Test Dashboard: Created a public webtest project containing a backend Express API and a premium glassmorphic frontend UI.",
+        "Genshin Countdown (gpc): Launched a countdown command for upcoming Genshin Impact banners, scraping release times, stitching multiple images vertically using sharp/composite, and pushing a live countdown embed.",
+        "HGM Broadcast System: Added owner-only broadcast list manager (hgm add/remove/list/text/pm) and custom DM handlers for secure member list messaging, message exclusions, and prefix-less DM reply forwarding."
+      ]
+    },
+    {
+      "version": "2.2.2",
+      "date": "2026-06-27",
+      "title": "Web Presence Enhancements & DM Stability",
+      "items": [
+        "Role Hierarchy Position: Updated presence schema and sync scripts to store role hierarchy ranks, enabling correct role sorting in the web presence database.",
+        "Custom Activity & Emotes: Patched web presence sync to accurately capture status emotes and live custom activities.",
+        "DM Message Routing Fixes: Resolved silent errors handling partial messages in DMs and enabled direct DM notifications to bot owners upon startup."
+      ]
+    },
+    {
+      "version": "2.2.3",
+      "date": "2026-07-02",
+      "title": "Cloud-Native Settings, WebSync Change Streams, & Expiration Fixes",
+      "items": [
+        "Game Settings Migration: Transitioned High/Low betting game configuration (highlowping) from server_game_settings.json to MongoDB Guild cache.",
+        "WebSync Queue Watcher: Integrated a Change Stream listener for SyncRequests with a fallback database poll and a 5-minute global cooldown.",
+        "Role Expiration Overhaul: Fixed inventory cleanups by pruning expired temporary roles whether they are active or dormant.",
+        "Database Reconnect Logging: Added explicit console confirmations when the bot successfully reconnects to MongoDB."
+      ]
+    },
+    {
+      "version": "2.2.4",
+      "date": "2026-07-10",
+      "title": "MySQL Activity Tracking & ServerList Utility",
+      "items": [
+        "Migrated Activity Role tracking from stateless channel message history fetches to a self-hosted MySQL database.",
+        "Integrated real-time message logging and daily background message pruning (14-day window).",
+        "Created 'serverlist' (sl) owner-only command to list servers, IDs, owners, and active invites, with search filtering.",
+        "Combined updates and commands lists into a single consolidated 'updatesNcommands.json' file, dynamically syncing both to MongoDB."
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "name": "activityrole",
+      "aliases": [
+        "ar"
+      ],
+      "usage": "ar [sub-command] [ID/Name]",
+      "description": "Manage activity roles. (Rolling 14-day window)\n🔹 **Sub-commands:**\n• `setup` / `set`: Create new rule\n• `list`: Show server rules\n• `del` / `delete`: Remove rule\n• `edit`: Open dashboard\n🔹 **Edit Options & Aliases:**\n• `req` / `msgs`: Msg count\n• `lc` / `logchannel`: Public log\n• `alc` / `adminlogchannel`: Admin log\n• `dl` / `deletelog`: Auto-delete\n• `dt` / `deletetime`: Timer (s)\n• `msg` / `message`: Custom msg",
+      "category": "Activity Role Event"
+    },
+    {
+      "name": "balance",
+      "aliases": [
+        "bal"
+      ],
+      "usage": "balance [user]",
+      "description": "Check your or another user's UnbelievaBoat balance.",
+      "category": "Economy"
+    },
+    {
+      "name": "bet",
+      "aliases": [
+        "b"
+      ],
+      "usage": "bet [username/@mention] [amount]",
+      "description": "Challenge another player to a 50/50 bet!",
+      "category": "minigames\\Bet"
+    },
+    {
+      "name": "buyrole",
+      "aliases": [
+        "br",
+        "rb",
+        "rolebuy"
+      ],
+      "usage": "br [number] / br setup / br add [@role] [price]",
+      "description": "Purchase a role from the storefront or manage store listings (Admins).",
+      "category": "Role Store"
+    },
+    {
+      "name": "checkwinningrate",
+      "aliases": [
+        "cwr"
+      ],
+      "usage": "checkwinningrate [game name]",
+      "description": "Check the winning rates configured for a specific game.\n\n🔹 **Variables:**\n• **[game name]** - The name or alias of the game (e.g., highlow or hl).",
+      "category": "minigames"
+    },
+    {
+      "name": "delay",
+      "aliases": [
+        "rdelay",
+        "dl"
+      ],
+      "usage": "delay [game name] [time]",
+      "description": "Sets a cooldown delay for a specific minigame.\n\n🔹 **Variables:**\n• **[game name]** - The name of the game (e.g., highlow).\n• **[time]** - Cooldown duration (e.g., 10s, 5m, 1h).",
+      "category": "minigames"
+    },
+    {
+      "name": "deposit",
+      "aliases": [
+        "dep"
+      ],
+      "usage": "deposit <amount or all>",
+      "description": "Deposit money into your bank.",
+      "category": "Economy"
+    },
+    {
+      "name": "gamechannel",
+      "aliases": [
+        "gc",
+        "rgc"
+      ],
+      "usage": "gamechannel [#channel | clear]",
+      "description": "Sets a dedicated channel for minigames.\n\n🔹 **Variables:**\n• **[#channel]** - Mention the text channel to restrict games to.\n• **clear** - Removes the restriction, allowing games anywhere.",
+      "category": "minigames"
+    },
+    {
+      "name": "genshinpatchcountdown",
+      "aliases": [
+        "gpc"
+      ],
+      "usage": "genshinpatchcountdown",
+      "description": "Get the countdown for the upcoming Genshin Impact patch/banner.",
+      "category": "GenshinInpact"
+    },
+    {
+      "name": "give-money",
+      "aliases": [
+        "give",
+        "pay"
+      ],
+      "usage": "give-money <member> <amount or all>",
+      "description": "Give some of your cash to another member.",
+      "category": "Economy"
+    },
+    {
+      "name": "help",
+      "aliases": [],
+      "usage": "help",
+      "description": "Interactive command directory with category selection.",
+      "category": "General"
+    },
+    {
+      "name": "hgm",
+      "aliases": [],
+      "usage": "hgm [add/remove/list/text/pm/delete] [args]",
+      "description": "Owner-only commands to manage a broadcast list and send direct messages.",
+      "category": "HGM"
+    },
+    {
+      "name": "highlow",
+      "aliases": [
+        "hl"
+      ],
+      "usage": "highlow [amount]",
+      "description": "Bet your UnbelievaBoat cash on a High/Low roll!",
+      "category": "minigames\\HighLow"
+    },
+    {
+      "name": "highlowping",
+      "aliases": [
+        "hlp"
+      ],
+      "usage": "highlowping",
+      "description": "Toggle the cooldown reminder for HighLow. If on, you'll be pinged when you can play again.",
+      "category": "minigames\\HighLow"
+    },
+    {
+      "name": "imageguess",
+      "aliases": [
+        "ig"
+      ],
+      "usage": "imageguess",
+      "description": "Guess the hidden image as it reveals itself! Pick a category and win cash.",
+      "category": "minigames\\ImageGuess"
+    },
+    {
+      "name": "invite",
+      "aliases": [
+        "add",
+        "join"
+      ],
+      "usage": "invite",
+      "description": "Get the link to add this bot to your own server!",
+      "category": "General"
+    },
+    {
+      "name": "leaderboard",
+      "aliases": [
+        "lb"
+      ],
+      "usage": "leaderboard [page] [-cash | -bank | -total]",
+      "description": "View the server's economy leaderboard.",
+      "category": "Economy"
+    },
+    {
+      "name": "maxbalance",
+      "aliases": [
+        "maxbal",
+        "mb"
+      ],
+      "usage": "maxbalance [amount | false]",
+      "description": "Sets the maximum total currency (Cash + Bank) a member can have in this server.\nIf a user exceeds this limit, the excess will be automatically redacted every 15 minutes.\n\n🔹 **Usage:**\n• `{prefix}maxbal [amount]` - Set the limit (e.g., 1b, 500k, 10000000).\n• `{prefix}maxbal false` - Disable the limit for this server.",
+      "category": "Economy"
+    },
+    {
+      "name": "nameguesser",
+      "aliases": [
+        "ng",
+        "rng"
+      ],
+      "usage": "nameguesser [setup/join/leave/start/cancel/status/history/identities/kick]",
+      "description": "A host-driven guessing game. Host provides images, players guess their own secret identity!",
+      "category": "minigames\\NameGuesser"
+    },
+    {
+      "name": "ping",
+      "aliases": [],
+      "usage": "ping",
+      "description": "Check the bot's heartbeat and response speed.",
+      "category": "General"
+    },
+    {
+      "name": "roleinventory",
+      "aliases": [
+        "i",
+        "inv",
+        "inventory"
+      ],
+      "usage": "inv",
+      "description": "View your purchased role inventory, showing active wearers and timers.",
+      "category": "Role Store"
+    },
+    {
+      "name": "rolestore",
+      "aliases": [
+        "roleshop",
+        "rs",
+        "roleshoplist"
+      ],
+      "usage": "rolestore",
+      "description": "View the available roles for purchase in the storefront.",
+      "category": "Role Store"
+    },
+    {
+      "name": "serverlist",
+      "aliases": [
+        "sl"
+      ],
+      "usage": "serverlist",
+      "description": "Display a list of servers the bot is in with search capability (Owner Only).",
+      "category": "General"
+    },
+    {
+      "name": "setcash",
+      "aliases": [
+        "sc",
+        "rsc"
+      ],
+      "usage": "setcash [game name] [Min] [Max]",
+      "description": "Sets the range of cash rewards for a specific minigame.\n\n🔹 **Variables:**\n• **[game name]** - The name of the reward game (e.g., imageguess).\n• **[Min]** - The minimum possible cash reward.\n• **[Max]** - The maximum possible cash reward.",
+      "category": "minigames"
+    },
+    {
+      "name": "setprefix",
+      "aliases": [],
+      "usage": "setprefix [new_symbol]",
+      "description": "Change the bot's command prefix for your server.",
+      "category": "General"
+    },
+    {
+      "name": "support",
+      "aliases": [],
+      "usage": "support",
+      "description": "Get the official links for our community Discord and website.",
+      "category": "General"
+    },
+    {
+      "name": "unbelievatoken",
+      "aliases": [
+        "unbtoken"
+      ],
+      "usage": "unbtoken",
+      "description": "Configure a custom UnbelievaBoat API token for this server's payouts.",
+      "category": "General"
+    },
+    {
+      "name": "updates",
+      "aliases": [
+        "upd",
+        "changelog"
+      ],
+      "usage": "updates [keyword]",
+      "description": "Displays the history of bot updates with pagination and keyword search.",
+      "category": "General"
+    },
+    {
+      "name": "userole",
+      "aliases": [
+        "ur",
+        "equip",
+        "unequip",
+        "une"
+      ],
+      "usage": "ur [inventory id/number] [empty for yourself / @friend] OR ur unequip [inventory id/number] (or ur une [index])",
+      "description": "Equip a role from inventory to yourself, equip it on a friend, or unequip it.",
+      "category": "Role Store"
+    },
+    {
+      "name": "websync",
+      "aliases": [
+        "ws"
+      ],
+      "usage": "websync",
+      "description": "Synchronizes member status, activities, and roles to the web database.",
+      "category": "Web"
+    },
+    {
+      "name": "werewolf",
+      "aliases": [
+        "ww",
+        "werewolf"
+      ],
+      "usage": "werewolf [setup/status/join/start/cancel/setprize/..]",
+      "description": "Participate in the ultimate game of deception! (DM Commands Supported)\n💰 *Note: 80% of host's prize is distributed to winners.*\n\n**Players:** `join`, `leave`, `status`, `ready`, `dm`, `unvote`\n**Actions:** `vote [ID]`, `kill [ID]`, `scan [ID]`\n**Host:** `setup`, `launch`, `start`, `cancel`, `set[prize/wolves/scans/night/day]`",
+      "category": "minigames\\Werewolf"
+    },
+    {
+      "name": "winningrate",
+      "aliases": [
+        "wr"
+      ],
+      "usage": "winningrate [game name] [@role/ID] [percentage%]",
+      "description": "Sets the win rate for a specific role in a game.\n\n🔹 **Variables:**\n• **[game name]** - The name or alias of the game (e.g., highlow or hl).\n• **[@role/ID]** - Mention the role or paste the Role ID.\n• **[percentage%]** - Win chance from 0 to 100.",
+      "category": "minigames"
+    },
+    {
+      "name": "withdraw",
+      "aliases": [
+        "with"
+      ],
+      "usage": "withdraw <amount or all>",
+      "description": "Withdraw money from your bank.",
+      "category": "Economy"
+    }
+  ]
+}

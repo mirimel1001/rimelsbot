@@ -13,6 +13,13 @@ module.exports = {
       return message.reply('❌ You need **Administrator** permissions to use this command.');
     }
 
+    // Check MySQL Connection for Activity Tracking
+    const { checkConnection } = require('../../utils/mysql.js');
+    const isConnected = await checkConnection();
+    if (!isConnected) {
+      return message.reply('⚠️ **Database Warning:** The bot is currently unable to connect to the activity database. Message tracking is offline.');
+    }
+
     const subCommand = args[0]?.toLowerCase();
     const guildId = message.guild.id;
 

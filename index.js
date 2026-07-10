@@ -54,40 +54,105 @@ if (process.env.MONGO_URI) {
   db.on('error', err => console.error('[Database] Runtime Error:', err));
   db.once('open', () => {
     console.log('[Database] Connected to MongoDB Atlas!');
-    
-    // --- WATCH FOR WEB SYNC REQUESTS ---
-    const startSyncWatcher = () => {
-      const SyncRequest = require('./models/SyncRequest');
-      const { processSyncQueue } = require('./cmds/Web/websync.js');
 
-      // Attempt to use Change Streams (needs MongoDB replica set)
+    // --- DYNAMICALLY SYNC UPDATES TO MONGODB ---
+    const syncUpdatesToDB = async () => {
       try {
-        const changeStream = SyncRequest.watch();
-        changeStream.on('change', async (change) => {
-          if (change.operationType === 'insert') {
-            await processSyncQueue(client);
-          }
-        });
-        changeStream.on('error', (err) => {
-          console.warn('[WebSync Watcher] Change stream error, falling back to polling:', err.message);
-          changeStream.close();
-          startPolling();
-        });
-        console.log('[WebSync Watcher] Started listening via MongoDB Change Streams.');
-      } catch (err) {
-        console.warn('[WebSync Watcher] Change stream not supported/failed, falling back to polling:', err.message);
-        startPolling();
-      }
+        const Update = require('./models/Update');
+        const updatesPath = path.join(__dirname, 'updatesNcommands.json');
+        
+        if (fs.existsSync(updatesPath)) {
+          const fileData = JSON.parse(fs.readFileSync(updatesPath, 'utf8'));
+          const updatesData = fileData.updates;
+          if (Array.isArray(updatesData)) {
+            let insertedCount = 0;
+            let updatedCount = 0;
 
-      function startPolling() {
-        console.log('[WebSync Watcher] Started polling MongoDB for sync requests.');
-        setInterval(async () => {
-          await processSyncQueue(client);
-        }, 10000); // Check every 10 seconds
+            for (const update of updatesData) {
+              const existing = await Update.findOne({ version: update.version });
+              if (!existing) {
+                await Update.create(update);
+                insertedCount++;
+              } else {
+                // Check if anything changed and update if necessary
+                const isDiff = existing.title !== update.title || 
+                               existing.date !== update.date || 
+                               JSON.stringify(existing.items) !== JSON.stringify(update.items);
+                if (isDiff) {
+                  existing.title = update.title;
+                  existing.date = update.date;
+                  existing.items = update.items;
+                  await existing.save();
+                  updatedCount++;
+                }
+              }
+            }
+
+            if (insertedCount > 0 || updatedCount > 0) {
+              console.log(`[Update Sync] Synced updatesNcommands.json updates to MongoDB: ${insertedCount} new, ${updatedCount} updated.`);
+            } else {
+              console.log('[Update Sync] MongoDB updates are already up to date.');
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[Update Sync Error] Failed to sync updates:', err.message);
       }
     };
+    syncUpdatesToDB();
 
-    startSyncWatcher();
+    // --- DYNAMICALLY SYNC COMMANDS TO MONGODB ---
+    const syncCommandsToDB = async () => {
+      try {
+        const Command = require('./models/Command');
+        const updatesPath = path.join(__dirname, 'updatesNcommands.json');
+        
+        if (fs.existsSync(updatesPath)) {
+          const fileData = JSON.parse(fs.readFileSync(updatesPath, 'utf8'));
+          const commandsData = fileData.commands;
+          if (Array.isArray(commandsData)) {
+            let insertedCount = 0;
+            let updatedCount = 0;
+            const activeCommandNames = [];
+
+            for (const cmd of commandsData) {
+              activeCommandNames.push(cmd.name);
+              const existing = await Command.findOne({ name: cmd.name });
+              if (!existing) {
+                await Command.create(cmd);
+                insertedCount++;
+              } else {
+                // Check if anything changed and update if necessary
+                const isDiff = existing.description !== cmd.description || 
+                               existing.usage !== cmd.usage || 
+                               existing.category !== cmd.category ||
+                               JSON.stringify(existing.aliases) !== JSON.stringify(cmd.aliases);
+                if (isDiff) {
+                  existing.description = cmd.description;
+                  existing.usage = cmd.usage;
+                  existing.category = cmd.category;
+                  existing.aliases = cmd.aliases;
+                  await existing.save();
+                  updatedCount++;
+                }
+              }
+            }
+
+            // Cleanup deleted commands
+            const deleted = await Command.deleteMany({ name: { $nin: activeCommandNames } });
+
+            if (insertedCount > 0 || updatedCount > 0 || deleted.deletedCount > 0) {
+              console.log(`[Command Sync] Synced commands list to MongoDB: ${insertedCount} new, ${updatedCount} updated, ${deleted.deletedCount} deleted.`);
+            } else {
+              console.log('[Command Sync] MongoDB commands are already up to date.');
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[Command Sync Error] Failed to sync commands:', err.message);
+      }
+    };
+    syncCommandsToDB();
   });
   db.on('disconnected', () => console.warn('[Database] Disconnected. Reconnecting...'));
   db.on('reconnected', () => console.log('[Database] Reconnected successfully!'));
@@ -142,19 +207,8 @@ const verifyActivity = async (member, channel) => {
   if (lastCheck && now - lastCheck < 5 * 60 * 1000) return;
 
   try {
-    // 2. Verify Channel Permissions
-    if (!channel.isTextBased() || !channel.permissionsFor(client.user)?.has('ReadMessageHistory')) return;
-
-    // 3. Fetch messages
-    const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
-    if (!messages) return;
-
-    const fourteenDaysAgo = now - (14 * 24 * 60 * 60 * 1000);
-    const userMessages = messages.filter(m =>
-      m.author.id === member.id &&
-      m.createdTimestamp > fourteenDaysAgo
-    );
-    const count = userMessages.size;
+    const { getMessageCount } = require('./utils/mysql.js');
+    const count = await getMessageCount(member.guild.id, member.id, 14);
 
     client.arCooldowns.set(cooldownKey, now);
 
@@ -395,10 +449,31 @@ client.once(Events.ClientReady, async () => {
 
   await loadCaches();
 
-  // Initial Web Presence synchronization
+  // Initialize MySQL for Activity Role tracking
+  try {
+    const { initMySQL, pruneOldMessages } = require('./utils/mysql.js');
+    await initMySQL();
+    
+    // Prune on startup
+    await pruneOldMessages(14);
+    
+    // Setup daily pruning loop (every 24 hours)
+    setInterval(async () => {
+      await pruneOldMessages(14);
+    }, 24 * 60 * 60 * 1000);
+  } catch (err) {
+    console.error('[MySQL Setup Error] Failed to initialize MySQL on ready:', err.message);
+  }
+
+  // Initial Web Presence synchronization & 10-minute loop
   try {
     const { syncPresence } = require('./cmds/Web/websync.js');
     await syncPresence(client);
+    
+    setInterval(async () => {
+      console.log('[WebSync] Running scheduled automatic synchronization...');
+      await syncPresence(client).catch(err => console.error('[WebSync Loop Error]', err.message));
+    }, 10 * 60 * 1000); // 10 minutes
   } catch (err) {
     console.error('[WebSync Error] Failed initial sync on ready:', err.message);
   }
@@ -477,7 +552,11 @@ client.on('messageCreate', async (message) => {
   }
 
   if (message.author && message.author.bot) return;
-  if (message.guild) verifyActivity(message.member, message.channel);
+  if (message.guild) {
+    const { logMessageActivity } = require('./utils/mysql.js');
+    logMessageActivity(message.guild.id, message.author.id).catch(() => {});
+    verifyActivity(message.member, message.channel);
+  }
 
   const prefix = (message.guild ? (client.prefixes.get(message.guild.id) || getConfig().prefix) : getConfig().prefix);
 
