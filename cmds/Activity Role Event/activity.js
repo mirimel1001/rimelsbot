@@ -47,7 +47,7 @@ module.exports = {
         description += `\n*...and ${rows.length - 25} more active users.*`;
       }
 
-      description += `\n\n🔗 **[View Full Web Leaderboard](http://localhost:5173/?leaderboard=${guildId})**`;
+      description += `\n\n🔗 **[View Full Web Leaderboard](https://rbdb.vercel.app/?leaderboard=${guildId})**`;
 
       const embed = new EmbedBuilder()
         .setTitle('📊 Rolling Message Leaderboard')

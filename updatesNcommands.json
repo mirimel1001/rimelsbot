@@ -329,6 +329,14 @@
         "Silent Maintenance: Silenced verbose logs for the 10-minute scheduled background websync tasks to keep console clean.",
         "Stability Enhancements: Hardened MySQL database credentials and silenced uninitialized connection log spam."
       ]
+    },
+    {
+      "version": "2.2.6",
+      "date": "2026-07-11",
+      "title": "Leaderboard URL Correction",
+      "items": [
+        "Web Link Correction: Updated the Web Leaderboard link in the activity command to point to the production host at rbdb.vercel.app."
+      ]
     }
   ],
   "commands": [
