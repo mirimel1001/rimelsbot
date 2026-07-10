@@ -17,6 +17,48 @@ module.exports = {
     const guildId = message.guild.id;
 
     // Resolve target user
+    if (args[0] && args[0].toLowerCase() === 'all') {
+      const { initMySQL } = require('../../utils/mysql.js');
+      const dbPool = await initMySQL();
+      const [rows] = await dbPool.query(
+        `SELECT user_id, COUNT(*) AS msg_count 
+         FROM activity_messages 
+         WHERE guild_id = ? AND created_at > NOW() - INTERVAL 14 DAY
+         GROUP BY user_id 
+         ORDER BY msg_count DESC`,
+        [guildId]
+      );
+
+      if (rows.length === 0) {
+        return message.reply('ℹ️ No message activity recorded in the last 14 days for this server yet.');
+      }
+
+      let description = 'Here are the rolling 14-day message logs for everyone in this server:\n\n';
+      let count = 0;
+      for (const row of rows) {
+        if (row.msg_count <= 0) continue;
+        count++;
+        if (count <= 25) {
+          description += `**#${count}** <@${row.user_id}>: \`${row.msg_count.toLocaleString()}\` messages\n`;
+        }
+      }
+
+      if (rows.length > 25) {
+        description += `\n*...and ${rows.length - 25} more active users.*`;
+      }
+
+      description += `\n\n🔗 **[View Full Web Leaderboard](http://localhost:5173/?leaderboard=${guildId})**`;
+
+      const embed = new EmbedBuilder()
+        .setTitle('📊 Rolling Message Leaderboard')
+        .setColor('#a855f7')
+        .setDescription(description)
+        .setFooter({ text: `Requested by ${message.author.tag}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+        .setTimestamp();
+
+      return message.reply({ embeds: [embed] });
+    }
+
     let targetUser = message.author;
     if (args[0]) {
       const query = args.join(' ').toLowerCase();

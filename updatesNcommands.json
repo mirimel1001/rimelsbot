@@ -317,6 +317,18 @@
         "Combined updates and commands lists into a single consolidated 'updatesNcommands.json' file, dynamically syncing both to MongoDB.",
         "Created 'activity' (user, status, stats) command to show rolling 1, 7, and 14-day message counts for any user from the MySQL database."
       ]
+    },
+    {
+      "version": "2.2.5",
+      "date": "2026-07-11",
+      "title": "Activity Leaderboard & Real-Time Sync",
+      "items": [
+        "Leaderboard Subcommand: Added 'activity all' command to display a rolling 14-day message leaderboard for the entire server.",
+        "Web Link: Embedded direct web links to the public glassmorphic server leaderboard within the Discord response.",
+        "Real-Time Cache Sync: Implemented automatic database cache synchronization for all server configuration changes.",
+        "Silent Maintenance: Silenced verbose logs for the 10-minute scheduled background websync tasks to keep console clean.",
+        "Stability Enhancements: Hardened MySQL database credentials and silenced uninitialized connection log spam."
+      ]
     }
   ],
   "commands": [
@@ -336,8 +348,8 @@
         "status",
         "stats"
       ],
-      "usage": "activity [@user / userId]",
-      "description": "Show message activity counts for a user over the last 1, 7, and 14 days.",
+      "usage": "activity [@user / userId / all]",
+      "description": "Show rolling message activity counts for a user, or use 'activity all' to view the rolling 14-day server leaderboard.",
       "category": "Activity Role Event"
     },
     {
