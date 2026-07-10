@@ -3,7 +3,7 @@ const { checkConnection, getMessageCount } = require('../../utils/mysql.js');
 
 module.exports = {
   name: "activity",
-  aliases: ["user", "status"],
+  aliases: ["user", "status", "stats"],
   category: "Activity Role Event",
   description: "Show message activity counts for a user over the last 1, 7, and 14 days.",
   usage: "activity [@user / userId]",

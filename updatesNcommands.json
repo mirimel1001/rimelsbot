@@ -315,7 +315,7 @@
         "Integrated real-time message logging and daily background message pruning (14-day window).",
         "Created 'serverlist' (sl) owner-only command to list servers, IDs, owners, and active invites, with search filtering.",
         "Combined updates and commands lists into a single consolidated 'updatesNcommands.json' file, dynamically syncing both to MongoDB.",
-        "Created 'activity' (user, status) command to show rolling 1, 7, and 14-day message counts for any user from the MySQL database."
+        "Created 'activity' (user, status, stats) command to show rolling 1, 7, and 14-day message counts for any user from the MySQL database."
       ]
     }
   ],
@@ -333,7 +333,8 @@
       "name": "activity",
       "aliases": [
         "user",
-        "status"
+        "status",
+        "stats"
       ],
       "usage": "activity [@user / userId]",
       "description": "Show message activity counts for a user over the last 1, 7, and 14 days.",
