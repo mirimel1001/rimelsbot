@@ -462,7 +462,7 @@ client.once(Events.ClientReady, async () => {
       await pruneOldMessages(14);
     }, 24 * 60 * 60 * 1000);
   } catch (err) {
-    console.error('[MySQL Setup Error] Failed to initialize MySQL on ready:', err.message);
+    console.error('[MySQL Setup Error] Failed to initialize MySQL on ready:', err);
   }
 
   // Initial Web Presence synchronization & 10-minute loop

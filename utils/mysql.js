@@ -36,7 +36,7 @@ const initMySQL = async () => {
     connection.release();
     return pool;
   } catch (err) {
-    console.error('[MySQL Error] Connection or Initialization failed:', err.message);
+    console.error('[MySQL Error] Connection or Initialization failed:', err);
     pool = null;
     throw err;
   }
@@ -49,12 +49,8 @@ const getPool = () => {
   return pool;
 };
 
-/**
- * Log message activity to MySQL
- * @param {string} guildId 
- * @param {string} userId 
- */
 const logMessageActivity = async (guildId, userId) => {
+  if (!pool) return; // Silently ignore if pool is offline/uninitialized to prevent log spam
   try {
     const dbPool = getPool();
     await dbPool.query(
@@ -74,6 +70,7 @@ const logMessageActivity = async (guildId, userId) => {
  * @returns {Promise<number>}
  */
 const getMessageCount = async (guildId, userId, days = 14) => {
+  if (!pool) return 0; // Return 0 silently if database is offline
   try {
     const dbPool = getPool();
     const [rows] = await dbPool.query(
@@ -93,6 +90,7 @@ const getMessageCount = async (guildId, userId, days = 14) => {
  * @param {number} days 
  */
 const pruneOldMessages = async (days = 14) => {
+  if (!pool) return; // Return silently if database is offline
   try {
     const dbPool = getPool();
     const [result] = await dbPool.query(
