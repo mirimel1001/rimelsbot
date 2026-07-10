@@ -314,7 +314,8 @@
         "Migrated Activity Role tracking from stateless channel message history fetches to a self-hosted MySQL database.",
         "Integrated real-time message logging and daily background message pruning (14-day window).",
         "Created 'serverlist' (sl) owner-only command to list servers, IDs, owners, and active invites, with search filtering.",
-        "Combined updates and commands lists into a single consolidated 'updatesNcommands.json' file, dynamically syncing both to MongoDB."
+        "Combined updates and commands lists into a single consolidated 'updatesNcommands.json' file, dynamically syncing both to MongoDB.",
+        "Created 'activity' (user, status) command to show rolling 1, 7, and 14-day message counts for any user from the MySQL database."
       ]
     }
   ],
@@ -326,6 +327,16 @@
       ],
       "usage": "ar [sub-command] [ID/Name]",
       "description": "Manage activity roles. (Rolling 14-day window)\n🔹 **Sub-commands:**\n• `setup` / `set`: Create new rule\n• `list`: Show server rules\n• `del` / `delete`: Remove rule\n• `edit`: Open dashboard\n🔹 **Edit Options & Aliases:**\n• `req` / `msgs`: Msg count\n• `lc` / `logchannel`: Public log\n• `alc` / `adminlogchannel`: Admin log\n• `dl` / `deletelog`: Auto-delete\n• `dt` / `deletetime`: Timer (s)\n• `msg` / `message`: Custom msg",
+      "category": "Activity Role Event"
+    },
+    {
+      "name": "activity",
+      "aliases": [
+        "user",
+        "status"
+      ],
+      "usage": "activity [@user / userId]",
+      "description": "Show message activity counts for a user over the last 1, 7, and 14 days.",
       "category": "Activity Role Event"
     },
     {
