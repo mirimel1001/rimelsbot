@@ -218,6 +218,36 @@ const getLeftUsers = async (guildId) => {
   }
 };
 
+/**
+ * Wipe all or a specific number of message activity records for a user from a guild
+ * @param {string} guildId 
+ * @param {string} userId 
+ * @param {number|null} limit - If specified, deletes only the latest N messages. Otherwise deletes all.
+ * @returns {Promise<number>} Number of deleted messages
+ */
+const wipeUserActivity = async (guildId, userId, limit = null) => {
+  if (!pool) return 0;
+  try {
+    const dbPool = getPool();
+    let result;
+    if (limit && Number.isInteger(limit) && limit > 0) {
+      [result] = await dbPool.query(
+        'DELETE FROM activity_messages WHERE guild_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT ?',
+        [guildId, userId, limit]
+      );
+    } else {
+      [result] = await dbPool.query(
+        'DELETE FROM activity_messages WHERE guild_id = ? AND user_id = ?',
+        [guildId, userId]
+      );
+    }
+    return result.affectedRows || 0;
+  } catch (err) {
+    console.error('[MySQL Error] Failed to wipe user activity:', err.message);
+    throw err;
+  }
+};
+
 module.exports = {
   initMySQL,
   logMessageActivity,
@@ -227,5 +257,6 @@ module.exports = {
   removeUserActivity,
   addLeftUser,
   removeLeftUser,
-  getLeftUsers
+  getLeftUsers,
+  wipeUserActivity
 };

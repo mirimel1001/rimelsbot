@@ -350,9 +350,31 @@
         "Rejoin Sync: Restores returned members to the active list immediately upon rejoining the server, removing them from `left_users` table with their relevant message counts intact.",
         "Web Synchronization: Marks leaving members as 'left' status in MongoDB to sync seamlessly with the web database presence listing."
       ]
+    },
+    {
+      "version": "2.2.8",
+      "date": "2026-07-11",
+      "title": "Verification Cooldown Tuning & Activity Wipe Command",
+      "items": [
+        "Cooldown Tuning: Reduced the activity role check cooldown from 5 minutes to 20 seconds and optimized checks by returning early for users who already have all target roles.",
+        "Activity Wipe Command: Introduced 'activitywipe' (awipe, activityreset, areset, statswipe, userswipe) command for admins to delete all or a set number of a user's recent messages from the database."
+      ]
     }
   ],
   "commands": [
+    {
+      "name": "activitywipe",
+      "aliases": [
+        "awipe",
+        "activityreset",
+        "areset",
+        "statswipe",
+        "userswipe"
+      ],
+      "usage": "activitywipe [@user / userId] [number of messages (optional)]",
+      "description": "Wipe all or a specific number of message activity logs for a user.",
+      "category": "Activity Role Event"
+    },
     {
       "name": "activityrole",
       "aliases": [
