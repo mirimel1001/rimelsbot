@@ -190,6 +190,7 @@ client.gameSettings = new Collection();
 client.unbTokens = new Collection();
 client.arConfigs = new Map();
 client.arCooldowns = new Map();
+client.arMessageCounts = new Map();
 
 // --- ACTIVITY ROLE (AR) SYSTEM ---
 
@@ -204,18 +205,43 @@ const verifyActivity = async (member, channel) => {
   const hasMissingRole = guildConfigs.some(config => config.roleId && !member.roles.cache.has(config.roleId));
   if (!hasMissingRole) return;
 
-  // 2. Check Cooldown (20 seconds)
-  const cooldownKey = `${member.guild.id}-${member.id}`;
-  const lastCheck = client.arCooldowns.get(cooldownKey);
+  const cacheKey = `${member.guild.id}-${member.id}`;
   const now = Date.now();
 
-  if (lastCheck && now - lastCheck < 20 * 1000) return;
+  let cached = client.arMessageCounts.get(cacheKey);
+  let count;
+
+  if (cached && now < cached.expiresAt) {
+    // Increment the cached count locally since a new message was just logged
+    cached.count += 1;
+    count = cached.count;
+
+    // Check if the incremented count hits a threshold for a missing role
+    const thresholdReached = guildConfigs.some(config => 
+      config.roleId && 
+      !member.roles.cache.has(config.roleId) && 
+      count >= (config.req_msgs || 5)
+    );
+
+    // If they haven't reached any new threshold yet, respect the 20s cooldown
+    if (!thresholdReached) {
+      const lastCheck = client.arCooldowns.get(cacheKey);
+      if (lastCheck && now - lastCheck < 20 * 1000) return;
+    }
+  }
 
   try {
     const { getMessageCount } = require('./utils/mysql.js');
-    const count = await getMessageCount(member.guild.id, member.id, 14);
+    const dbCount = await getMessageCount(member.guild.id, member.id, 14);
+    count = dbCount;
 
-    client.arCooldowns.set(cooldownKey, now);
+    // Update the cache with the actual database count
+    client.arMessageCounts.set(cacheKey, {
+      count: dbCount,
+      expiresAt: now + 5 * 60 * 1000 // Cache for 5 minutes
+    });
+
+    client.arCooldowns.set(cacheKey, now);
 
     let needsSave = false;
     for (const config of guildConfigs) {

@@ -357,6 +357,7 @@
       "title": "Verification Cooldown Tuning & Activity Wipe Command",
       "items": [
         "Cooldown Tuning: Reduced the activity role check cooldown from 5 minutes to 20 seconds and optimized checks by returning early for users who already have all target roles.",
+        "Bypass Logic: Integrated an in-memory message count cache that locally tracks and increments message counts, instantly bypassing the 20-second cooldown on the exact message a role threshold is reached.",
         "Activity Wipe Command: Introduced 'activitywipe' (awipe, activityreset, areset, statswipe, userswipe) command for admins to delete all or a set number of a user's recent messages from the database."
       ]
     }
