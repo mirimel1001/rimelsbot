@@ -199,12 +199,17 @@ const verifyActivity = async (member, channel) => {
   const guildConfigs = client.arConfigs.get(member.guild.id);
   if (!guildConfigs || guildConfigs.length === 0) return;
 
-  // 1. Check Cooldown (5 minutes)
+  // 1. Optimize: Check if the user is missing at least one of the configured activity roles.
+  // If they already have all of them, there is no need to query the database.
+  const hasMissingRole = guildConfigs.some(config => config.roleId && !member.roles.cache.has(config.roleId));
+  if (!hasMissingRole) return;
+
+  // 2. Check Cooldown (20 seconds)
   const cooldownKey = `${member.guild.id}-${member.id}`;
   const lastCheck = client.arCooldowns.get(cooldownKey);
   const now = Date.now();
 
-  if (lastCheck && now - lastCheck < 5 * 60 * 1000) return;
+  if (lastCheck && now - lastCheck < 20 * 1000) return;
 
   try {
     const { getMessageCount } = require('./utils/mysql.js');
