@@ -333,24 +333,10 @@
     {
       "version": "2.2.6",
       "date": "2026-07-11",
-      "title": "Leaderboard URL Correction",
+      "title": "Activity Leaderboard Improvements",
       "items": [
-        "Web Link Correction: Updated the Web Leaderboard link in the activity command to point to the production host at rbdb.vercel.app."
-      ]
-    },
-    {
-      "version": "2.2.7",
-      "date": "2026-07-11",
-      "title": "Detailed Activity Leaderboard Layout",
-      "items": [
-        "Leaderboard Formatting: Updated the server leaderboard format to display the user's mention, user ID, and detailed message counts for 1-day, 7-day, and 14-day intervals."
-      ]
-    },
-    {
-      "version": "2.2.8",
-      "date": "2026-07-11",
-      "title": "Tabular Leaderboard Display",
-      "items": [
+        "Web Link Correction: Updated the Web Leaderboard link in the activity command to point to the production host at rbdb.vercel.app.",
+        "Leaderboard Formatting: Updated the server leaderboard format to display the user's mention, user ID, and detailed message counts for 1-day, 7-day, and 14-day intervals.",
         "Leaderboard UX: Reformatted the activity leaderboard into a clean tabular structure with pipes and monospace values for better readability while maintaining interactive mentions."
       ]
     }
