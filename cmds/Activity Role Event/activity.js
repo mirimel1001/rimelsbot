@@ -21,11 +21,15 @@ module.exports = {
       const { initMySQL } = require('../../utils/mysql.js');
       const dbPool = await initMySQL();
       const [rows] = await dbPool.query(
-        `SELECT user_id, COUNT(*) AS msg_count 
+        `SELECT 
+          user_id,
+          SUM(CASE WHEN created_at > NOW() - INTERVAL 1 DAY THEN 1 ELSE 0 END) AS count_1d,
+          SUM(CASE WHEN created_at > NOW() - INTERVAL 7 DAY THEN 1 ELSE 0 END) AS count_7d,
+          COUNT(*) AS count_14d
          FROM activity_messages 
          WHERE guild_id = ? AND created_at > NOW() - INTERVAL 14 DAY
          GROUP BY user_id 
-         ORDER BY msg_count DESC`,
+         ORDER BY count_14d DESC`,
         [guildId]
       );
 
@@ -33,13 +37,16 @@ module.exports = {
         return message.reply('ℹ️ No message activity recorded in the last 14 days for this server yet.');
       }
 
-      let description = 'Here are the rolling 14-day message logs for everyone in this server:\n\n';
+      let description = 'Here are the rolling message logs for everyone in this server:\n\n';
       let count = 0;
       for (const row of rows) {
-        if (row.msg_count <= 0) continue;
+        const c14d = Number(row.count_14d) || 0;
+        if (c14d <= 0) continue;
+        const c1d = Number(row.count_1d) || 0;
+        const c7d = Number(row.count_7d) || 0;
         count++;
         if (count <= 25) {
-          description += `**#${count}** <@${row.user_id}>: \`${row.msg_count.toLocaleString()}\` messages\n`;
+          description += `**#${count}** <@${row.user_id}> - \`${row.user_id}\` - \`${c1d.toLocaleString()}\` msgs in 1day - \`${c7d.toLocaleString()}\` msgs in 7days - \`${c14d.toLocaleString()}\` msgs in 14days\n`;
         }
       }
 
