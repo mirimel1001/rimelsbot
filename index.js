@@ -747,4 +747,32 @@ client.on('guildMemberUpdate', (oldMember, newMember) => {
   }
 });
 
+client.on('guildMemberRemove', async (member) => {
+  try {
+    // 1. Log left user in MySQL to retain their name on leaderboard
+    const { addLeftUser } = require('./utils/mysql.js');
+    await addLeftUser(member.guild.id, member.id, member.user.username);
+
+    // 2. Mark user presence status as 'left' in MongoDB
+    const { handleMemberLeave } = require('./cmds/Web/websync.js');
+    await handleMemberLeave(member);
+  } catch (err) {
+    console.error('[Event Error] guildMemberRemove failed:', err.message);
+  }
+});
+
+client.on('guildMemberAdd', async (member) => {
+  try {
+    // 1. Remove left user record in MySQL if they rejoin
+    const { removeLeftUser } = require('./utils/mysql.js');
+    await removeLeftUser(member.guild.id, member.id);
+
+    // 2. Restore user presence details in MongoDB
+    const { handleMemberJoin } = require('./cmds/Web/websync.js');
+    await handleMemberJoin(member);
+  } catch (err) {
+    console.error('[Event Error] guildMemberAdd failed:', err.message);
+  }
+});
+
 client.login(process.env.DISCORD_TOKEN);

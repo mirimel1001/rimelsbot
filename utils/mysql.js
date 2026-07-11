@@ -32,6 +32,18 @@ const initMySQL = async () => {
       )
     `);
     console.log('[MySQL] Verified activity_messages table structure.');
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS left_users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        guild_id VARCHAR(30) NOT NULL,
+        user_id VARCHAR(30) NOT NULL,
+        username VARCHAR(100) NOT NULL,
+        left_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_user_guild (guild_id, user_id)
+      )
+    `);
+    console.log('[MySQL] Verified left_users table structure.');
     
     connection.release();
     return pool;
@@ -98,6 +110,12 @@ const pruneOldMessages = async (days = 14) => {
       [days]
     );
     console.log(`[MySQL Cleanup] Pruned ${result.affectedRows} messages older than ${days} days.`);
+
+    const [leftResult] = await dbPool.query(
+      'DELETE FROM left_users WHERE left_at < NOW() - INTERVAL ? DAY',
+      [days]
+    );
+    console.log(`[MySQL Cleanup] Pruned ${leftResult.affectedRows} left users older than ${days} days.`);
   } catch (err) {
     console.error('[MySQL Cleanup Error] Failed to prune messages:', err.message);
   }
@@ -118,10 +136,96 @@ const checkConnection = async () => {
   }
 };
 
+/**
+ * Delete a user's message activity from a guild
+ * @param {string} guildId 
+ * @param {string} userId 
+ */
+const removeUserActivity = async (guildId, userId) => {
+  if (!pool) return;
+  try {
+    const dbPool = getPool();
+    const [result] = await dbPool.query(
+      'DELETE FROM activity_messages WHERE guild_id = ? AND user_id = ?',
+      [guildId, userId]
+    );
+    console.log(`[MySQL Cleanup] Removed activity messages for user ${userId} in guild ${guildId} (${result.affectedRows} rows).`);
+  } catch (err) {
+    console.error('[MySQL Cleanup Error] Failed to remove user activity:', err.message);
+  }
+};
+
+/**
+ * Log a user who left the server
+ * @param {string} guildId 
+ * @param {string} userId 
+ * @param {string} username 
+ */
+const addLeftUser = async (guildId, userId, username) => {
+  if (!pool) return;
+  try {
+    const dbPool = getPool();
+    await dbPool.query(
+      'DELETE FROM left_users WHERE guild_id = ? AND user_id = ?',
+      [guildId, userId]
+    );
+    await dbPool.query(
+      'INSERT INTO left_users (guild_id, user_id, username) VALUES (?, ?, ?)',
+      [guildId, userId, username]
+    );
+    console.log(`[MySQL] Logged left user: ${username} (${userId}) in guild ${guildId}`);
+  } catch (err) {
+    console.error('[MySQL Error] Failed to add left user:', err.message);
+  }
+};
+
+/**
+ * Remove a user from left_users when they rejoin
+ * @param {string} guildId 
+ * @param {string} userId 
+ */
+const removeLeftUser = async (guildId, userId) => {
+  if (!pool) return;
+  try {
+    const dbPool = getPool();
+    await dbPool.query(
+      'DELETE FROM left_users WHERE guild_id = ? AND user_id = ?',
+      [guildId, userId]
+    );
+    console.log(`[MySQL] Removed left user record for user ${userId} in guild ${guildId}`);
+  } catch (err) {
+    console.error('[MySQL Error] Failed to remove left user:', err.message);
+  }
+};
+
+/**
+ * Get all left users for a guild
+ * @param {string} guildId 
+ * @returns {Promise<Array>}
+ */
+const getLeftUsers = async (guildId) => {
+  if (!pool) return [];
+  try {
+    const dbPool = getPool();
+    const [rows] = await dbPool.query(
+      'SELECT user_id, username FROM left_users WHERE guild_id = ?',
+      [guildId]
+    );
+    return rows;
+  } catch (err) {
+    console.error('[MySQL Error] Failed to get left users:', err.message);
+    return [];
+  }
+};
+
 module.exports = {
   initMySQL,
   logMessageActivity,
   getMessageCount,
   pruneOldMessages,
-  checkConnection
+  checkConnection,
+  removeUserActivity,
+  addLeftUser,
+  removeLeftUser,
+  getLeftUsers
 };

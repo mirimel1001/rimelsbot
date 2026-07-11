@@ -339,6 +339,17 @@
         "Leaderboard Formatting: Updated the server leaderboard format to display the user's mention, user ID, and detailed message counts for 1-day, 7-day, and 14-day intervals.",
         "Leaderboard UX: Reformatted the activity leaderboard into a clean tabular structure with pipes and monospace values for better readability while maintaining interactive mentions."
       ]
+    },
+    {
+      "version": "2.2.7",
+      "date": "2026-07-11",
+      "title": "Graceful Leaderboard Leave Management",
+      "items": [
+        "Server Leave Handling: Automatically registers a leaving member into the `left_users` MySQL table while keeping their messages intact in the database for 14 days.",
+        "Leaderboard Exclusion: Excludes left users from the `stats all` command and provides a `left_users` table to easily filter them out of the leaderboard website query.",
+        "Rejoin Sync: Restores returned members to the active list immediately upon rejoining the server, removing them from `left_users` table with their relevant message counts intact.",
+        "Web Synchronization: Marks leaving members as 'left' status in MongoDB to sync seamlessly with the web database presence listing."
+      ]
     }
   ],
   "commands": [

@@ -18,8 +18,11 @@ module.exports = {
 
     // Resolve target user
     if (args[0] && args[0].toLowerCase() === 'all') {
-      const { initMySQL } = require('../../utils/mysql.js');
+      const { initMySQL, getLeftUsers } = require('../../utils/mysql.js');
       const dbPool = await initMySQL();
+      const leftUsers = await getLeftUsers(guildId).catch(() => []);
+      const leftUsersMap = new Map(leftUsers.map(u => [u.user_id, u.username]));
+
       const [rows] = await dbPool.query(
         `SELECT 
           user_id,
@@ -39,19 +42,42 @@ module.exports = {
 
       let description = '🏆 **Rank | Name | ID | 1 Day | 7 Days | 14 Days**\n';
       let count = 0;
+      const activeMembers = [];
+
       for (const row of rows) {
         const c14d = Number(row.count_14d) || 0;
         if (c14d <= 0) continue;
+
+        // Check if user is still in the server
+        const hasMember = message.guild.members.cache.has(row.user_id);
+        if (!hasMember) {
+          const fetchedMember = await message.guild.members.fetch(row.user_id).catch(() => null);
+          if (!fetchedMember) {
+            // User is not in the server, exclude them from active leaderboard display
+            continue;
+          }
+        }
+
+        activeMembers.push({ row, nameField: `<@${row.user_id}>` });
+      }
+
+      if (activeMembers.length === 0) {
+        return message.reply('ℹ️ No message activity recorded in the last 14 days for this server yet.');
+      }
+
+      for (const item of activeMembers) {
+        const { row, nameField } = item;
+        const c14d = Number(row.count_14d) || 0;
         const c1d = Number(row.count_1d) || 0;
         const c7d = Number(row.count_7d) || 0;
         count++;
         if (count <= 25) {
-          description += `#${count} | <@${row.user_id}> | \`${row.user_id}\` | \`${c1d.toLocaleString()}\` | \`${c7d.toLocaleString()}\` | \`${c14d.toLocaleString()}\`\n`;
+          description += `#${count} | ${nameField} | \`${row.user_id}\` | \`${c1d.toLocaleString()}\` | \`${c7d.toLocaleString()}\` | \`${c14d.toLocaleString()}\`\n`;
         }
       }
 
-      if (rows.length > 25) {
-        description += `\n*...and ${rows.length - 25} more active users.*`;
+      if (activeMembers.length > 25) {
+        description += `\n*...and ${activeMembers.length - 25} more active users.*`;
       }
 
       description += `\n\n🔗 **[View Full Web Leaderboard](https://rbdb.vercel.app/?leaderboard=${guildId})**`;

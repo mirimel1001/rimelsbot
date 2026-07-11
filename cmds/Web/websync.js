@@ -230,6 +230,67 @@ const processSyncQueue = async (client) => {
   }
 };
 
+const handleMemberLeave = async (member) => {
+  try {
+    if (member.user.bot) return;
+    if (process.env.MAIN_GUILD_ID && member.guild.id !== process.env.MAIN_GUILD_ID) return;
+
+    await Presence.findOneAndUpdate(
+      { userId: member.id },
+      {
+        $set: {
+          status: 'left',
+          activities: [],
+          roles: []
+        }
+      },
+      { upsert: true }
+    );
+    console.log(`[WebSync] Marked leaving member ${member.user.tag} (${member.id}) as left in web database.`);
+  } catch (error) {
+    console.error('[WebSync Error] Failed to update single member status on leave:', error);
+  }
+};
+
+const handleMemberJoin = async (member) => {
+  try {
+    if (member.user.bot) return;
+    if (process.env.MAIN_GUILD_ID && member.guild.id !== process.env.MAIN_GUILD_ID) return;
+
+    const presence = member.presence;
+    const status = presence ? presence.status : 'offline';
+    const activities = presence ? presence.activities.map(act => ({
+      name: act.name,
+      state: act.state || "",
+      emoji: parseEmoji(act.emoji),
+      type: act.type
+    })) : [];
+    const roles = member.roles.cache
+      .filter(role => role.name !== '@everyone')
+      .map(role => ({ id: role.id, name: role.name, position: role.position }));
+
+    const avatarUrl = member.user.displayAvatarURL({ dynamic: true, size: 512 });
+
+    await Presence.findOneAndUpdate(
+      { userId: member.id },
+      {
+        $set: {
+          username: member.user.username,
+          displayName: member.displayName,
+          avatarUrl: avatarUrl,
+          status: status,
+          activities: activities,
+          roles: roles
+        }
+      },
+      { upsert: true, returnDocument: 'after' }
+    );
+    console.log(`[WebSync] Member joined and presence synced: ${member.user.tag}`);
+  } catch (error) {
+    console.error('[WebSync Error] Failed to handle member join:', error);
+  }
+};
+
 // --- COMMAND DEFINITION ---
 module.exports = {
   name: 'websync',
@@ -253,6 +314,8 @@ module.exports = {
   syncPresence,
   updateSinglePresence,
   updateSingleMember,
+  handleMemberLeave,
+  handleMemberJoin,
   processSyncQueue
 };
 
