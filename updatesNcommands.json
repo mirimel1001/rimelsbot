@@ -345,6 +345,14 @@
       "items": [
         "Leaderboard Formatting: Updated the server leaderboard format to display the user's mention, user ID, and detailed message counts for 1-day, 7-day, and 14-day intervals."
       ]
+    },
+    {
+      "version": "2.2.8",
+      "date": "2026-07-11",
+      "title": "Tabular Leaderboard Display",
+      "items": [
+        "Leaderboard UX: Reformatted the activity leaderboard into a clean tabular structure with pipes and monospace values for better readability while maintaining interactive mentions."
+      ]
     }
   ],
   "commands": [

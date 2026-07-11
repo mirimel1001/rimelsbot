@@ -37,7 +37,7 @@ module.exports = {
         return message.reply('ℹ️ No message activity recorded in the last 14 days for this server yet.');
       }
 
-      let description = 'Here are the rolling message logs for everyone in this server:\n\n';
+      let description = '🏆 **Rank | Name | ID | 1 Day | 7 Days | 14 Days**\n';
       let count = 0;
       for (const row of rows) {
         const c14d = Number(row.count_14d) || 0;
@@ -46,7 +46,7 @@ module.exports = {
         const c7d = Number(row.count_7d) || 0;
         count++;
         if (count <= 25) {
-          description += `**#${count}** <@${row.user_id}> - \`${row.user_id}\` - \`${c1d.toLocaleString()}\` msgs in 1day - \`${c7d.toLocaleString()}\` msgs in 7days - \`${c14d.toLocaleString()}\` msgs in 14days\n`;
+          description += `#${count} | <@${row.user_id}> | \`${row.user_id}\` | \`${c1d.toLocaleString()}\` | \`${c7d.toLocaleString()}\` | \`${c14d.toLocaleString()}\`\n`;
         }
       }
 
