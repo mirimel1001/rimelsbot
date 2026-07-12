@@ -360,6 +360,17 @@
         "Bypass Logic: Integrated an in-memory message count cache that locally tracks and increments message counts, instantly bypassing the 20-second cooldown on the exact message a role threshold is reached.",
         "Activity Wipe Command: Introduced 'activitywipe' (awipe, activityreset, areset, statswipe, userswipe) command for admins to delete all or a set number of a user's recent messages from the database."
       ]
+    },
+    {
+      "version": "2.2.9",
+      "date": "2026-07-13",
+      "title": "MySQL Migration & Auto-Remove Verification",
+      "items": [
+        "MySQL Migration: Moved all activity configurations and user DM preferences from MongoDB Atlas to local/configured MySQL tables.",
+        "Auto-Remove Option: Added the ability to automatically strip activity roles if a user falls below the message count threshold (rr/removerole).",
+        "DM Alerts Command: Added 'ar dm' and 'ar pm' commands for members to toggle direct message notifications explaining role removals.",
+        "Sweeper Optimization: Added a periodic sweeping task that fetches exact role memberships directly from Discord APIs, resolving cache limitations."
+      ]
     }
   ],
   "commands": [
@@ -382,7 +393,7 @@
         "ar"
       ],
       "usage": "ar [sub-command] [ID/Name]",
-      "description": "Manage activity roles. (Rolling 14-day window)\n🔹 **Sub-commands:**\n• `setup` / `set`: Create new rule\n• `list`: Show server rules\n• `del` / `delete`: Remove rule\n• `edit`: Open dashboard\n🔹 **Edit Options & Aliases:**\n• `req` / `msgs`: Msg count\n• `lc` / `logchannel`: Public log\n• `alc` / `adminlogchannel`: Admin log\n• `dl` / `deletelog`: Auto-delete\n• `dt` / `deletetime`: Timer (s)\n• `msg` / `message`: Custom msg",
+      "description": "Manage activity roles. (Rolling 14-day window)\n🔹 **Sub-commands:**\n• `setup` / `set`: Create new rule\n• `list`: Show server rules\n• `del` / `delete`: Remove rule\n• `edit`: Open dashboard\n• `dm` / `pm`: Toggle DM notifications on role loss\n🔹 **Edit Options & Aliases:**\n• `req` / `msgs`: Msg count\n• `lc` / `logchannel`: Public log\n• `alc` / `adminlogchannel`: Admin log\n• `dl` / `deletelog`: Auto-delete\n• `dt` / `deletetime`: Timer (s)\n• `msg` / `message`: Custom msg\n• `rr` / `removerole`: Toggle auto-remove",
       "category": "Activity Role Event"
     },
     {

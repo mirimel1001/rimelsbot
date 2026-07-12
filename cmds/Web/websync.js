@@ -246,7 +246,7 @@ const handleMemberLeave = async (member) => {
       },
       { upsert: true }
     );
-    console.log(`[WebSync] Marked leaving member ${member.user.tag} (${member.id}) as left in web database.`);
+    // console.log(`[WebSync] Marked leaving member ${member.user.tag} (${member.id}) as left in web database.`);
   } catch (error) {
     console.error('[WebSync Error] Failed to update single member status on leave:', error);
   }
@@ -285,7 +285,7 @@ const handleMemberJoin = async (member) => {
       },
       { upsert: true, returnDocument: 'after' }
     );
-    console.log(`[WebSync] Member joined and presence synced: ${member.user.tag}`);
+    // console.log(`[WebSync] Member joined and presence synced: ${member.user.tag}`);
   } catch (error) {
     console.error('[WebSync Error] Failed to handle member join:', error);
   }

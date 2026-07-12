@@ -6,10 +6,13 @@ module.exports = {
   aliases: ["ar"],
   category: "Activity Role Event",
   adminOnly: true,
-  description: "Manage activity roles. (Rolling 14-day window)\n🔹 **Sub-commands:**\n• `setup` / `set`: Create new rule\n• `list`: Show server rules\n• `del` / `delete`: Remove rule\n• `edit`: Open dashboard\n🔹 **Edit Options & Aliases:**\n• `req` / `msgs`: Msg count\n• `lc` / `logchannel`: Public log\n• `alc` / `adminlogchannel`: Admin log\n• `dl` / `deletelog`: Auto-delete\n• `dt` / `deletetime`: Timer (s)\n• `msg` / `message`: Custom msg",
+  description: "Manage activity roles. (Rolling 14-day window)\n🔹 **Sub-commands:**\n• `setup` / `set`: Create new rule\n• `list`: Show server rules\n• `del` / `delete`: Remove rule\n• `edit`: Open dashboard\n• `dm` / `pm`: Toggle DM notifications on role loss\n🔹 **Edit Options & Aliases:**\n• `req` / `msgs`: Msg count\n• `lc` / `logchannel`: Public log\n• `alc` / `adminlogchannel`: Admin log\n• `dl` / `deletelog`: Auto-delete\n• `dt` / `deletetime`: Timer (s)\n• `msg` / `message`: Custom msg\n• `rr` / `removerole`: Toggle auto-remove",
   usage: "ar [sub-command] [ID/Name]",
   run: async (client, message, args, prefix, config) => {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+    const subCommand = args[0]?.toLowerCase();
+    const isUserCommand = (subCommand === 'dm' || subCommand === 'pm');
+
+    if (!isUserCommand && !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return message.reply('❌ You need **Administrator** permissions to use this command.');
     }
 
@@ -20,22 +23,53 @@ module.exports = {
       return message.reply('⚠️ **Database Warning:** The bot is currently unable to connect to the activity database. Message tracking is offline.');
     }
 
-    const subCommand = args[0]?.toLowerCase();
     const guildId = message.guild.id;
+
+    if (isUserCommand) {
+      const userId = message.author.id;
+      try {
+        const { toggleDmEnabledUser } = require('../../utils/mysql.js');
+        const nowEnabled = await toggleDmEnabledUser(guildId, userId);
+
+        let dmUsers = client.arDmEnabledUsers.get(guildId) || [];
+        if (nowEnabled) {
+          client.arDmEnabledUsers.set(guildId, [...dmUsers, userId]);
+          return message.reply('✅ You will **now** receive DM notifications when you lose an activity role in this server.');
+        } else {
+          client.arDmEnabledUsers.set(guildId, dmUsers.filter(id => id !== userId));
+          return message.reply('❌ You will **no longer** receive DM notifications when you lose an activity role in this server.');
+        }
+      } catch (err) {
+        console.error(`[DB Error] Failed to toggle DM settings for user ${userId} in guild ${guildId}:`, err);
+        return message.reply('❌ Database Error: Failed to toggle DM notifications.');
+      }
+    }
 
     // Load current configs
     let configs = client.arConfigs.get(guildId) || [];
 
     const saveConfigs = async (gid, currentConfigs) => {
       try {
-        await Guild.findOneAndUpdate(
-          { guildId: gid },
-          { activityRoles: currentConfigs },
-          { upsert: true }
-        );
+        const { saveActivityRole, deleteActivityRole } = require('../../utils/mysql.js');
+
+        // Find deleted configs (configs that are in client.arConfigs but not in currentConfigs)
+        const oldConfigs = client.arConfigs.get(gid) || [];
+        const currentIds = currentConfigs.map(c => c.id);
+        const deletedConfigs = oldConfigs.filter(c => !currentIds.includes(c.id));
+
+        // Delete removed configs from MySQL
+        for (const config of deletedConfigs) {
+          await deleteActivityRole(gid, config.id);
+        }
+
+        // Save/Update current configs in MySQL
+        for (const config of currentConfigs) {
+          await saveActivityRole(gid, config);
+        }
+
         client.arConfigs.set(gid, currentConfigs);
       } catch (err) {
-        console.error(`[DB Error] Failed to save AR configs for guild ${gid}:`, err);
+        console.error(`[DB Error] Failed to save AR configs to MySQL for guild ${gid}:`, err);
         message.reply('❌ Database Error: Failed to save changes.');
       }
     };
@@ -67,7 +101,7 @@ module.exports = {
       configs.push(newConfig);
       await saveConfigs(guildId, configs);
 
-      return message.reply(`✅ **Activity Role Created!**\n**ID:** \`${newConfig.id}\`\n**Role:** ${role}\n**Requirement:** 5 messages in 14 days.`);
+      return message.reply(`✅ **Activity Role Created!**\n**ID:** \`${newConfig.id}\`\n**Role:** ${role}\n**Requirement:** 5 messages in 14 days.\n\nTo customize options, use:\n\`\`\`\n${prefix}ar edit ${newConfig.id}\n\`\`\``);
     }
 
     if (subCommand === 'list') {
@@ -96,7 +130,7 @@ module.exports = {
     }
 
     if (subCommand === 'edit') {
-      const validOptions = ['logchannel', 'lc', 'adminlogchannel', 'alc', 'deletelog', 'dl', 'deletetime', 'dt', 'msgs', 'message', 'msg', 'requirement', 'req'];
+      const validOptions = ['logchannel', 'lc', 'adminlogchannel', 'alc', 'deletelog', 'dl', 'deletetime', 'dt', 'msgs', 'message', 'msg', 'requirement', 'req', 'removerole', 'rr'];
       const option = args[1]?.toLowerCase();
       const isDirectEdit = validOptions.includes(option);
       
@@ -150,11 +184,11 @@ module.exports = {
             .addFields(
               { name: '📍 Target Role', value: `<@&${data.roleId}>`, inline: true },
               { name: '🔢 Requirement', value: `${data.req_msgs} messages`, inline: true },
-              { name: '\u200B', value: '\u200B', inline: true },
+              { name: '❌ Auto-Remove Role', value: data.removeRole ? 'Yes' : 'No', inline: true },
               { name: '📢 Public Log', value: data.logChannel === 'same' ? '`Current Channel`' : (data.logChannel ? `<#${data.logChannel}>` : 'Disabled'), inline: true },
               { name: '🛡️ Admin Log', value: data.adminLogChannel === 'same' ? '`Current Channel`' : (data.adminLogChannel ? `<#${data.adminLogChannel}>` : 'Disabled'), inline: true },
               { name: '⏱️ Deletion', value: data.deleteLog ? `Yes (${data.deleteTime}s)` : 'No', inline: true },
-              { name: '📝 Custom Message', value: `${data.customMessage || 'Congrats you just got {name} role {role}!'}\n\n**Commands**\n\`\`\`${prefix}ar del ${data.id}\`\`\`\n\`\`\`${prefix}ar edit req [count] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit lc [#channel] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit alc [#channel] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit dl [true/false] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit dt [seconds] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit msg ${data.id}\`\`\`` }
+              { name: '📝 Custom Message', value: `${data.customMessage || 'Congrats you just got {name} role {role}!'}\n\n**Commands**\n\`\`\`${prefix}ar del ${data.id}\`\`\`\n\`\`\`${prefix}ar edit req [count] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit rr [true/false] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit lc [#channel] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit alc [#channel] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit dl [true/false] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit dt [seconds] ${data.id}\`\`\`\n\`\`\`${prefix}ar edit msg ${data.id}\`\`\`` }
             );
         };
 
@@ -164,6 +198,10 @@ module.exports = {
               .setCustomId(`ar_toggle_del_${data.id}`)
               .setLabel(data.deleteLog ? 'Disable Auto-Delete' : 'Enable Auto-Delete')
               .setStyle(data.deleteLog ? ButtonStyle.Danger : ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId(`ar_toggle_rr_${data.id}`)
+              .setLabel(data.removeRole ? 'Disable Auto-Remove' : 'Enable Auto-Remove')
+              .setStyle(data.removeRole ? ButtonStyle.Danger : ButtonStyle.Success),
             new ButtonBuilder()
               .setCustomId(`ar_edit_dt_${data.id}`)
               .setLabel('Set Timer (DT)')
@@ -209,6 +247,10 @@ module.exports = {
         collector.on('collect', async i => {
           if (i.customId.startsWith('ar_toggle_del_')) {
             targetAr.deleteLog = !targetAr.deleteLog;
+            await saveConfigs(guildId, configs);
+            await i.update({ embeds: [generateEmbed(targetAr)], components: generateButtons(targetAr) });
+          } else if (i.customId.startsWith('ar_toggle_rr_')) {
+            targetAr.removeRole = !targetAr.removeRole;
             await saveConfigs(guildId, configs);
             await i.update({ embeds: [generateEmbed(targetAr)], components: generateButtons(targetAr) });
           } else if (i.customId.startsWith('ar_reset_msg_')) {
@@ -314,6 +356,16 @@ module.exports = {
         case 'dl':
           ar.deleteLog = value === 'true';
           break;
+        case 'removerole':
+        case 'rr':
+          if (value === 'true') {
+            ar.removeRole = true;
+          } else if (value === 'false') {
+            ar.removeRole = false;
+          } else {
+            ar.removeRole = !ar.removeRole;
+          }
+          break;
         case 'deletetime':
         case 'dt':
           const time = parseInt(value);
@@ -348,7 +400,8 @@ module.exports = {
         { name: `📜 list`, value: `\`${prefix}ar list\`` },
         { name: `🗑️ del`, value: `\`${prefix}ar del [ID/Name]\`` },
         { name: `✏️ edit`, value: `\`${prefix}ar edit [ID/Name]\` (Opens Menu)` },
-        { name: `🚀 Quick Edit`, value: `\`${prefix}ar edit [option] [value] [ID/Name]\`\n**Options:** req, lc, alc, dl, dt, msg` },
+        { name: `🚀 Quick Edit`, value: `\`${prefix}ar edit [option] [value] [ID/Name]\`\n**Options:** req, lc, alc, dl, dt, msg, rr` },
+        { name: `🔔 DM Alerts`, value: `\`${prefix}ar dm\` / \`${prefix}ar pm\` (Toggle DM notifications on role loss)` },
         { name: `📝 Placeholders`, value: `{Activity Name}, {User Mention}, {Role}` }
       );
 

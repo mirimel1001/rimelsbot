@@ -191,8 +191,23 @@ client.unbTokens = new Collection();
 client.arConfigs = new Map();
 client.arCooldowns = new Map();
 client.arMessageCounts = new Map();
+client.arDmEnabledUsers = new Map();
 
-// --- ACTIVITY ROLE (AR) SYSTEM ---
+const notifyUserDm = async (member, role, guild, reqMsgs) => {
+  const dmUsers = client.arDmEnabledUsers.get(guild.id) || [];
+  if (!dmUsers.includes(member.id)) return; // User has not opted in
+
+  try {
+    const embed = new EmbedBuilder()
+      .setTitle('⚠️ Activity Role Removed')
+      .setColor('#ED4245')
+      .setDescription(`You have lost the role **${role.name}** in the server **${guild.name}** because you did not meet the activity requirement.\n\nTo get this role back, you need to send at least **${reqMsgs}** messages in the server within a rolling 14-day window.`)
+      .setTimestamp();
+    await member.send({ embeds: [embed] });
+  } catch (err) {
+    // User might have DMs closed, ignore silently
+  }
+};
 
 const verifyActivity = async (member, channel) => {
   if (!member || !member.user || member.user.bot || !member.guild || !channel) return;
@@ -200,10 +215,17 @@ const verifyActivity = async (member, channel) => {
   const guildConfigs = client.arConfigs.get(member.guild.id);
   if (!guildConfigs || guildConfigs.length === 0) return;
 
-  // 1. Optimize: Check if the user is missing at least one of the configured activity roles.
-  // If they already have all of them, there is no need to query the database.
-  const hasMissingRole = guildConfigs.some(config => config.roleId && !member.roles.cache.has(config.roleId));
-  if (!hasMissingRole) return;
+  // 1. Optimize: Check if we need to verify anything.
+  // We need to check if the user is missing at least one configured activity role (so they can be awarded it)
+  // OR if they have a configured activity role that has removeRole enabled (so it can be removed if they are inactive).
+  const needsCheck = guildConfigs.some(config => {
+    if (!config.roleId) return false;
+    const hasRole = member.roles.cache.has(config.roleId);
+    if (!hasRole) return true; // Missing role, check if they earned it
+    if (config.removeRole) return true; // Has role but removeRole is enabled, check if they lost it
+    return false;
+  });
+  if (!needsCheck) return;
 
   const cacheKey = `${member.guild.id}-${member.id}`;
   const now = Date.now();
@@ -245,46 +267,79 @@ const verifyActivity = async (member, channel) => {
 
     let needsSave = false;
     for (const config of guildConfigs) {
-      if (!config.roleId || member.roles.cache.has(config.roleId)) continue;
+      if (!config.roleId) continue;
+      const hasRole = member.roles.cache.has(config.roleId);
 
-      if (count >= (config.req_msgs || 5)) {
-        await member.roles.add(config.roleId)
-          .then(async () => {
-            // Success Logs
-            if (config.logChannel) {
-              const logChan = config.logChannel === 'same' ? channel : member.guild.channels.cache.get(config.logChannel);
+      if (!hasRole) {
+        if (count >= (config.req_msgs || 5)) {
+          await member.roles.add(config.roleId)
+            .then(async () => {
+              // Success Logs
+              if (config.logChannel) {
+                const logChan = config.logChannel === 'same' ? channel : member.guild.channels.cache.get(config.logChannel);
 
-              if (logChan && logChan.permissionsFor(client.user)?.has('SendMessages')) {
-                // Support placeholders: {user}, {role}, {name}
-                let msg = config.customMessage || "Congrats you just got {name} role {role}!";
-                msg = msg.replace(/{user}|{User Mention}/g, member.toString())
-                  .replace(/{role}|{Role}/g, `<@&${config.roleId}>`)
-                  .replace(/{name}|{Activity Name}/g, config.name);
+                if (logChan && logChan.permissionsFor(client.user)?.has('SendMessages')) {
+                  // Support placeholders: {user}, {role}, {name}
+                  let msg = config.customMessage || "Congrats you just got {name} role {role}!";
+                  msg = msg.replace(/{user}|{User Mention}/g, member.toString())
+                    .replace(/{role}|{Role}/g, `<@&${config.roleId}>`)
+                    .replace(/{name}|{Activity Name}/g, config.name);
 
-                const logMsg = await logChan.send(msg).catch(() => null);
-                if (logMsg && config.deleteLog) {
-                  setTimeout(() => logMsg.delete().catch(() => null), (config.deleteTime || 60) * 1000);
+                  const logMsg = await logChan.send(msg).catch(() => null);
+                  if (logMsg && config.deleteLog) {
+                    setTimeout(() => logMsg.delete().catch(() => null), (config.deleteTime || 60) * 1000);
+                  }
+                } else if (config.logChannel !== 'same') {
+                  // Channel deleted or bot lacks perms - auto reset
+                  config.logChannel = null;
+                  needsSave = true;
                 }
-              } else if (config.logChannel !== 'same') {
-                // Channel deleted or bot lacks perms - auto reset
-                config.logChannel = null;
-                needsSave = true;
               }
-            }
 
+              if (config.adminLogChannel) {
+                const adminChan = config.adminLogChannel === 'same' ? channel : member.guild.channels.cache.get(config.adminLogChannel);
+
+                if (adminChan && adminChan.permissionsFor(client.user)?.has('SendMessages')) {
+                  const logContent = `${member.id} | ${member} - ${config.name} - <@&${config.roleId}>`;
+                  const embed = new EmbedBuilder()
+                    .setTitle('🛡️ Activity Role Issued')
+                    .setColor('#5865F2')
+                    .setDescription(logContent)
+                    .setTimestamp();
+                  adminChan.send({ embeds: [embed] }).catch(() => null);
+                } else if (config.adminLogChannel !== 'same') {
+                  // Channel deleted or bot lacks perms - auto reset
+                  config.adminLogChannel = null;
+                  needsSave = true;
+                }
+              }
+            })
+            .catch(err => {
+              if (err.code === 50013) {
+                console.warn(`[AR Error] Missing Permissions to add role ${config.roleId} in ${member.guild.name}`);
+              } else {
+                console.error(`[AR Error] Role addition failed:`, err.message);
+              }
+            });
+        }
+      } else if (config.removeRole && count < (config.req_msgs || 5)) {
+        // User has the role, but has lost the requirement and removeRole is enabled
+        await member.roles.remove(config.roleId)
+          .then(async () => {
+            const role = member.guild.roles.cache.get(config.roleId);
+            if (role) {
+              await notifyUserDm(member, role, member.guild, config.req_msgs || 5);
+            }
             if (config.adminLogChannel) {
               const adminChan = config.adminLogChannel === 'same' ? channel : member.guild.channels.cache.get(config.adminLogChannel);
-
               if (adminChan && adminChan.permissionsFor(client.user)?.has('SendMessages')) {
-                const logContent = `${member.id} | ${member} - ${config.name} - <@&${config.roleId}>`;
                 const embed = new EmbedBuilder()
-                  .setTitle('🛡️ Activity Role Issued')
-                  .setColor('#5865F2')
-                  .setDescription(logContent)
+                  .setTitle('🛡️ Activity Role Removed')
+                  .setColor('#ED4245')
+                  .setDescription(`${member.id} | ${member} - ${config.name} - <@&${config.roleId}>\n\nThis role was removed because ${member} doesn't have enough messages in last 14 days.`)
                   .setTimestamp();
                 adminChan.send({ embeds: [embed] }).catch(() => null);
               } else if (config.adminLogChannel !== 'same') {
-                // Channel deleted or bot lacks perms - auto reset
                 config.adminLogChannel = null;
                 needsSave = true;
               }
@@ -292,16 +347,19 @@ const verifyActivity = async (member, channel) => {
           })
           .catch(err => {
             if (err.code === 50013) {
-              console.warn(`[AR Error] Missing Permissions to add role ${config.roleId} in ${member.guild.name}`);
+              console.warn(`[AR Error] Missing Permissions to remove role ${config.roleId} in ${member.guild.name}`);
             } else {
-              console.error(`[AR Error] Role addition failed:`, err.message);
+              console.error(`[AR Error] Role removal failed:`, err.message);
             }
           });
       }
     }
 
     if (needsSave) {
-      await Guild.findOneAndUpdate({ guildId: member.guild.id }, { activityRoles: guildConfigs }).catch(e => console.error('[AR DB Error]', e));
+      const { saveActivityRole } = require('./utils/mysql.js');
+      for (const config of guildConfigs) {
+        await saveActivityRole(member.guild.id, config).catch(e => console.error('[AR DB Error]', e));
+      }
     }
   } catch (err) {
     console.error('[AR Error] Activity verification failed:', err);
@@ -316,17 +374,38 @@ const loadCaches = async () => {
     guilds.forEach(g => {
       if (g.prefix) client.prefixes.set(g.guildId, g.prefix);
       if (g.gameSettings) client.gameSettings.set(g.guildId, g.gameSettings);
-      if (g.activityRoles) {
-        // Migration: Copy threshold to req_msgs if needed
-        g.activityRoles.forEach(ar => {
-          if (ar.req_msgs === undefined && ar.toObject().threshold !== undefined) {
-            ar.req_msgs = ar.toObject().threshold;
-          }
-        });
-        client.arConfigs.set(g.guildId, g.activityRoles);
-      }
     });
     tokens.forEach(t => client.unbTokens.set(t.guildId, t.token));
+
+    // Load Activity Roles from MySQL
+    const { getAllActivityRoles, getAllDmEnabledUsers } = require('./utils/mysql.js');
+    const allRoles = await getAllActivityRoles();
+    // Group by guildId
+    const rolesMap = new Map();
+    allRoles.forEach(role => {
+      if (!rolesMap.has(role.guildId)) {
+        rolesMap.set(role.guildId, []);
+      }
+      rolesMap.get(role.guildId).push(role);
+    });
+    // Set in client cache
+    rolesMap.forEach((configs, gid) => {
+      client.arConfigs.set(gid, configs);
+    });
+
+    // Load DM enabled users from MySQL
+    const allDmUsers = await getAllDmEnabledUsers();
+    const dmUsersMap = new Map();
+    allDmUsers.forEach(row => {
+      if (!dmUsersMap.has(row.guild_id)) {
+        dmUsersMap.set(row.guild_id, []);
+      }
+      dmUsersMap.get(row.guild_id).push(row.user_id);
+    });
+    dmUsersMap.forEach((users, gid) => {
+      client.arDmEnabledUsers.set(gid, users);
+    });
+
     console.log(`[Cache] Synchronized ${guilds.length} guilds and ${tokens.length} custom tokens.`);
   } catch (err) { console.error('[Cache Error]', err.message); }
 };
@@ -462,8 +541,72 @@ const checkExpiredRoles = async () => {
     console.error('[Expiration Worker Error]', err);
   }
 };
+
+const checkActivityRoles = async () => {
+  try {
+    const { getGuildMessageCounts } = require('./utils/mysql.js');
+    const Guild = require('./models/Guild');
+
+    for (const [guildId, guild] of client.guilds.cache) {
+      const guildConfigs = client.arConfigs.get(guildId);
+      if (!guildConfigs || guildConfigs.length === 0) continue;
+
+      const configsToRemove = guildConfigs.filter(config => config.roleId && config.removeRole);
+      if (configsToRemove.length === 0) continue;
+
+      // Get message counts for all active users in the guild in the last 14 days
+      const countsMap = await getGuildMessageCounts(guildId, 14);
+
+      for (const config of configsToRemove) {
+        const role = await guild.roles.fetch(config.roleId).catch(() => null);
+        if (!role) continue;
+
+        const reqMsgs = config.req_msgs || 5;
+
+        // Fetch all members with this role from the Discord API to ensure the cache is complete
+        const roleMembers = await guild.members.fetch({ role: config.roleId }).catch(() => role.members);
+
+        // Iterate over all members who currently have this role
+        for (const [memberId, member] of roleMembers) {
+          if (member.user.bot) continue;
+
+          // Message count is 0 if they haven't sent any message in the last 14 days
+          const count = countsMap.get(memberId) || 0;
+
+          if (count < reqMsgs) {
+            try {
+              await member.roles.remove(role);
+              await notifyUserDm(member, role, guild, reqMsgs);
+
+              // Log the removal if admin log channel is configured
+              if (config.adminLogChannel) {
+                const adminChan = config.adminLogChannel === 'same' ? null : guild.channels.cache.get(config.adminLogChannel);
+                if (adminChan && adminChan.permissionsFor(client.user)?.has('SendMessages')) {
+                  const embed = new EmbedBuilder()
+                    .setTitle('🛡️ Activity Role Removed')
+                    .setColor('#ED4245')
+                    .setDescription(`${member.id} | ${member} - ${config.name} - <@&${config.roleId}>\n\nThis role was removed because ${member} doesn't have enough messages in last 14 days.`)
+                    .setTimestamp();
+                  await adminChan.send({ embeds: [embed] }).catch(() => null);
+                }
+              }
+            } catch (err) {
+              if (err.code !== 50013) {
+                console.error(`[AR Sweep Error] Failed to remove role from ${member.user.tag}:`, err.message);
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[AR Sweep Worker Error]', err);
+  }
+};
+
 setInterval(checkExpiredRoles, 3 * 60 * 60 * 1000);
 setInterval(checkMaxBalances, 3 * 60 * 60 * 1000);
+setInterval(checkActivityRoles, 3 * 60 * 60 * 1000);
 
 // --- EVENT HANDLERS ---
 client.once(Events.ClientReady, async () => {
@@ -478,8 +621,6 @@ client.once(Events.ClientReady, async () => {
     console.warn('[Git Status Warning] Unable to retrieve latest git commit message:', err.message);
   }
 
-  await loadCaches();
-
   // Initialize MySQL for Activity Role tracking
   try {
     const { initMySQL, pruneOldMessages } = require('./utils/mysql.js');
@@ -488,6 +629,9 @@ client.once(Events.ClientReady, async () => {
     // Prune on startup
     await pruneOldMessages(14);
     
+    // Sweep activity roles 30 seconds after startup
+    setTimeout(checkActivityRoles, 30 * 1000);
+    
     // Setup daily pruning loop (every 24 hours)
     setInterval(async () => {
       await pruneOldMessages(14);
@@ -495,6 +639,8 @@ client.once(Events.ClientReady, async () => {
   } catch (err) {
     console.error('[MySQL Setup Error] Failed to initialize MySQL on ready:', err);
   }
+
+  await loadCaches();
 
   // Initial Web Presence synchronization & 10-minute loop
   try {
@@ -594,18 +740,43 @@ client.on('messageCreate', async (message) => {
     try {
       const Guild = require('./models/Guild');
       const Token = require('./models/Token');
-      const [g, t] = await Promise.all([
+      const { initMySQL } = require('./utils/mysql.js');
+      const dbPool = await initMySQL();
+
+      const [g, t, [arRows], [dmRows]] = await Promise.all([
         Guild.findOne({ guildId: message.guild.id }),
-        Token.findOne({ guildId: message.guild.id })
+        Token.findOne({ guildId: message.guild.id }),
+        dbPool.query('SELECT * FROM activity_roles WHERE guild_id = ?', [message.guild.id]),
+        dbPool.query('SELECT user_id FROM ar_dm_users WHERE guild_id = ?', [message.guild.id])
       ]);
+
       if (g) {
         if (g.prefix) client.prefixes.set(g.guildId, g.prefix);
         if (g.gameSettings) client.gameSettings.set(g.guildId, g.gameSettings);
-        if (g.activityRoles) client.arConfigs.set(g.guildId, g.activityRoles);
       }
       if (t) {
         client.unbTokens.set(message.guild.id, t.token);
       }
+
+      // Map and cache activity roles
+      const mappedConfigs = arRows.map(row => ({
+        id: row.id,
+        guildId: row.guild_id,
+        roleId: row.role_id,
+        name: row.name,
+        req_msgs: row.req_msgs,
+        logChannel: row.log_channel,
+        adminLogChannel: row.admin_log_channel,
+        deleteLog: Boolean(row.delete_log),
+        deleteTime: row.delete_time,
+        customMessage: row.custom_message,
+        removeRole: Boolean(row.remove_role)
+      }));
+      client.arConfigs.set(message.guild.id, mappedConfigs);
+
+      // Map and cache DM enabled users
+      const mappedDmUsers = dmRows.map(row => row.user_id);
+      client.arDmEnabledUsers.set(message.guild.id, mappedDmUsers);
       // Re-read prefix after database sync in case it changed
       prefix = (message.guild ? (client.prefixes.get(message.guild.id) || getConfig().prefix) : getConfig().prefix);
     } catch (dbErr) {
