@@ -44,6 +44,14 @@ module.exports = {
     try {
       const deletedCount = await wipeUserActivity(message.guild.id, targetUser.id, wipeAmount);
       
+      // Fetch target member and trigger role check immediately so they lose their role if they no longer meet threshold
+      const targetMember = await message.guild.members.fetch(targetUser.id).catch(() => null);
+      if (targetMember && typeof client.verifyActivity === 'function') {
+        client.verifyActivity(targetMember, message.channel).catch(err => {
+          console.error('[AR Verification Error after Wipe]', err);
+        });
+      }
+
       if (wipeAmount) {
         return message.reply(`✅ Successfully wiped **${deletedCount}** of the most recent message activity records for **${targetUser.tag}**.`);
       } else {

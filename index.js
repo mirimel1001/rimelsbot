@@ -365,6 +365,7 @@ const verifyActivity = async (member, channel) => {
     console.error('[AR Error] Activity verification failed:', err);
   }
 };
+client.verifyActivity = verifyActivity;
 
 // --- CACHE SYNCHRONIZATION ---
 const loadCaches = async () => {
