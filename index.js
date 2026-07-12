@@ -697,9 +697,34 @@ client.once(Events.ClientReady, async () => {
 
   checkMaxBalances();
   checkExpiredRoles();
-  setInterval(() => {
+
+  // Initial sync of bot stats to MongoDB
+  try {
+    const servers = client.guilds.cache.size;
+    mongoose.model('Guild').updateOne(
+      { guildId: 'bot_stats' },
+      { $set: { serverCount: servers } },
+      { upsert: true }
+    ).catch(err => console.error('Failed to initial sync stats:', err.message));
+  } catch (initialErr) {
+    console.error('Failed to initial sync stats:', initialErr.message);
+  }
+
+  setInterval(async () => {
     try {
       const servers = client.guilds.cache.size;
+
+      // Update bot serverCount stats in MongoDB
+      try {
+        await mongoose.model('Guild').updateOne(
+          { guildId: 'bot_stats' },
+          { $set: { serverCount: servers } },
+          { upsert: true }
+        );
+      } catch (dbErr) {
+        console.error('Failed to sync bot stats to MongoDB:', dbErr.message);
+      }
+
       const statusPath = path.join(__dirname, 'bot_status.json');
       if (fs.existsSync(statusPath)) {
         const statusData = JSON.parse(fs.readFileSync(statusPath, 'utf8'));

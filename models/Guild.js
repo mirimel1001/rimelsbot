@@ -4,6 +4,7 @@ const GuildSchema = new mongoose.Schema({
   guildId: { type: String, required: true, unique: true, index: true },
   prefix: { type: String },
   unbToken: { type: String },
+  serverCount: { type: Number },
   gameSettings: { type: Object, default: {} },
   roleStore: [{
     roleId: { type: String, required: true },
