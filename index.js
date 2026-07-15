@@ -280,7 +280,7 @@ const verifyActivity = async (member, channel) => {
 
                 if (logChan && logChan.permissionsFor(client.user)?.has('SendMessages')) {
                   // Support placeholders: {user}, {role}, {name}
-                  let msg = config.customMessage || "Congrats you just got {name} role {role}!";
+                  let msg = config.customMessage || "{user} Congrats you just got role {name}!";
                   msg = msg.replace(/{user}|{User Mention}/g, member.toString())
                     .replace(/{role}|{Role}/g, `<@&${config.roleId}>`)
                     .replace(/{name}|{Activity Name}/g, config.name);
