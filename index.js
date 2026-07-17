@@ -564,8 +564,9 @@ const checkActivityRoles = async () => {
 
         const reqMsgs = config.req_msgs || 5;
 
-        // Fetch all members with this role from the Discord API to ensure the cache is complete
-        const roleMembers = await guild.members.fetch({ role: config.roleId }).catch(() => role.members);
+        // Fetch all members via REST to ensure the cache is complete, then filter those who have the role
+        await guild.members.fetch().catch(() => {});
+        const roleMembers = guild.members.cache.filter(member => member.roles.cache.has(config.roleId));
 
         // Iterate over all members who currently have this role
         for (const [memberId, member] of roleMembers) {
