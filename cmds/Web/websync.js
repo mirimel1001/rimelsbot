@@ -46,8 +46,9 @@ const syncPresence = async (client, silent = false) => {
       return;
     }
 
-    // Fetch all members with their presences
-    const members = await guild.members.fetch({ withPresences: true });
+    // Fetch all members via REST to avoid Gateway Opcode 8 rate limits.
+    // Presences are already cached by discord.js due to GuildPresences intent.
+    const members = await guild.members.fetch();
     
     const bulkOps = [];
     members.forEach(member => {
