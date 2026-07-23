@@ -564,8 +564,8 @@ const checkActivityRoles = async () => {
 
         const reqMsgs = config.req_msgs || 5;
 
-        // Fetch all members via REST to ensure the cache is complete, then filter those who have the role
-        await guild.members.fetch().catch(() => {});
+        // Filter directly from cache to avoid Gateway Opcode 8 rate limits.
+        // The cache is kept complete and updated via GuildMembers/GuildPresences intents.
         const roleMembers = guild.members.cache.filter(member => member.roles.cache.has(config.roleId));
 
         // Iterate over all members who currently have this role
