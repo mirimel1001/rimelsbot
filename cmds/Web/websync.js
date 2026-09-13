@@ -23,12 +23,98 @@ const PresenceSchema = new mongoose.Schema({
 
 const Presence = mongoose.models.Presence || mongoose.model('Presence', PresenceSchema);
 
+const https = require('https');
+
+function fetchJson(url) {
+  return new Promise((resolve) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 4000 }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          resolve(null);
+        }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+  });
+}
+
+const CURATED_GAME_METADATA = {
+  'minecraft': {
+    bannerUrl: 'https://images.alphacoders.com/132/1322087.jpeg',
+    genreTag: 'Survival / Sandbox'
+  },
+  'valorant': {
+    bannerUrl: 'https://images.alphacoders.com/115/1152069.png',
+    genreTag: 'Tactical Shooter'
+  },
+  'league of legends': {
+    bannerUrl: 'https://images.alphacoders.com/665/665090.jpg',
+    genreTag: 'MOBA Strategy'
+  },
+  'genshin impact': {
+    bannerUrl: 'https://images.alphacoders.com/112/1127022.jpg',
+    genreTag: 'Action RPG / Open World'
+  },
+  'roblox': {
+    bannerUrl: 'https://images.alphacoders.com/114/1144078.jpg',
+    genreTag: 'Community / Custom Games'
+  },
+  'fortnite': {
+    bannerUrl: 'https://images.alphacoders.com/909/909980.jpg',
+    genreTag: 'Battle Royale'
+  },
+  'osu!': {
+    bannerUrl: 'https://images.alphacoders.com/989/989531.png',
+    genreTag: 'Rhythm Game'
+  },
+  'overwatch 2': {
+    bannerUrl: 'https://cdn.akamai.steamstatic.com/steam/apps/2357570/library_hero.jpg',
+    genreTag: 'Hero Shooter'
+  }
+};
+
+async function resolveGameMetadata(rawGameName) {
+  if (!rawGameName) return { bannerUrl: null, genreTag: 'Community Game' };
+  const cleanName = rawGameName.trim().toLowerCase();
+
+  if (CURATED_GAME_METADATA[cleanName]) {
+    return CURATED_GAME_METADATA[cleanName];
+  }
+
+  try {
+    const steamUrl = `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(rawGameName)}&l=english&cc=US`;
+    const steamData = await fetchJson(steamUrl);
+    if (steamData && steamData.items && steamData.items.length > 0) {
+      const topMatch = steamData.items[0];
+      const appId = topMatch.id;
+      return {
+        bannerUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_hero.jpg`,
+        genreTag: 'Steam Game'
+      };
+    }
+  } catch (err) {}
+
+  return {
+    bannerUrl: null,
+    genreTag: 'Gaming'
+  };
+}
+
+
 const GameActivitySchema = new mongoose.Schema({
   gameName: { type: String, required: true, unique: true, index: true },
+  bannerUrl: { type: String },
+  genreTag: { type: String },
   lastPlayedAt: { type: Date, required: true, index: true },
   firstSeenAt: { type: Date, default: Date.now },
   totalSessions: { type: Number, default: 1 },
-  currentPlayers: { type: Number, default: 0 },
+  uniquePlayersCount: { type: Number, default: 1 },
+  uniquePlayerIds: [{ type: String }],
   recentPlayers: [{
     userId: { type: String },
     username: { type: String },
@@ -49,7 +135,7 @@ const recordGameActivities = async (memberActivities, member) => {
   for (const act of memberActivities) {
     if (act.type === 0 && act.name && act.name.trim() !== '') {
       const gameName = act.name.trim();
-      const userId = member.id || member.userId;
+      const userId = String(member.id || member.userId);
       const username = member.user?.username || member.username;
       const displayName = member.displayName || member.user?.displayName || member.username;
       const avatarUrl = member.user ? member.user.displayAvatarURL({ dynamic: true, size: 256 }) : member.avatarUrl;
@@ -70,14 +156,30 @@ const recordGameActivities = async (memberActivities, member) => {
           existing.recentPlayers = [playerInfo, ...otherPlayers].slice(0, 15);
           existing.lastPlayedAt = now;
           existing.totalSessions = (existing.totalSessions || 1) + 1;
+          
+          const playerSet = new Set(existing.uniquePlayerIds || []);
+          playerSet.add(userId);
+          existing.uniquePlayerIds = Array.from(playerSet);
+          existing.uniquePlayersCount = existing.uniquePlayerIds.length;
+
+          if (!existing.bannerUrl) {
+            const meta = await resolveGameMetadata(gameName);
+            if (meta.bannerUrl) existing.bannerUrl = meta.bannerUrl;
+            if (meta.genreTag) existing.genreTag = meta.genreTag;
+          }
+
           await existing.save();
         } else {
+          const meta = await resolveGameMetadata(gameName);
           await GameActivity.create({
             gameName,
+            bannerUrl: meta.bannerUrl || null,
+            genreTag: meta.genreTag || 'Gaming',
             lastPlayedAt: now,
             firstSeenAt: now,
             totalSessions: 1,
-            currentPlayers: 1,
+            uniquePlayersCount: 1,
+            uniquePlayerIds: [userId],
             recentPlayers: [playerInfo]
           });
         }
