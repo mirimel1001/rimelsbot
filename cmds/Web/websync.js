@@ -23,6 +23,82 @@ const PresenceSchema = new mongoose.Schema({
 
 const Presence = mongoose.models.Presence || mongoose.model('Presence', PresenceSchema);
 
+const GameActivitySchema = new mongoose.Schema({
+  gameName: { type: String, required: true, unique: true, index: true },
+  lastPlayedAt: { type: Date, required: true, index: true },
+  firstSeenAt: { type: Date, default: Date.now },
+  totalSessions: { type: Number, default: 1 },
+  currentPlayers: { type: Number, default: 0 },
+  recentPlayers: [{
+    userId: { type: String },
+    username: { type: String },
+    displayName: { type: String },
+    avatarUrl: { type: String },
+    state: { type: String },
+    lastSeen: { type: Date, default: Date.now }
+  }]
+}, { timestamps: true });
+
+const GameActivity = mongoose.models.GameActivity || mongoose.model('GameActivity', GameActivitySchema);
+
+// Helper to record and prune 7-day game activity
+const recordGameActivities = async (memberActivities, member) => {
+  if (!memberActivities || memberActivities.length === 0) return;
+  const now = new Date();
+  
+  for (const act of memberActivities) {
+    if (act.type === 0 && act.name && act.name.trim() !== '') {
+      const gameName = act.name.trim();
+      const userId = member.id || member.userId;
+      const username = member.user?.username || member.username;
+      const displayName = member.displayName || member.user?.displayName || member.username;
+      const avatarUrl = member.user ? member.user.displayAvatarURL({ dynamic: true, size: 256 }) : member.avatarUrl;
+
+      const playerInfo = {
+        userId,
+        username,
+        displayName,
+        avatarUrl,
+        state: act.state || '',
+        lastSeen: now
+      };
+
+      try {
+        const existing = await GameActivity.findOne({ gameName });
+        if (existing) {
+          const otherPlayers = (existing.recentPlayers || []).filter(p => p.userId !== userId);
+          existing.recentPlayers = [playerInfo, ...otherPlayers].slice(0, 15);
+          existing.lastPlayedAt = now;
+          existing.totalSessions = (existing.totalSessions || 1) + 1;
+          await existing.save();
+        } else {
+          await GameActivity.create({
+            gameName,
+            lastPlayedAt: now,
+            firstSeenAt: now,
+            totalSessions: 1,
+            currentPlayers: 1,
+            recentPlayers: [playerInfo]
+          });
+        }
+      } catch (err) {}
+    }
+  }
+};
+
+const pruneOldGameActivities = async () => {
+  try {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const result = await GameActivity.deleteMany({ lastPlayedAt: { $lt: sevenDaysAgo } });
+    if (result.deletedCount > 0) {
+      console.log(`[GameActivity] Pruned ${result.deletedCount} games not played in the last 7 days.`);
+    }
+  } catch (err) {
+    console.error('[GameActivity Prune Error]', err.message);
+  }
+};
+
+
 // --- SYNC UTILITIES ---
 
 const parseEmoji = (emoji) => {
@@ -67,6 +143,7 @@ const syncPresence = async (client, silent = false) => {
         type: act.type
       })) : [];
       const avatarUrl = member.user.displayAvatarURL({ dynamic: true, size: 512 });
+      recordGameActivities(activities, member);
 
       bulkOps.push({
         updateOne: {
@@ -86,6 +163,7 @@ const syncPresence = async (client, silent = false) => {
       });
     });
 
+    await pruneOldGameActivities();
     if (bulkOps.length > 0) {
       await Presence.bulkWrite(bulkOps);
       if (!silent) console.log(`[WebSync] ${bulkOps.length} members synced from ${guild.name}`);
