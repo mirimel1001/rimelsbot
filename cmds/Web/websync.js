@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const SyncRequest = require('../../models/SyncRequest');
+const UserGameActivityLog = require('../../models/UserGameActivityLog');
+const ServerGameRegistry = require('../../models/ServerGameRegistry');
 
 // --- DATABASE SCHEMA ---
 const PresenceSchema = new mongoose.Schema({
@@ -114,28 +116,12 @@ async function resolveGameMetadata(rawGameName) {
 }
 
 
-const GameActivitySchema = new mongoose.Schema({
-  gameName: { type: String, required: true, unique: true, index: true },
-  bannerUrl: { type: String },
-  genreTag: { type: String },
-  lastPlayedAt: { type: Date, required: true, index: true },
-  firstSeenAt: { type: Date, default: Date.now },
-  totalSessions: { type: Number, default: 1 },
-  uniquePlayersCount: { type: Number, default: 1 },
-  uniquePlayerIds: [{ type: String }],
-  recentPlayers: [{
-    userId: { type: String },
-    username: { type: String },
-    displayName: { type: String },
-    avatarUrl: { type: String },
-    state: { type: String },
-    lastSeen: { type: Date, default: Date.now }
-  }]
-}, { timestamps: true });
+// In-memory debounce set to prevent rapid repeat writes for the same member & game within a 5-minute window
+const recentGameRecordCache = new Map();
 
-const GameActivity = mongoose.models.GameActivity || mongoose.model('GameActivity', GameActivitySchema);
-
-// Helper to record and prune 7-day game activity
+// Helper to record:
+// 1. UserGameActivityLog (7-day sliding logs per user)
+// 2. ServerGameRegistry (Permanent cumulative server game list)
 const recordGameActivities = async (memberActivities, member) => {
   if (!memberActivities || memberActivities.length === 0) return;
   const now = new Date();
@@ -144,51 +130,59 @@ const recordGameActivities = async (memberActivities, member) => {
     if (act.type === 0 && act.name && act.name.trim() !== '') {
       const gameName = act.name.trim();
       const userId = String(member.id || member.userId);
+      const cacheKey = `${userId}_${gameName.toLowerCase()}`;
+
+      const lastRecorded = recentGameRecordCache.get(cacheKey);
+      if (lastRecorded && (now.getTime() - lastRecorded) < 5 * 60 * 1000) {
+        continue; // Skip writing if recorded in the last 5 minutes to avoid DB pressure
+      }
+      recentGameRecordCache.set(cacheKey, now.getTime());
+
+      // Clean memory cache if it exceeds 500 entries
+      if (recentGameRecordCache.size > 500) {
+        const fiveMinAgo = now.getTime() - 5 * 60 * 1000;
+        for (const [k, v] of recentGameRecordCache.entries()) {
+          if (v < fiveMinAgo) recentGameRecordCache.delete(k);
+        }
+      }
+
       const username = member.user?.username || member.username;
       const displayName = member.displayName || member.user?.displayName || member.username;
       const avatarUrl = member.user ? member.user.displayAvatarURL({ dynamic: true, size: 256 }) : member.avatarUrl;
-
-      const playerInfo = {
-        userId,
-        username,
-        displayName,
-        avatarUrl,
-        state: act.state || '',
-        lastSeen: now
-      };
+      const state = act.state || '';
 
       try {
-        const existing = await GameActivity.findOne({ gameName });
-        if (existing) {
-          const otherPlayers = (existing.recentPlayers || []).filter(p => p.userId !== userId);
-          existing.recentPlayers = [playerInfo, ...otherPlayers].slice(0, 15);
-          existing.lastPlayedAt = now;
-          existing.totalSessions = (existing.totalSessions || 1) + 1;
-          
-          const playerSet = new Set(existing.uniquePlayerIds || []);
-          playerSet.add(userId);
-          existing.uniquePlayerIds = Array.from(playerSet);
-          existing.uniquePlayersCount = existing.uniquePlayerIds.length;
+        // --- LOG SET 1: 7-Day User Game Activity Log ---
+        await UserGameActivityLog.create({
+          userId,
+          username,
+          displayName,
+          avatarUrl,
+          gameName,
+          state,
+          recordedAt: now
+        });
 
-          if (!existing.bannerUrl) {
+        // --- LOG SET 2: Permanent Server Games Registry ---
+        const existingGame = await ServerGameRegistry.findOne({ gameName });
+        if (existingGame) {
+          existingGame.lastPlayedAt = now;
+          existingGame.totalSessions = (existingGame.totalSessions || 1) + 1;
+          if (!existingGame.bannerUrl) {
             const meta = await resolveGameMetadata(gameName);
-            if (meta.bannerUrl) existing.bannerUrl = meta.bannerUrl;
-            if (meta.genreTag) existing.genreTag = meta.genreTag;
+            if (meta.bannerUrl) existingGame.bannerUrl = meta.bannerUrl;
+            if (meta.genreTag) existingGame.genreTag = meta.genreTag;
           }
-
-          await existing.save();
+          await existingGame.save();
         } else {
           const meta = await resolveGameMetadata(gameName);
-          await GameActivity.create({
+          await ServerGameRegistry.create({
             gameName,
-            bannerUrl: meta.bannerUrl || null,
             genreTag: meta.genreTag || 'Gaming',
-            lastPlayedAt: now,
+            bannerUrl: meta.bannerUrl || null,
             firstSeenAt: now,
-            totalSessions: 1,
-            uniquePlayersCount: 1,
-            uniquePlayerIds: [userId],
-            recentPlayers: [playerInfo]
+            lastPlayedAt: now,
+            totalSessions: 1
           });
         }
       } catch (err) {}
@@ -196,15 +190,16 @@ const recordGameActivities = async (memberActivities, member) => {
   }
 };
 
+// Routine to purge UserGameActivityLog entries older than 7 days
 const pruneOldGameActivities = async () => {
   try {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const result = await GameActivity.deleteMany({ lastPlayedAt: { $lt: sevenDaysAgo } });
+    const result = await UserGameActivityLog.deleteMany({ recordedAt: { $lt: sevenDaysAgo } });
     if (result.deletedCount > 0) {
-      console.log(`[GameActivity] Pruned ${result.deletedCount} games not played in the last 7 days.`);
+      console.log(`[UserGameActivityLog] Pruned ${result.deletedCount} records older than 7 days.`);
     }
   } catch (err) {
-    console.error('[GameActivity Prune Error]', err.message);
+    console.error('[UserGameActivityLog Prune Error]', err.message);
   }
 };
 
