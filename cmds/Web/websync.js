@@ -45,36 +45,44 @@ function fetchJson(url) {
 
 const CURATED_GAME_METADATA = {
   'minecraft': {
-    bannerUrl: 'https://images.alphacoders.com/132/1322087.jpeg',
+    bannerUrl: 'https://images.igdb.com/igdb/image/upload/t_1080p/co49x5.jpg',
     genreTag: 'Survival / Sandbox'
   },
   'valorant': {
-    bannerUrl: 'https://images.alphacoders.com/115/1152069.png',
+    bannerUrl: 'https://images.igdb.com/igdb/image/upload/t_1080p/co2mvt.jpg',
     genreTag: 'Tactical Shooter'
   },
   'league of legends': {
-    bannerUrl: 'https://images.alphacoders.com/665/665090.jpg',
+    bannerUrl: 'https://images.igdb.com/igdb/image/upload/t_1080p/co49wj.jpg',
     genreTag: 'MOBA Strategy'
   },
   'genshin impact': {
-    bannerUrl: 'https://images.alphacoders.com/112/1127022.jpg',
+    bannerUrl: 'https://images.igdb.com/igdb/image/upload/t_1080p/co2040.jpg',
     genreTag: 'Action RPG / Open World'
   },
   'roblox': {
-    bannerUrl: 'https://images.alphacoders.com/114/1144078.jpg',
+    bannerUrl: 'https://images.igdb.com/igdb/image/upload/t_1080p/co2k0z.jpg',
     genreTag: 'Community / Custom Games'
   },
-  'fortnite': {
-    bannerUrl: 'https://images.alphacoders.com/909/909980.jpg',
-    genreTag: 'Battle Royale'
+  'counter-strike 2': {
+    bannerUrl: 'https://cdn.akamai.steamstatic.com/steam/apps/730/library_hero.jpg',
+    genreTag: 'Competitive Tactical FPS'
   },
-  'osu!': {
-    bannerUrl: 'https://images.alphacoders.com/989/989531.png',
-    genreTag: 'Rhythm Game'
+  'grand theft auto v': {
+    bannerUrl: 'https://cdn.akamai.steamstatic.com/steam/apps/271590/library_hero.jpg',
+    genreTag: 'Open World Action'
   },
-  'overwatch 2': {
-    bannerUrl: 'https://cdn.akamai.steamstatic.com/steam/apps/2357570/library_hero.jpg',
-    genreTag: 'Hero Shooter'
+  'apex legends': {
+    bannerUrl: 'https://cdn.akamai.steamstatic.com/steam/apps/1172470/library_hero.jpg',
+    genreTag: 'Battle Royale Hero Shooter'
+  },
+  'dota 2': {
+    bannerUrl: 'https://cdn.akamai.steamstatic.com/steam/apps/570/library_hero.jpg',
+    genreTag: 'MOBA Strategy'
+  },
+  'cyberpunk 2077': {
+    bannerUrl: 'https://cdn.akamai.steamstatic.com/steam/apps/1091500/library_hero.jpg',
+    genreTag: 'Sci-Fi RPG'
   }
 };
 
