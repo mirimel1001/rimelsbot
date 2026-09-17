@@ -386,7 +386,8 @@
         "Single-Bracket Chat Bypass: Added support for single leading or trailing brackets (e.g. `(message` or `message)`) in counting channels to bypass conversation deletion filters.",
         "Mention Notification Fix: Configured client allowedMentions to include parse: ['users', 'roles'], enabling audible and push notifications for user tags.",
         "SQL Query Optimization: Resolved count activity query errors by ordering records by created_at timestamp.",
-        "Mongoose Schema Cleanup: Removed duplicate schema index definitions on UserGameActivityLog TTL expiration."
+        "Mongoose Schema Cleanup: Removed duplicate schema index definitions on UserGameActivityLog TTL expiration.",
+        "UTF-8 Character Encoding: Restored clean UTF-8 encoding across counting handler warnings and reactions to eliminate mojibake/garbled characters."
       ]
     }
   ],
