@@ -36,12 +36,13 @@ const handleCountMessage = async (client, message) => {
     try {
       const rawText = message.content.trim();
 
-      // Check if message is wrapped in parentheses, brackets, braces, or starts with double slash (Chat Bypass)
-      // e.g. (chat here), [chat here], {chat here}, or // chat here
+
+      // Check if message is wrapped or prefixed/suffixed with parentheses, brackets, braces, or starts with double slash (Chat Bypass)
+      // e.g. (chat), (chat, chat), [chat], {chat}, // chat
       const isBracketedChat = (
-        (rawText.startsWith('(') && rawText.endsWith(')')) ||
-        (rawText.startsWith('[') && rawText.endsWith(']')) ||
-        (rawText.startsWith('{') && rawText.endsWith('}')) ||
+        rawText.startsWith('(') || rawText.endsWith(')') ||
+        rawText.startsWith('[') || rawText.endsWith(']') ||
+        rawText.startsWith('{') || rawText.endsWith('}') ||
         rawText.startsWith('//')
       );
 
@@ -68,7 +69,7 @@ const handleCountMessage = async (client, message) => {
           if (now - lastWarn > 8000) {
             warningCooldowns.set(warnKey, now);
             const warnMsg = await message.channel.send(
-              `⚠️ ${message.author}, this channel is for counting only! Use brackets like \`(your message)\` to talk without getting deleted.\n-# *This message will self destruct in 30 seconds*`
+              `Ã¢Å¡Â Ã¯Â¸Â ${message.author}, this channel is for counting only! Use brackets like \`(your message)\` to talk without getting deleted.\n-# *This message will self destruct in 30 seconds*`
             ).catch(() => null);
 
             if (warnMsg) {
@@ -92,7 +93,7 @@ const handleCountMessage = async (client, message) => {
         if (activity.deleteConsecutive) {
           await message.delete().catch(() => {});
         } else {
-          await message.react('❌').catch(() => {});
+          await message.react('Ã¢ÂÅ’').catch(() => {});
         }
 
         // Send throttled self-deleting warning
@@ -103,7 +104,7 @@ const handleCountMessage = async (client, message) => {
         if (now - lastWarn > 8000) {
           warningCooldowns.set(warnKey, now);
           const warnMsg = await message.channel.send(
-            `⚠️ ${message.author} we do counting together 😠\n-# *This message will self destruct in 30 seconds*`
+            `Ã¢Å¡Â Ã¯Â¸Â ${message.author} we do counting together Ã°Å¸ËœÂ \n-# *This message will self destruct in 30 seconds*`
           ).catch(() => null);
 
           if (warnMsg) {
@@ -128,13 +129,13 @@ const handleCountMessage = async (client, message) => {
             client.countActivities.set(activity.channelId, activity);
           }
 
-          await message.react('💥').catch(() => {});
-          await message.channel.send(`❌ ${message.author} not the right number bud 😅 You ruined the count at **${ruinedCount}**! The count has been reset back to **0** (Next expected: **1**).`).catch(() => {});
+          await message.react('Ã°Å¸â€™Â¥').catch(() => {});
+          await message.channel.send(`Ã¢ÂÅ’ ${message.author} not the right number bud Ã°Å¸Ëœâ€¦ You ruined the count at **${ruinedCount}**! The count has been reset back to **0** (Next expected: **1**).`).catch(() => {});
           return true;
         } else {
-          // Non-Strict Mode: Delete wrong number or react ❌
+          // Non-Strict Mode: Delete wrong number or react Ã¢ÂÅ’
           await message.delete().catch(() => {
-            message.react('❌').catch(() => {});
+            message.react('Ã¢ÂÅ’').catch(() => {});
           });
 
           // Throttled self-deleting warning
@@ -145,7 +146,7 @@ const handleCountMessage = async (client, message) => {
           if (now - lastWarn > 6000) {
             warningCooldowns.set(warnKey, now);
             const warnMsg = await message.channel.send(
-              `⚠️ ${message.author} not the right number bud 😅 Next expected count is **${expectedNumber}**.\n-# *This message will self destruct in 30 seconds*`
+              `Ã¢Å¡Â Ã¯Â¸Â ${message.author} not the right number bud Ã°Å¸Ëœâ€¦ Next expected count is **${expectedNumber}**.\n-# *This message will self destruct in 30 seconds*`
             ).catch(() => null);
 
             if (warnMsg) {
@@ -166,7 +167,7 @@ const handleCountMessage = async (client, message) => {
       }
 
       // React with confirmation emoji
-      await message.react(activity.reactionEmoji || '✅').catch(() => {});
+      await message.react(activity.reactionEmoji || 'Ã¢Å“â€¦').catch(() => {});
 
       await saveCountActivity(activity);
       if (client.countActivities) {

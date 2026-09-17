@@ -174,7 +174,7 @@ const client = new Client({
     GatewayIntentBits.GuildMembers
   ],
   partials: [Partials.Channel, Partials.Message, Partials.User],
-  allowedMentions: { repliedUser: false }
+  allowedMentions: { parse: ['users', 'roles'], repliedUser: false }
 });
 
 client.commands = new Collection();

@@ -377,6 +377,17 @@
         "Rimeverse Rebranding: Refreshed Web Dashboard branding, favicons, metadata, and high-res logos to match Rimeverse standards.",
         "Legacy Cleanup: Fully removed the deprecated Genshin Impact countdown (gpc) command and module."
       ]
+    },
+    {
+      "version": "2.3.1",
+      "date": "2026-09-17",
+      "title": "Counting Engine Polish & Notification Fixes",
+      "items": [
+        "Single-Bracket Chat Bypass: Added support for single leading or trailing brackets (e.g. `(message` or `message)`) in counting channels to bypass conversation deletion filters.",
+        "Mention Notification Fix: Configured client allowedMentions to include parse: ['users', 'roles'], enabling audible and push notifications for user tags.",
+        "SQL Query Optimization: Resolved count activity query errors by ordering records by created_at timestamp.",
+        "Mongoose Schema Cleanup: Removed duplicate schema index definitions on UserGameActivityLog TTL expiration."
+      ]
     }
   ],
   "commands": [
