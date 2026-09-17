@@ -336,7 +336,7 @@ const getAllActivityRoles = async () => {
     const dbPool = getPool();
     const [rows] = await dbPool.query('SELECT * FROM activity_roles');
     return rows.map(row => ({
-      id: row.id,
+      id: row.activity_id || row.id,
       guildId: row.guild_id,
       roleId: row.role_id,
       name: row.name,
@@ -462,7 +462,7 @@ const toggleDmEnabledUser = async (guildId, userId) => {
 const mapCountRow = (row) => {
   if (!row) return null;
   return {
-    id: row.id,
+    id: row.activity_id || row.id,
     activityId: row.activity_id,
     guildId: row.guild_id,
     channelId: row.channel_id,
@@ -508,7 +508,7 @@ const getCountActivitiesByGuild = async (guildId) => {
   if (!pool) return [];
   try {
     const dbPool = getPool();
-    const [rows] = await dbPool.query('SELECT * FROM count_activities WHERE guild_id = ? ORDER BY id ASC', [guildId]);
+    const [rows] = await dbPool.query('SELECT * FROM count_activities WHERE guild_id = ? ORDER BY created_at ASC', [guildId]);
     return rows.map(mapCountRow);
   } catch (err) {
     console.error('[MySQL Error] Failed to get count activities by guild:', err.message);

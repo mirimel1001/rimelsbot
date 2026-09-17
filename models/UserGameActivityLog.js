@@ -7,7 +7,7 @@ const UserGameActivityLogSchema = new mongoose.Schema({
   avatarUrl: { type: String },
   gameName: { type: String, required: true, index: true },
   state: { type: String, default: "" },
-  recordedAt: { type: Date, default: Date.now, index: true }
+  recordedAt: { type: Date, default: Date.now }
 }, { timestamps: true });
 
 // Auto-delete records older than 7 days using MongoDB TTL index
