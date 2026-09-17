@@ -286,16 +286,6 @@
       ]
     },
     {
-      "version": "2.2.2",
-      "date": "2026-06-27",
-      "title": "Web Presence Enhancements & DM Stability",
-      "items": [
-        "Role Hierarchy Position: Updated presence schema and sync scripts to store role hierarchy ranks, enabling correct role sorting in the web presence database.",
-        "Custom Activity & Emotes: Patched web presence sync to accurately capture status emotes and live custom activities.",
-        "DM Message Routing Fixes: Resolved silent errors handling partial messages in DMs and enabled direct DM notifications to bot owners upon startup."
-      ]
-    },
-    {
       "version": "2.2.3",
       "date": "2026-07-02",
       "title": "Cloud-Native Settings, WebSync Change Streams, & Expiration Fixes",
@@ -370,6 +360,22 @@
         "Auto-Remove Option: Added the ability to automatically strip activity roles if a user falls below the message count threshold (rr/removerole).",
         "DM Alerts Command: Added 'ar dm' and 'ar pm' commands for members to toggle direct message notifications explaining role removals.",
         "Sweeper Optimization: Added a periodic sweeping task that fetches exact role memberships directly from Discord APIs, resolving cache limitations."
+      ]
+    },
+    {
+      "version": "2.3.0",
+      "date": "2026-09-17",
+      "title": "MySQL Multi-Channel Counting & Web Dashboard Overhaul",
+      "items": [
+        "New Feature: Multi-channel dynamic counting activities engine allowing unlimited concurrent counting sessions per server with direct MySQL persistence (count_activities).",
+        "Interactive Warnings: Added context-aware throttled alerts (\"we do counting together 😠\", \"not the right number bud 😅\") when rules are broken.",
+        "Auto-Cleaning Timers: Embedded warnings, conversation purges, and query embeds now automatically self-destruct after 30 seconds to preserve channel cleanliness.",
+        "Chat Bypass: Added bracketed conversation support (e.g. (chat here), [message], // notes) to talk without getting filtered by deletechat.",
+        "On-Demand Status (showlast/sl): Added on-demand \"count showlast\" (aliases: sl, last) to check the current count, high score, and next expected number.",
+        "Granular Configuration: Full support for Strict Mode (resets to 0 upon mistake), Consecutive Message blocking (cm), Duplicate Deletions (cmd), and Custom Reaction Emojis.",
+        "Web Dashboard Integration: Added Counting Activities management tab with CRUD controls and dashboard access permission toggling (countingActivities).",
+        "Rimeverse Rebranding: Refreshed Web Dashboard branding, favicons, metadata, and high-res logos to match Rimeverse standards.",
+        "Legacy Cleanup: Fully removed the deprecated Genshin Impact countdown (gpc) command and module."
       ]
     }
   ],
@@ -473,15 +479,6 @@
       "usage": "gamechannel [#channel | clear]",
       "description": "Sets a dedicated channel for minigames.\n\n🔹 **Variables:**\n• **[#channel]** - Mention the text channel to restrict games to.\n• **clear** - Removes the restriction, allowing games anywhere.",
       "category": "minigames"
-    },
-    {
-      "name": "genshinpatchcountdown",
-      "aliases": [
-        "gpc"
-      ],
-      "usage": "genshinpatchcountdown",
-      "description": "Get the countdown for the upcoming Genshin Impact patch/banner.",
-      "category": "GenshinInpact"
     },
     {
       "name": "give-money",
@@ -702,6 +699,15 @@
       "usage": "withdraw <amount or all>",
       "description": "Withdraw money from your bank.",
       "category": "Economy"
+    },
+    {
+      "name": "count",
+      "aliases": [
+        "counting"
+      ],
+      "usage": "count setup | list | showlast (sl) | create [name] [#channel] | edit [name/id] [setting] [value] | status [name/id] | delete [name/id]",
+      "description": "Create, configure, and manage dynamic series counting games in any channel.\n\n⚙️ **Commands & Subcommands:**\n• `showlast` (or `sl`) - Display the last valid count, high score, and next number (auto-deletes in 30s).\n• `setup` - View setup guide and configuration options.\n• `list` - View all active counting channels in the server.\n• `create [name] [#channel]` - Initialize a new counting channel.\n• `status [name/id]` - View active settings and stats for an activity.\n• `edit [name/id] strict [true/false]` - Mistakes reset counter back to 0.\n• `edit [name/id] [number]` - Set/resume current count number.\n• `edit [name/id] cm [true/false]` - Allow same user to count consecutively.\n• `edit [name/id] cmd [true/false]` - Auto-delete duplicate consecutive attempts.\n• `edit [name/id] reaction [emoji]` - Custom confirmation emoji.\n• `edit [name/id] deletechat [true/false]` - Purge casual chat (bypass with brackets).\n• `delete [name/id]` - Remove a counting activity.",
+      "category": "minigames"
     }
   ]
 }

@@ -192,6 +192,7 @@ client.arConfigs = new Map();
 client.arCooldowns = new Map();
 client.arMessageCounts = new Map();
 client.arDmEnabledUsers = new Map();
+client.countActivities = new Map();
 
 const notifyUserDm = async (member, role, guild, reqMsgs) => {
   const dmUsers = client.arDmEnabledUsers.get(guild.id) || [];
@@ -406,6 +407,19 @@ const loadCaches = async () => {
     dmUsersMap.forEach((users, gid) => {
       client.arDmEnabledUsers.set(gid, users);
     });
+
+    
+    // Load Counting Activities from MySQL
+    try {
+      const { getAllCountActivities } = require('./utils/mysql.js');
+      const countActs = await getAllCountActivities();
+      countActs.forEach(act => {
+        client.countActivities.set(act.channelId, act);
+      });
+      console.log(`[Cache] Synchronized ${countActs.length} active counting activities from MySQL.`);
+    } catch (countErr) {
+      console.error('[Count Cache Error]', countErr.message);
+    }
 
     console.log(`[Cache] Synchronized ${guilds.length} guilds and ${tokens.length} custom tokens.`);
   } catch (err) { console.error('[Cache Error]', err.message); }
@@ -822,6 +836,14 @@ client.on('messageCreate', async (message) => {
   // Use NameGuesser DM Handler
   const nameguesserHandled = await dmhandler_nameguesser(client, message, prefix, getConfig);
   if (nameguesserHandled) return;
+
+  // Handle Dynamic Counting Channels (only for non-command messages or if in counting channel)
+  const isCommandStart = message.content.toLowerCase().startsWith(prefix.toLowerCase());
+  if (!isCommandStart) {
+    const { handleCountMessage } = require('./utils/countHandler.js');
+    const countHandled = await handleCountMessage(client, message);
+    if (countHandled) return;
+  }
 
   if (!message.content.toLowerCase().startsWith(prefix.toLowerCase())) return;
 

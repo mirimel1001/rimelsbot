@@ -71,6 +71,32 @@ const initMySQL = async () => {
       )
     `);
     console.log('[MySQL] Verified ar_dm_users table structure.');
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS count_activities (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        activity_id VARCHAR(20) NOT NULL UNIQUE,
+        guild_id VARCHAR(30) NOT NULL,
+        channel_id VARCHAR(30) NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        current_number INT DEFAULT 0,
+        last_user_id VARCHAR(30) DEFAULT NULL,
+        last_bot_message_id VARCHAR(30) DEFAULT NULL,
+        high_score INT DEFAULT 0,
+        strict_mode BOOLEAN DEFAULT FALSE,
+        allow_consecutive BOOLEAN DEFAULT FALSE,
+        delete_consecutive BOOLEAN DEFAULT TRUE,
+        reaction_emoji VARCHAR(100) DEFAULT '✅',
+        delete_chat BOOLEAN DEFAULT FALSE,
+        show_last BOOLEAN DEFAULT FALSE,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_guild_channel (guild_id, channel_id),
+        INDEX idx_channel (channel_id)
+      )
+    `);
+    console.log('[MySQL] Verified count_activities table structure.');
     
     connection.release();
     return pool;
@@ -429,6 +455,180 @@ const toggleDmEnabledUser = async (guildId, userId) => {
   }
 };
 
+
+/**
+ * Map raw MySQL row to camelCase count activity object
+ */
+const mapCountRow = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    activityId: row.activity_id,
+    guildId: row.guild_id,
+    channelId: row.channel_id,
+    name: row.name,
+    currentNumber: Number(row.current_number) || 0,
+    lastUserId: row.last_user_id,
+    lastBotMessageId: row.last_bot_message_id,
+    highScore: Number(row.high_score) || 0,
+    strictMode: Boolean(row.strict_mode),
+    allowConsecutive: Boolean(row.allow_consecutive),
+    deleteConsecutive: Boolean(row.delete_consecutive),
+    reactionEmoji: row.reaction_emoji || '✅',
+    deleteChat: Boolean(row.delete_chat),
+    showLast: Boolean(row.show_last),
+    isActive: Boolean(row.is_active),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+};
+
+/**
+ * Get all active counting activities across all servers
+ * @returns {Promise<Array>}
+ */
+const getAllCountActivities = async () => {
+  if (!pool) return [];
+  try {
+    const dbPool = getPool();
+    const [rows] = await dbPool.query('SELECT * FROM count_activities WHERE is_active = TRUE');
+    return rows.map(mapCountRow);
+  } catch (err) {
+    console.error('[MySQL Error] Failed to get all count activities:', err.message);
+    return [];
+  }
+};
+
+/**
+ * Get all counting activities for a specific guild
+ * @param {string} guildId 
+ * @returns {Promise<Array>}
+ */
+const getCountActivitiesByGuild = async (guildId) => {
+  if (!pool) return [];
+  try {
+    const dbPool = getPool();
+    const [rows] = await dbPool.query('SELECT * FROM count_activities WHERE guild_id = ? ORDER BY id ASC', [guildId]);
+    return rows.map(mapCountRow);
+  } catch (err) {
+    console.error('[MySQL Error] Failed to get count activities by guild:', err.message);
+    return [];
+  }
+};
+
+/**
+ * Get counting activity by channel ID
+ * @param {string} channelId 
+ * @returns {Promise<Object|null>}
+ */
+const getCountActivityByChannel = async (channelId) => {
+  if (!pool) return null;
+  try {
+    const dbPool = getPool();
+    const [rows] = await dbPool.query('SELECT * FROM count_activities WHERE channel_id = ? AND is_active = TRUE LIMIT 1', [channelId]);
+    return rows.length > 0 ? mapCountRow(rows[0]) : null;
+  } catch (err) {
+    console.error('[MySQL Error] Failed to get count activity by channel:', err.message);
+    return null;
+  }
+};
+
+/**
+ * Find counting activity in guild by Activity ID, Name, or Channel ID
+ * @param {string} guildId 
+ * @param {string} target 
+ * @returns {Promise<Object|null>}
+ */
+const findCountActivity = async (guildId, target) => {
+  if (!pool || !target) return null;
+  try {
+    const dbPool = getPool();
+    const cleanTarget = target.replace(/[<#>]/g, '').toLowerCase();
+    const [rows] = await dbPool.query(
+      `SELECT * FROM count_activities 
+       WHERE guild_id = ? AND (LOWER(activity_id) = ? OR LOWER(name) = ? OR channel_id = ?)
+       LIMIT 1`,
+      [guildId, cleanTarget, cleanTarget, cleanTarget]
+    );
+    return rows.length > 0 ? mapCountRow(rows[0]) : null;
+  } catch (err) {
+    console.error('[MySQL Error] Failed to find count activity:', err.message);
+    return null;
+  }
+};
+
+/**
+ * Save or update counting activity in MySQL
+ * @param {Object} act 
+ * @returns {Promise<Object>}
+ */
+const saveCountActivity = async (act) => {
+  if (!pool) return act;
+  try {
+    const dbPool = getPool();
+    await dbPool.query(
+      `INSERT INTO count_activities (
+        activity_id, guild_id, channel_id, name,
+        current_number, last_user_id, last_bot_message_id, high_score,
+        strict_mode, allow_consecutive, delete_consecutive,
+        reaction_emoji, delete_chat, show_last, is_active
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        name = VALUES(name),
+        channel_id = VALUES(channel_id),
+        current_number = VALUES(current_number),
+        last_user_id = VALUES(last_user_id),
+        last_bot_message_id = VALUES(last_bot_message_id),
+        high_score = VALUES(high_score),
+        strict_mode = VALUES(strict_mode),
+        allow_consecutive = VALUES(allow_consecutive),
+        delete_consecutive = VALUES(delete_consecutive),
+        reaction_emoji = VALUES(reaction_emoji),
+        delete_chat = VALUES(delete_chat),
+        show_last = VALUES(show_last),
+        is_active = VALUES(is_active)`,
+      [
+        act.activityId,
+        act.guildId,
+        act.channelId,
+        act.name,
+        act.currentNumber || 0,
+        act.lastUserId || null,
+        act.lastBotMessageId || null,
+        act.highScore || 0,
+        act.strictMode ? 1 : 0,
+        act.allowConsecutive ? 1 : 0,
+        act.deleteConsecutive ? 1 : 0,
+        act.reactionEmoji || '✅',
+        act.deleteChat ? 1 : 0,
+        act.showLast ? 1 : 0,
+        act.isActive !== false ? 1 : 0
+      ]
+    );
+    return act;
+  } catch (err) {
+    console.error('[MySQL Error] Failed to save count activity:', err.message);
+    throw err;
+  }
+};
+
+/**
+ * Delete counting activity from MySQL
+ * @param {string} activityId 
+ * @returns {Promise<boolean>}
+ */
+const deleteCountActivity = async (activityId) => {
+  if (!pool) return false;
+  try {
+    const dbPool = getPool();
+    await dbPool.query('DELETE FROM count_activities WHERE activity_id = ?', [activityId]);
+    return true;
+  } catch (err) {
+    console.error('[MySQL Error] Failed to delete count activity:', err.message);
+    return false;
+  }
+};
+
 module.exports = {
   initMySQL,
   logMessageActivity,
@@ -445,5 +645,11 @@ module.exports = {
   saveActivityRole,
   deleteActivityRole,
   getAllDmEnabledUsers,
-  toggleDmEnabledUser
+  toggleDmEnabledUser,
+  getAllCountActivities,
+  getCountActivitiesByGuild,
+  getCountActivityByChannel,
+  findCountActivity,
+  saveCountActivity,
+  deleteCountActivity
 };
